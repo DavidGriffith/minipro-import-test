@@ -41,7 +41,7 @@ sudo yum install gcc make pkgconfig git libusbx-devel
 
 ### Checkout source code and compile 
 ```nohighlight
-git clone https://github.com/vdudouyt/minipro.git
+git clone git@gitlab.com:DavidGriffith/minipro.git
 cd minipro
 make
 sudo make install
@@ -136,7 +136,7 @@ port install libusb
 ```
 ### Checkout source code and compile
 ```nohighlight
-git clone https://github.com/vdudouyt/minipro.git
+git clone git@gitlab.com:DavidGriffith/minipro.git
 cd minipro
 make
 sudo make install
