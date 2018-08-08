@@ -243,11 +243,17 @@ void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *ou
 
 	// Firmware
 	out->firmware = load_int(&(buf[4]), 2, MP_LITTLE_ENDIAN);
-	if(out->firmware < MP_FIRMWARE_VERSION) {
-		fprintf(stderr, "Warning: Firmware is out of date.");
-		fprintf(stderr, "  Latest known version is %s.\n", MP_FIRMWARE_STRING);
-	}
 	sprintf(out->firmware_str, "%02d.%d.%d", buf[39], buf[5], buf[4]);
+
+	if(out->firmware < MP_FIRMWARE_VERSION) {
+		fprintf(stderr, "Warning: Firmware is out of date.\n");
+		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING, MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Found     %s (%#03x)\n", out->firmware_str, out->firmware);
+	} else if (out->firmware > MP_FIRMWARE_VERSION) {
+		fprintf(stderr, "Warning: Firmware is newer than expected.\n");
+		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING, MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Found     %s (%#03x)\n", out->firmware_str, out->firmware);
+	}
 }
 
 void minipro_prepare_writing(minipro_handle_t *handle) {
