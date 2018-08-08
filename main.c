@@ -47,6 +47,17 @@ struct {
 	int idcheck_only;
 } cmdopts;
 
+void print_version_and_exit(int rv) {
+	char output[] =
+		"minipro version %s     A free and open TL866XX programmer\n"
+//		"Build:\t\t%s\n"
+		"Git commit:\t%s\n"
+		"Git tag:\t%s\n"
+		"Git branch:\t%s\n";
+	fprintf(rv ? stderr : stdout, output, VERSION, GIT_HASH, GIT_TAG, GIT_BRANCH);
+	exit(rv);
+}
+
 void print_help_and_exit(char *progname, int rv) {
 	char usage[] =
 		"minipro version %s     A free and open TL866XX programmer\n"
@@ -69,6 +80,7 @@ void print_help_and_exit(char *progname, int rv) {
 		"	-S		No warning message for file size mismatch (can't combine with -s)\n"
 		"	-x		Do NOT attempt to read ID (only valid in read mode)\n"
 		"	-y		Do NOT error on ID mismatch\n"
+		"	-V		Show version information\n"
 		"	-h		Show help (this text)\n";
 	fprintf(rv ? stderr : stdout, usage, VERSION, basename(progname));
 	exit(rv);
@@ -95,7 +107,7 @@ void parse_cmdline(int argc, char **argv) {
 	int8_t c;
 	memset(&cmdopts, 0, sizeof(cmdopts));
 
-	while((c = getopt(argc, argv, "leuPvxyr:w:p:c:iIsShd")) != -1) {
+	while((c = getopt(argc, argv, "leuPvxyr:w:p:c:iIsSVhd")) != -1) {
 		switch(c) {
 			case 'l':
 				print_devices_and_exit();
@@ -171,6 +183,10 @@ void parse_cmdline(int argc, char **argv) {
 
 			case 'h':
 				print_help_and_exit(argv[0], 0);
+				break;
+
+			case 'V':
+				print_version_and_exit(0);
 				break;
 
 			default:
