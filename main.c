@@ -50,11 +50,11 @@ struct {
 void print_version_and_exit(int rv) {
 	char output[] =
 		"minipro version %s     A free and open TL866XX programmer\n"
-//		"Build:\t\t%s\n"
+		"Build:\t\t%s\n"
 		"Git commit:\t%s\n"
 		"Git tag:\t%s\n"
 		"Git branch:\t%s\n";
-	fprintf(rv ? stderr : stdout, output, VERSION, GIT_HASH, GIT_TAG, GIT_BRANCH);
+	fprintf(rv ? stderr : stdout, output, GIT_TAG, build_timestamp, GIT_HASH, GIT_TAG, GIT_BRANCH);
 	exit(rv);
 }
 
@@ -82,7 +82,7 @@ void print_help_and_exit(char *progname, int rv) {
 		"	-y		Do NOT error on ID mismatch\n"
 		"	-V		Show version information\n"
 		"	-h		Show help (this text)\n";
-	fprintf(rv ? stderr : stdout, usage, VERSION, basename(progname));
+	fprintf(rv ? stderr : stdout, usage, GIT_TAG, basename(progname));
 	exit(rv);
 }
 
