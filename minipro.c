@@ -214,11 +214,20 @@ void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t len
 }
 
 void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out) {
-	unsigned char buf[40];
+	unsigned char buf[44];
+	int bytes_transferred;
+	int ret;
+
 	memset(msg, 0x0, 5);
 	msg[0] = MP_GET_SYSTEM_INFO;
 	msg_send(handle, msg, 5);
-	msg_recv(handle, buf, 40);
+
+	ret = libusb_claim_interface(handle->usb_handle, 0);
+	if(ret != 0) ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
+	ret = libusb_bulk_transfer(handle->usb_handle, (1 | LIBUSB_ENDPOINT_IN), buf, 44, &bytes_transferred, 0);
+	if (ret != 0 || !(bytes_transferred == 40 || bytes_transferred == 44) ) ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
+	ret = libusb_release_interface(handle->usb_handle, 0);
+	if(ret != 0) ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
 
 	// Protocol version
 	switch(out->protocol = buf[1]) {

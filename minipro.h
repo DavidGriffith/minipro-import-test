@@ -35,7 +35,7 @@
  * Version	Program		Date		Version
  * String	Version		Date		ID
  *
- * 3.2.85	6.82		Jul 14, 2018
+ * 3.2.85	6.82		Jul 14, 2018	0x0255
  * 3.2.82	6.71		Apr 17, 2018	0x0252
  * 3.2.81	6.70		Mar  7, 2018	0x0251
  * 3.2.80	6.60		May  9, 2017	0x0250
@@ -56,8 +56,8 @@
 #define MP_TL866A 1
 #define MP_TL866CS 2
 
-#define MP_FIRMWARE_VERSION 0x0252
-#define MP_FIRMWARE_STRING "03.2.82"
+#define MP_FIRMWARE_VERSION 0x0255
+#define MP_FIRMWARE_STRING "03.2.85"
 
 #define MP_REQUEST_STATUS1_MSG1 0x03
 #define MP_REQUEST_STATUS1_MSG2 0xfe
