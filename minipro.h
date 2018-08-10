@@ -91,6 +91,22 @@
 
 #include "database.h"
 
+typedef struct minipro_report_info {
+	unsigned char echo;
+	unsigned char device_status;
+	unsigned short report_size;
+	unsigned char firmware_version_minor;
+	unsigned char firmware_version_major;
+	unsigned char device_version;
+	unsigned char device_code[8];
+	unsigned char serial_number[24];
+	unsigned char hardware_version;
+	unsigned char b0;
+	unsigned char b1;
+	unsigned char b2;
+	unsigned char b3;
+} minipro_report_info_t;
+
 typedef struct minipro_system_info {
 	unsigned char protocol;
 	unsigned char model;

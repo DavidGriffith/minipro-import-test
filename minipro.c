@@ -215,6 +215,7 @@ void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t len
 
 void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out) {
 	unsigned char buf[44];
+	minipro_report_info_t *info;
 	int bytes_transferred;
 	int ret;
 
@@ -222,15 +223,29 @@ void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *ou
 	msg[0] = MP_GET_SYSTEM_INFO;
 	msg_send(handle, msg, 5);
 
+	memset(&info, 0, sizeof(minipro_report_info_t));
+	memset(&buf, 0, sizeof(minipro_report_info_t));
+
 	ret = libusb_claim_interface(handle->usb_handle, 0);
 	if(ret != 0) ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
-	ret = libusb_bulk_transfer(handle->usb_handle, (1 | LIBUSB_ENDPOINT_IN), buf, 44, &bytes_transferred, 0);
-	if (ret != 0 || !(bytes_transferred == 40 || bytes_transferred == 44) ) ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
+	ret = libusb_bulk_transfer(handle->usb_handle,
+		(1 | LIBUSB_ENDPOINT_IN),
+		buf,
+		(int) sizeof(minipro_report_info_t),
+		&bytes_transferred, 0);
+
+	info = (minipro_report_info_t *) buf;
+
+	if (!(bytes_transferred == sizeof(minipro_report_info_t) || bytes_transferred == sizeof(minipro_report_info_t) - 4))
+		ERROR2("IO error: expected %zu bytes or %zu bytes but %d bytes transferred\n", sizeof(minipro_report_info_t) - 4, sizeof(minipro_report_info_t), bytes_transferred);
+
+	if (ret != 0) ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
 	ret = libusb_release_interface(handle->usb_handle, 0);
+
 	if(ret != 0) ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
 
 	// Protocol version
-	switch(out->protocol = buf[1]) {
+	switch(out->protocol = info->device_status) {
 		case 1:
 		case 2:
 			break;
@@ -239,7 +254,7 @@ void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *ou
 	}
 
 	// Model
-	switch(out->protocol = buf[6]) {
+	switch(out->protocol = info->device_version) {
 		case MP_TL866A:
 			out->model_str = "TL866A";
 			break;
@@ -251,8 +266,8 @@ void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *ou
 	}
 
 	// Firmware
-	out->firmware = load_int(&(buf[4]), 2, MP_LITTLE_ENDIAN);
-	sprintf(out->firmware_str, "%02d.%d.%d", buf[39], buf[5], buf[4]);
+	out->firmware = load_int(&info->firmware_version_minor, 2, MP_LITTLE_ENDIAN);
+	sprintf(out->firmware_str, "%02d.%d.%d", info->hardware_version, info->firmware_version_major, info->firmware_version_minor);
 
 	if(out->firmware < MP_FIRMWARE_VERSION) {
 		fprintf(stderr, "Warning: Firmware is out of date.\n");
