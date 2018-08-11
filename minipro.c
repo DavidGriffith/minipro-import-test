@@ -214,27 +214,23 @@ void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t len
 }
 
 void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out) {
-	unsigned char buf[44];
 	minipro_report_info_t *info;
 	int bytes_transferred;
 	int ret;
+
+	info = malloc(sizeof(minipro_report_info_t));
 
 	memset(msg, 0x0, 5);
 	msg[0] = MP_GET_SYSTEM_INFO;
 	msg_send(handle, msg, 5);
 
-	memset(&info, 0, sizeof(minipro_report_info_t));
-	memset(&buf, 0, sizeof(minipro_report_info_t));
-
 	ret = libusb_claim_interface(handle->usb_handle, 0);
 	if(ret != 0) ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
 	ret = libusb_bulk_transfer(handle->usb_handle,
 		(1 | LIBUSB_ENDPOINT_IN),
-		buf,
+		(unsigned char *)info,
 		(int) sizeof(minipro_report_info_t),
 		&bytes_transferred, 0);
-
-	info = (minipro_report_info_t *) buf;
 
 	if (!(bytes_transferred == sizeof(minipro_report_info_t) || bytes_transferred == sizeof(minipro_report_info_t) - 4))
 		ERROR2("IO error: expected %zu bytes or %zu bytes but %d bytes transferred\n", sizeof(minipro_report_info_t) - 4, sizeof(minipro_report_info_t), bytes_transferred);
