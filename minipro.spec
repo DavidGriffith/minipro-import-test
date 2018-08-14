@@ -39,7 +39,6 @@ install -D -p -m 0644 bash_completion.d/minipro %{buildroot}/%{_sysconfdir}/bash
 %license LICENSE
 %doc README.md
 %{_bindir}/minipro
-%{_bindir}/minipro-query-db
 %{_bindir}/miniprohex
 %{_mandir}/man1/%{name}.*
 %{_udevrulesdir}/80-minipro.rules

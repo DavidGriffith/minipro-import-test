@@ -37,10 +37,9 @@ ifeq ($(PKG_CONFIG),)
 endif
 
 COMMON_OBJECTS=byte_utils.o database.o minipro.o fuses.o easyconfig.o version.o
-OBJECTS=$(COMMON_OBJECTS) main.o minipro-query-db.o
-PROGS=minipro minipro-query-db
+OBJECTS=$(COMMON_OBJECTS) main.o
+PROGS=minipro
 MINIPRO=minipro
-MINIPRO_QUERY_DB=minipro-query-db
 MINIPROHEX=miniprohex
 TESTS=$(wildcard tests/test_*.c);
 OBJCOPY=objcopy
@@ -83,9 +82,6 @@ $(VERSION_STRINGS):
 minipro: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
 	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
-minipro-query-db: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) minipro-query-db.o
-	$(CC) $(COMMON_OBJECTS) minipro-query-db.o $(LIBS) -o $(MINIPRO_QUERY_DB)
-
 clean:
 	rm -f $(OBJECTS) $(PROGS)
 	rm -f version.h version.c version.o
@@ -97,13 +93,11 @@ install:
 	mkdir -p $(BIN_INSTDIR)
 	mkdir -p $(MAN_INSTDIR)
 	cp $(MINIPRO) $(BIN_INSTDIR)/
-	cp $(MINIPRO_QUERY_DB) $(BIN_INSTDIR)/
 	cp $(MINIPROHEX) $(BIN_INSTDIR)/
 	cp man/minipro.1 $(MAN_INSTDIR)/
 
 uninstall:
 	rm -f $(BIN_INSTDIR)/$(MINIPRO)
-	rm -f $(BIN_INSTDIR)/$(MINIPRO_QUERY_DB)
 	rm -f $(BIN_INSTDIR)/$(MINIPROHEX)
 	rm -f $(MAN_INSTDIR)/minipro.1
 

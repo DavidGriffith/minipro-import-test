@@ -1,4 +1,4 @@
-.TH MINIPRO 1 "20 February 2014 (v0.1)" "Valentin Dudouyt"
+.TH MINIPRO 1 "14 August 2018 (v0.3)"
 .SH NAME
 minipro \- programs various chips using the Minipro TL866XX series of programmers.
 .SH SYNOPSIS
@@ -28,6 +28,22 @@ chips.
 .TP
 .B \-l
 Get a list of supported devices.
+
+.TP
+.B \-L <search>
+List devices beginning with this string.
+
+.TP
+.B \-d <device>
+Show device information.
+
+.TP
+.B \-D
+Just read the chip ID and do nothing else (like reading the whole chip
+contents).  This is for use in scripts where you have for example
+several similar chips with different IDs and want to check if the
+currently inserted chip is one in your list of allowed ones. Also useful
+to detect if a chip is inserted at all when using the -y option.
 
 .TP
 .B \-p <device>
