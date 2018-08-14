@@ -108,9 +108,9 @@ directory tree if it does not exist yet.
 Since minipro does not yet make official releases with version numbers
 and tags, you have to choose a specific git commit to build. Open the
 minipro.spec file and adapt the "commit" and "commitdate" definitions.
-You can get these either with `git log` or from the github project page.
+You can get these either with `git log` or from the Gitlab project page.
 
-Then use these commands to download the source tarballs from github and
+Then use these commands to download the source tarballs from Gitlab and
 build the package:
 
 ```nohighlight
