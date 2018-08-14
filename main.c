@@ -167,6 +167,7 @@ void parse_cmdline(int argc, char **argv) {
 			case 'l':
 				print_devices_and_exit();
 				break;
+
 			case 'L':
 			  cmdopts.device = get_device_by_name(optarg);
 			  for(device = &(devices[0]); device[0].name; device = &(device[1])) {
@@ -176,12 +177,14 @@ void parse_cmdline(int argc, char **argv) {
                           }
 			  exit(0);
 			  break;
+
 			case 'd':
 			  cmdopts.device = get_device_by_name(optarg);
 			  if (!cmdopts.device)
 			    ERROR2("Unknown device: %s\n", optarg);
 			  print_device_info_and_exit(cmdopts.device);
 			  break;
+
 		        case 'e':
 			  cmdopts.no_erase=1;  // 1= do not erase
 			  break;
@@ -213,6 +216,7 @@ void parse_cmdline(int argc, char **argv) {
 				if(!cmdopts.device)
 					ERROR("Unknown device");
 				break;
+
 			case 'c':
 				if(!strcmp(optarg, "code"))
 					cmdopts.page = CODE;
@@ -223,10 +227,12 @@ void parse_cmdline(int argc, char **argv) {
 				if(!cmdopts.page)
 					ERROR("Unknown memory type");
 				break;
+
 			case 'r':
 				cmdopts.action = action_read;
 				cmdopts.filename = optarg;
 				break;
+
 			case 'w':
 				cmdopts.action = action_write;
 				cmdopts.filename = optarg;
@@ -235,6 +241,7 @@ void parse_cmdline(int argc, char **argv) {
 		        case 'i':
 				cmdopts.icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
 				break;
+
 		        case 'I':
 				cmdopts.icsp = MP_ICSP_ENABLE;
 				break;
@@ -243,6 +250,7 @@ void parse_cmdline(int argc, char **argv) {
 			       cmdopts.size_nowarn=1;
 			       cmdopts.size_error=1;
 			       break;
+
 			case 's':
 			        cmdopts.size_error=1;
 				break;
@@ -261,6 +269,7 @@ void parse_cmdline(int argc, char **argv) {
 
 			default:
 				print_help_and_exit(argv[0], -1);
+				break;
 		}
 	}
 }
