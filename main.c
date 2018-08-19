@@ -274,7 +274,7 @@ void parse_cmdline(int argc, char **argv) {
 	}
 }
 
-size_t get_file_size(const char *filename) {
+off_t get_file_size(const char *filename) {
 	FILE *file = fopen(filename, "r");
 	if(!file) {
 		PERROR("Couldn't open file");
