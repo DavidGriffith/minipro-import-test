@@ -55,6 +55,8 @@
 
 #define MP_TL866A 1
 #define MP_TL866CS 2
+#define MP_STATUS_NORMAL 1
+#define MP_STATUS_BOOTLOADER 2
 
 #define MP_FIRMWARE_VERSION 0x0255
 #define MP_FIRMWARE_STRING "03.2.85"
@@ -101,19 +103,9 @@ typedef struct minipro_report_info {
 	unsigned char device_code[8];
 	unsigned char serial_number[24];
 	unsigned char hardware_version;
-	unsigned char b0;
-	unsigned char b1;
-	unsigned char b2;
-	unsigned char b3;
+    unsigned char pad[32];
 } minipro_report_info_t;
 
-typedef struct minipro_system_info {
-	unsigned char protocol;
-	unsigned char model;
-	char *model_str;
-	unsigned int firmware;
-	char firmware_str[16];
-} minipro_system_info_t;
 
 typedef struct minipro_handle {
 	libusb_device_handle *usb_handle;
@@ -135,6 +127,6 @@ int minipro_get_chip_id(minipro_handle_t *handle);
 void minipro_read_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_prepare_writing(minipro_handle_t *handle);
-void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out);
+void minipro_get_system_info(minipro_handle_t  *handle);
 
 #endif

@@ -662,9 +662,7 @@ int main(int argc, char **argv) {
 	handle->icsp = cmdopts.icsp;
 
 	// Printing system info
-	minipro_system_info_t info;
-	minipro_get_system_info(handle, &info);
-	printf("Found Minipro %s v%s (%#03x)\n", info.model_str, info.firmware_str, info.firmware);
+	minipro_get_system_info(handle);
 
 	if (cmdopts.idcheck_only) {
 		minipro_begin_transaction(handle);

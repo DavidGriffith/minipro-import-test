@@ -94,7 +94,6 @@ static unsigned int msg_transfer(minipro_handle_t *handle, unsigned char *buf, s
 	if(ret != 0) ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
 	ret = libusb_release_interface(handle->usb_handle, 0);
 	if(ret != 0) ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
-	if(bytes_transferred != length) ERROR2("IO error: expected %zu bytes but %d bytes transferred\n", length, bytes_transferred);
 	return (unsigned int) bytes_transferred;
 }
 
@@ -213,66 +212,55 @@ void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t len
 	}
 }
 
-void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out) {
-	minipro_report_info_t *info;
-	int bytes_transferred;
-	int ret;
+void minipro_get_system_info(minipro_handle_t *handle) {
+	minipro_report_info_t info;
 
-	info = malloc(sizeof(minipro_report_info_t));
+	memset(&info, 0x0, sizeof(info));
+	info.echo = MP_GET_SYSTEM_INFO;
+	msg_send(handle, (unsigned char*)&info, 5);
+	msg_recv(handle, (unsigned char*)&info, sizeof(info));
+	
 
-	memset(msg, 0x0, 5);
-	msg[0] = MP_GET_SYSTEM_INFO;
-	msg_send(handle, msg, 5);
-
-	ret = libusb_claim_interface(handle->usb_handle, 0);
-	if(ret != 0) ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
-	ret = libusb_bulk_transfer(handle->usb_handle,
-		(1 | LIBUSB_ENDPOINT_IN),
-		(unsigned char *)info,
-		(int) sizeof(minipro_report_info_t),
-		&bytes_transferred, 0);
-
-	if (!(bytes_transferred == sizeof(minipro_report_info_t) || bytes_transferred == sizeof(minipro_report_info_t) - 4))
-		ERROR2("IO error: expected %zu bytes or %zu bytes but %d bytes transferred\n", sizeof(minipro_report_info_t) - 4, sizeof(minipro_report_info_t), bytes_transferred);
-
-	if (ret != 0) ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
-	ret = libusb_release_interface(handle->usb_handle, 0);
-
-	if(ret != 0) ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
-
-	// Protocol version
-	switch(out->protocol = info->device_status) {
-		case 1:
-		case 2:
-			break;
-		default:
-			ERROR("Protocol version error");
-	}
 
 	// Model
-	switch(out->protocol = info->device_version) {
+	char *model;
+	switch(info.device_version) {
 		case MP_TL866A:
-			out->model_str = "TL866A";
+			model = "TL866A";
 			break;
 		case MP_TL866CS:
-			out->model_str = "TL866CS";
+			model = "TL866CS";
 			break;
 		default:
-			ERROR("Unknown device");
+			ERROR("Unknown device!");
+	}
+
+	// Device status
+	switch(info.device_status) {
+		case MP_STATUS_NORMAL:
+			break;
+		case MP_STATUS_BOOTLOADER:
+			ERROR2("Found %s in bootloader mode!\nExiting...\n", model);
+			break;
+		default:
+			ERROR2("Found %s with unknown device status!\nExiting...\n", model);;
 	}
 
 	// Firmware
-	out->firmware = load_int(&info->firmware_version_minor, 2, MP_LITTLE_ENDIAN);
-	sprintf(out->firmware_str, "%02d.%d.%d", info->hardware_version, info->firmware_version_major, info->firmware_version_minor);
+	unsigned int firmware = load_int(&info.firmware_version_minor, 2, MP_LITTLE_ENDIAN);
+	char firmware_str[16];
+	sprintf(firmware_str, "%02d.%d.%d", info.hardware_version, info.firmware_version_major, info.firmware_version_minor);
+	printf("Found %s %s (%#03x)\n",model, firmware_str, firmware);	
 
-	if(out->firmware < MP_FIRMWARE_VERSION) {
+
+	if(firmware < MP_FIRMWARE_VERSION) {
 		fprintf(stderr, "Warning: Firmware is out of date.\n");
 		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING, MP_FIRMWARE_VERSION);
-		fprintf(stderr, "  Found     %s (%#03x)\n", out->firmware_str, out->firmware);
-	} else if (out->firmware > MP_FIRMWARE_VERSION) {
+		fprintf(stderr, "  Found     %s (%#03x)\n", firmware_str, firmware);
+	} else if (firmware > MP_FIRMWARE_VERSION) {
 		fprintf(stderr, "Warning: Firmware is newer than expected.\n");
 		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING, MP_FIRMWARE_VERSION);
-		fprintf(stderr, "  Found     %s (%#03x)\n", out->firmware_str, out->firmware);
+		fprintf(stderr, "  Found     %s (%#03x)\n", firmware_str, firmware);
 	}
 }
 
