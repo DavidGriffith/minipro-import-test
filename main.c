@@ -644,7 +644,8 @@ int main(int argc, char **argv) {
 	if(!cmdopts.filename && !cmdopts.idcheck_only) {
 		print_help_and_exit(argv[0], -1);
 	}
-	if(cmdopts.action && !cmdopts.device) {
+	//If -D option is enabled Then you must supply a device name.
+	if((cmdopts.action && !cmdopts.device) || (cmdopts.idcheck_only && !cmdopts.device)) {
 		USAGE_ERROR("Device required");
 	}
 
@@ -663,7 +664,7 @@ int main(int argc, char **argv) {
 
 	// Printing system info
 	minipro_get_system_info(handle);
-
+		
 	if (cmdopts.idcheck_only) {
 		minipro_begin_transaction(handle);
 		unsigned int chip_id = minipro_get_chip_id(handle);
