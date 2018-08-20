@@ -88,6 +88,8 @@
 #define MP_ICSP_ENABLE 0x80
 #define MP_ICSP_VCC 0x01
 
+#define MP_UNLOCK_TSOP48 0xFD
+
 #define MAX_READ_BUFFER_SIZE 0x400
 #define MAX_WRITE_BUFFER_SIZE 0x210
 
@@ -127,6 +129,7 @@ int minipro_get_chip_id(minipro_handle_t *handle);
 void minipro_read_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_prepare_writing(minipro_handle_t *handle);
-void minipro_get_system_info(minipro_handle_t  *handle);
+void minipro_get_system_info(minipro_handle_t *handle);
+int minipro_unlock_tsop48(minipro_handle_t *handle);
 
 #endif

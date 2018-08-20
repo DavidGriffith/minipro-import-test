@@ -665,6 +665,26 @@ int main(int argc, char **argv) {
 	// Printing system info
 	minipro_get_system_info(handle);
 		
+
+	// Unlocking the TSOP48 adapter (if applicable)
+	if (device && device->opts4 == 0x1002078) {
+		switch(minipro_unlock_tsop48(handle)) {
+			case 0:
+				printf("Found TSOP adapter V3\n");
+				break;
+			case 1:
+				ERROR("TSOP adapter not found!\n");
+				break;
+			case 2:
+				printf("Found TSOP adapter V0\n");
+				break;
+			case 3:
+			case 4:
+				printf("Fake TSOP adapter found!\n");
+				break;
+		}
+}
+
 	if (cmdopts.idcheck_only) {
 		minipro_begin_transaction(handle);
 		unsigned int chip_id = minipro_get_chip_id(handle);
@@ -673,6 +693,7 @@ int main(int argc, char **argv) {
 		minipro_close(handle);
 		return(0);
 	}
+	
 
 	// Verifying Chip ID (if applicable)
 	if(cmdopts.idcheck_skip) {

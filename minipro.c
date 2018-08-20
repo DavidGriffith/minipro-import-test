@@ -272,3 +272,29 @@ void minipro_prepare_writing(minipro_handle_t *handle) {
 	msg_send(handle, msg, 15);
 	msg_recv(handle, buf, 10);
 }
+
+
+//Unlocking the TSOP48 adapter.
+int minipro_unlock_tsop48(minipro_handle_t *handle) {
+	unsigned char buffer[17];
+	memset(&buffer, 0x00, sizeof(buffer));
+	srand(time(NULL));
+	unsigned int i, crc = 0;
+	for(i = 7; i < 15; i++) {
+		buffer[i] = (unsigned char)rand() % 0x100;
+		//Calculate the crc16
+		crc  = (unsigned char)(crc >> 8) | (crc << 8);
+		crc ^= buffer[i];
+		crc ^= (unsigned char)(crc & 0xFF) >> 4;
+		crc ^= (crc << 8) << 4;
+		crc ^= ((crc & 0xFF) << 4) << 1;
+	}
+	buffer[0] = MP_UNLOCK_TSOP48;
+	buffer[15] = buffer[9];
+	buffer[16] = buffer[11];
+	buffer[9] = (unsigned char) crc & 0xFF;
+	buffer[11] = (unsigned char) (crc >> 8);
+	msg_send(handle, buffer, sizeof(buffer));
+	msg_recv(handle, buffer, sizeof(buffer));
+	return buffer[1];
+}
