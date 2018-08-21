@@ -644,7 +644,7 @@ int main(int argc, char **argv) {
 	if(!cmdopts.filename && !cmdopts.idcheck_only) {
 		print_help_and_exit(argv[0], -1);
 	}
-	//If -D option is enabled Then you must supply a device name.
+	//If -D option is enabled then you must supply a device name.
 	if((cmdopts.action && !cmdopts.device) || (cmdopts.idcheck_only && !cmdopts.device)) {
 		USAGE_ERROR("Device required");
 	}
@@ -669,17 +669,18 @@ int main(int argc, char **argv) {
 	// Unlocking the TSOP48 adapter (if applicable)
 	if (device && device->opts4 == 0x1002078) {
 		switch(minipro_unlock_tsop48(handle)) {
-			case 0:
+			case MP_TSOP48_TYPE_V3:
 				printf("Found TSOP adapter V3\n");
 				break;
-			case 1:
-				ERROR("TSOP adapter not found!\n");
+			case MP_TSOP48_TYPE_NONE:
+				minipro_end_transaction(handle);//We need this to turn off the power on the ZIF socket.
+				ERROR("TSOP adapter not found!");
 				break;
-			case 2:
+			case MP_TSOP48_TYPE_V0:
 				printf("Found TSOP adapter V0\n");
 				break;
-			case 3:
-			case 4:
+			case MP_TSOP48_TYPE_FAKE1:
+			case MP_TSOP48_TYPE_FAKE2:
 				printf("Fake TSOP adapter found!\n");
 				break;
 		}

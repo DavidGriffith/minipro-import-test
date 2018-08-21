@@ -99,7 +99,9 @@ static unsigned int msg_transfer(minipro_handle_t *handle, unsigned char *buf, s
 
 #ifndef TEST
 static unsigned int msg_send(minipro_handle_t *handle, unsigned char *buf, size_t length) {
-	return msg_transfer(handle, buf, length, LIBUSB_ENDPOINT_OUT);
+	unsigned int bytes_transferred = msg_transfer(handle, buf, length, LIBUSB_ENDPOINT_OUT);
+	if(bytes_transferred != length) ERROR2("IO error: expected %zu bytes but %d bytes transferred\n", length, bytes_transferred);
+	return bytes_transferred;
 }
 
 static unsigned int msg_recv(minipro_handle_t *handle, unsigned char *buf, size_t length) {
@@ -279,20 +281,20 @@ int minipro_unlock_tsop48(minipro_handle_t *handle) {
 	unsigned char buffer[17];
 	memset(&buffer, 0x00, sizeof(buffer));
 	srand(time(NULL));
-	unsigned int i, crc = 0;
+	unsigned short i, crc = 0;
 	for(i = 7; i < 15; i++) {
-		buffer[i] = (unsigned char)rand() % 0x100;
+		buffer[i] = (unsigned char)rand();
 		//Calculate the crc16
-		crc  = (unsigned char)(crc >> 8) | (crc << 8);
+		crc  = (crc >> 8) | (crc << 8);
 		crc ^= buffer[i];
-		crc ^= (unsigned char)(crc & 0xFF) >> 4;
-		crc ^= (crc << 8) << 4;
-		crc ^= ((crc & 0xFF) << 4) << 1;
+		crc ^= (crc & 0xFF) >> 4;
+		crc ^= (crc << 12);
+		crc ^= (crc & 0xFF) << 5;
 	}
 	buffer[0] = MP_UNLOCK_TSOP48;
 	buffer[15] = buffer[9];
 	buffer[16] = buffer[11];
-	buffer[9] = (unsigned char) crc & 0xFF;
+	buffer[9] = (unsigned char) crc;
 	buffer[11] = (unsigned char) (crc >> 8);
 	msg_send(handle, buffer, sizeof(buffer));
 	msg_recv(handle, buffer, sizeof(buffer));
