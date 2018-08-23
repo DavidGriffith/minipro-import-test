@@ -24,6 +24,10 @@ device_t devices[] = {
 	{ .name = NULL },
 };
 
+const chip_id_t chip_ids[] = {
+	#include "deviceid.h"
+};
+
 device_t *get_device_by_name(const char *name) {
 	device_t *device;
 	for(device = &(devices[0]); device[0].name; device = &(device[1])) {
@@ -32,3 +36,4 @@ device_t *get_device_by_name(const char *name) {
 	}
 	return NULL;
 }
+

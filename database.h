@@ -43,9 +43,15 @@ typedef struct device {
 	fuse_decl_t *fuses; // Configuration bytes that's presenting in some architectures
 } device_t;
 
+typedef struct chip_id_s {
+	unsigned char shift;
+	unsigned int chip_id;
+} chip_id_t;
+
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 
 extern device_t devices[];
+extern const chip_id_t chip_ids[];
 
 device_t *get_device_by_name(const char *name);
 

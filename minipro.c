@@ -163,12 +163,13 @@ void minipro_write_block(minipro_handle_t *handle, unsigned int type, unsigned i
 }
 
 /* Model-specific ID, e.g. AVR Device ID (not longer than 4 bytes) */
-int minipro_get_chip_id(minipro_handle_t *handle) {
+unsigned int minipro_get_chip_id(minipro_handle_t *handle, unsigned char *type) {
 	msg_init(msg, MP_GET_CHIP_ID, handle->device, handle->icsp);
 	msg_send(handle, msg, 8);
-	msg_recv(handle, msg, 5 + handle->device->chip_id_bytes_count);
-
-	return(load_int(&(msg[2]), handle->device->chip_id_bytes_count, MP_BIG_ENDIAN));
+	msg_recv(handle, msg, 32);
+	*type = msg[0];//The Chip ID type (1-5)
+	msg[1] &= 0x03;//The length byte is always 1-3 but never know, truncate to max. 4 bytes.
+	return(msg[1] ? load_int(&(msg[2]), msg[1], MP_BIG_ENDIAN) : 0);//Check for positive length.
 }
 
 void minipro_read_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf) {

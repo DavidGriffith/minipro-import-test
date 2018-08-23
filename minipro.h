@@ -95,6 +95,12 @@
 #define	MP_TSOP48_TYPE_FAKE1	0x03
 #define	MP_TSOP48_TYPE_FAKE2	0x04
 
+#define MP_ID_TYPE1		0x01
+#define MP_ID_TYPE2		0x02
+#define MP_ID_TYPE3		0x03
+#define MP_ID_TYPE4		0x04
+#define MP_ID_TYPE5		0x05
+
 
 #define MAX_READ_BUFFER_SIZE 0x400
 #define MAX_WRITE_BUFFER_SIZE 0x210
@@ -131,7 +137,7 @@ void minipro_protect_on(minipro_handle_t *handle);
 int minipro_get_status(minipro_handle_t *handle);
 void minipro_read_block(minipro_handle_t *handle, unsigned int type, unsigned int addr, unsigned char *buf, size_t len);
 void minipro_write_block(minipro_handle_t *handle, unsigned int type, unsigned int addr, unsigned char *buf, size_t len);
-int minipro_get_chip_id(minipro_handle_t *handle);
+unsigned int minipro_get_chip_id(minipro_handle_t *handle, unsigned char *type);
 void minipro_read_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
 void minipro_prepare_writing(minipro_handle_t *handle);

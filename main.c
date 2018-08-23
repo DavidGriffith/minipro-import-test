@@ -686,30 +686,82 @@ int main(int argc, char **argv) {
 		}
 }
 
+	unsigned char id_type;
 	if (cmdopts.idcheck_only) {
 		minipro_begin_transaction(handle);
-		unsigned int chip_id = minipro_get_chip_id(handle);
+		unsigned int chip_id = minipro_get_chip_id(handle, &id_type);
 		minipro_end_transaction(handle);
-		printf("Chip ID: 0x%02x\n", chip_id);
+
+	switch(id_type){
+		case MP_ID_TYPE1:
+		case MP_ID_TYPE2:
+		case MP_ID_TYPE5:
+			printf("Chip ID: 0x%02x\n", chip_id);
+			break;
+		case MP_ID_TYPE3:
+			printf("Chip ID: 0x%04X Rev.0x%02X\n", chip_id >> 5, chip_id & 0x1f);
+			break;
+		case MP_ID_TYPE4:
+			printf("Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> chip_ids[device->opts3 - 1].shift,
+			chip_id & ~(0xFF >> chip_id >> chip_ids[device->opts3 - 1].shift));
+			break;	
+		}
 		minipro_close(handle);
 		return(0);
 	}
 	
 
+
+	/* This is a workaround for al Microchip controllers.
+	   These controllers have the Chip ID defined elsewhere,
+	   not in the infoic.dll but in a table located inside the Minipro.exe
+	   For these controlers (almost 600 devices) the opts3 is an index in this table. */
+	if(!device->chip_id && device->chip_id_bytes_count)
+		device->chip_id = chip_ids[device->opts3 - 1].chip_id;//Set the correct chip ID in the DB
+	
 	// Verifying Chip ID (if applicable)
 	if(cmdopts.idcheck_skip) {
 		printf("WARNING: skipping Chip ID test\n");
-	} else if(device->chip_id_bytes_count && device->chip_id) {
+	} else if(device->chip_id_bytes_count && device->chip_id_bytes_count) {
 		minipro_begin_transaction(handle);
-		unsigned int chip_id = minipro_get_chip_id(handle);
+		unsigned int chip_id = minipro_get_chip_id(handle, &id_type);
+		unsigned int chip_id_temp = chip_id;
 		minipro_end_transaction(handle);
-		if (chip_id == device->chip_id) {
-			printf("Chip ID OK: 0x%02x\n", chip_id);
-		} else {
+
+	/* The id_type will tell us the Chip ID type. There are 5 types */
+	char ok = 0;
+	switch(id_type){
+		case MP_ID_TYPE1://1-3 bytes ID
+		case MP_ID_TYPE2://4 bytes ID
+		case MP_ID_TYPE5://3 bytes ID, this ID type is returning from 25 SPI series.
+			ok = (chip_id == device->chip_id);
+			chip_id_temp = chip_id;
+			if(ok){
+				printf("Chip ID OK: 0x%02x\n", chip_id);
+			}
+			break;
+		case MP_ID_TYPE3://Microchip controllers with 5 bit revision number.
+			ok = (device->chip_id == (chip_id >> 5));//Throwing the chip revision (last 5 bits).
+			chip_id_temp = chip_id >> 5;
+			if(ok){
+				printf("Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> 5, chip_id & 0x1f);
+			}
+			break;
+		case MP_ID_TYPE4://Microchip controllers with 4-5 bit revision number.
+			ok = (device->chip_id == (chip_id >> chip_ids[device->opts3 - 1].shift));//Throwing the chip revision (last .shift bits).
+			chip_id_temp = chip_id >> chip_id >> chip_ids[device->opts3 - 1].shift;
+			if(ok){
+				printf("Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> chip_ids[device->opts3 - 1].shift,
+				chip_id & ~(0xFF >> chip_id >> chip_ids[device->opts3 - 1].shift));
+			}
+			break;	
+}
+
+		if (!ok) {
 			if (cmdopts.idcheck_continue)
-				printf("WARNING: Chip ID mismatch: expected 0x%02x, got 0x%02x\n", device->chip_id, chip_id);
+				printf("WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X\n", device->chip_id, chip_id_temp);
 			else
-				ERROR2("Invalid Chip ID: expected 0x%02x, got 0x%02x\n(use '-y' to continue anyway at your own risk)\n", device->chip_id, chip_id);
+				ERROR2("Invalid Chip ID: expected 0x%04X, got 0x%04X\n(use '-y' to continue anyway at your own risk)\n", device->chip_id, chip_id_temp);
 		}
 	}
 
