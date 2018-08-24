@@ -357,8 +357,8 @@ int32_t compare_memory(uint8_t *buf1, uint8_t *buf2, size_t size, uint8_t *c1,
 void read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 		const char *name, size_t size)
 {
-	char status_msg[24];
-	sprintf(status_msg, "Reading %s... ", name);
+	char status_msg[64];
+	sprintf(status_msg, "Reading %s...  ", name);
 
 	size_t blocks_count = size / handle->device->read_buffer_size;
 	if (size % handle->device->read_buffer_size != 0)
@@ -367,6 +367,8 @@ void read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 	}
 
 	uint32_t check = 0;
+	struct timeval begin, end;
+	gettimeofday(&begin, NULL);
 	for (uint32_t i = 0; i < blocks_count; i++)
 	{
 		update_status(status_msg, "%2d%%", i * 100 / blocks_count);
@@ -389,15 +391,18 @@ void read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 			ERROR("\nOvercurrent protection!");
 		}
 	}
-
-	update_status(status_msg, "OK\n");
+	gettimeofday(&end, NULL);
+	sprintf(status_msg, "Reading %s...  %.2fSec  OK",name, (double) (end.tv_usec - begin.tv_usec) / 1000000 +
+	(double) (end.tv_sec - begin.tv_sec));
+	update_status(status_msg, "\n");
 }
+
 
 void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 		const char *name, size_t size)
 {
-	char status_msg[24];
-	sprintf(status_msg, "Writing %s... ", name);
+	char status_msg[64];
+	sprintf(status_msg, "Writing  %s...  ", name);
 
 	size_t blocks_count = size / handle->device->write_buffer_size;
 	if (size % handle->device->write_buffer_size != 0)
@@ -406,6 +411,8 @@ void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 	}
 
 	uint32_t check = 0;
+	struct timeval begin, end;
+	gettimeofday(&begin, NULL);
 	for (uint32_t i = 0; i < blocks_count; i++)
 	{
 		update_status(status_msg, "%2d%%", i * 100 / blocks_count);
@@ -428,7 +435,10 @@ void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type,
 			ERROR("\nOvercurrent protection!");
 		}
 	}
-	update_status(status_msg, "OK\n");
+	gettimeofday(&end, NULL);
+	sprintf(status_msg, "Writing %s...  %.2fSec  OK",name, (double) (end.tv_usec - begin.tv_usec) / 1000000 +
+	(double) (end.tv_sec - begin.tv_sec));
+	update_status(status_msg, "\n");
 }
 
 /* Wrappers for operating with files */
@@ -494,6 +504,8 @@ void read_fuses(minipro_handle_t *handle, const char *filename,
 	uint32_t i, d;
 	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
 	uint8_t buf[11];
+	struct timeval begin, end;
+	gettimeofday(&begin, NULL);
 	for (i = 0; fuses[i].name; i++)
 	{
 		data_length += fuses[i].length;
@@ -522,9 +534,10 @@ void read_fuses(minipro_handle_t *handle, const char *filename,
 		}
 	}
 	minipro_end_transaction(handle);
-
 	Config_close();
-	printf("OK\n");
+	gettimeofday(&end, NULL);
+	printf("%.2fSec  OK\n", (double) (end.tv_usec - begin.tv_usec) / 1000000 +
+	(double) (end.tv_sec - begin.tv_sec));
 }
 
 void write_fuses(minipro_handle_t *handle, const char *filename,
@@ -540,6 +553,8 @@ void write_fuses(minipro_handle_t *handle, const char *filename,
 	minipro_begin_transaction(handle);
 	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
 	uint8_t buf[11];
+	struct timeval begin, end;
+	gettimeofday(&begin, NULL);
 	for (uint32_t i = 0; fuses[i].name; i++)
 	{
 		data_length += fuses[i].length;
@@ -568,9 +583,10 @@ void write_fuses(minipro_handle_t *handle, const char *filename,
 		}
 	}
 	minipro_end_transaction(handle);
-
 	Config_close();
-	printf("OK\n");
+	gettimeofday(&end, NULL);
+	printf("%.2fSec  OK\n", (double) (end.tv_usec - begin.tv_usec) / 1000000 +
+	(double) (end.tv_sec - begin.tv_sec));
 }
 
 void verify_page_file(minipro_handle_t *handle, const char *filename,
@@ -721,10 +737,16 @@ void action_write(const char *filename, minipro_handle_t *handle,
 	minipro_begin_transaction(handle);
 	if (cmdopts.no_erase == 0)
 	{
-		printf("Erasing...  ");
-		uint32_t erase = minipro_erase(handle); //Erase device..
+		printf("Erasing... ");
+		struct timeval begin, end;
+		gettimeofday(&begin, NULL);
+		uint32_t erase = minipro_erase(handle); //Erase device..;
 		if (!erase)
-			printf("OK.\n");
+		{
+			gettimeofday(&end, NULL);
+			printf("%.2fSec OK\n", (double) (end.tv_usec - begin.tv_usec) / 1000000 +
+			(double) (end.tv_sec - begin.tv_sec));
+		}
 		uint32_t ovc = minipro_get_ovc_status(handle);
 		minipro_end_transaction(handle);
 		if (ovc)
