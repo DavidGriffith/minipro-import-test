@@ -96,8 +96,7 @@ static void msg_init(uint8_t *out_buf, uint8_t cmd, device_t *device, int icsp)
 	format_int(&(out_buf[12]), device->code_memory_size, 4, MP_LITTLE_ENDIAN);
 }
 
-static size_t msg_transfer(minipro_handle_t *handle, uint8_t *buf,
-		size_t length, uint32_t direction)
+static size_t msg_transfer(minipro_handle_t *handle, uint8_t *buf, size_t length, uint32_t direction)
 {
 	int bytes_transferred;
 	uint32_t ret;
@@ -159,17 +158,24 @@ void minipro_protect_on(minipro_handle_t *handle)
 	msg_send(handle, msg, 10);
 }
 
-uint32_t minipro_get_ovc_status(minipro_handle_t *handle)
+uint32_t minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status)
 {
 	msg_init(msg, MP_REQUEST_STATUS1_MSG2, handle->device, handle->icsp);
 	msg_send(handle, msg, 5);
 	memset(msg, 0, sizeof(msg));
 	msg_recv(handle, msg, sizeof(msg));
-	return msg[9];
+	if (status) //Check for null
+	{
+		//This is verify while writing feature.
+		status->error = msg[0];
+		status->address = load_int(&msg[6], 3, MP_LITTLE_ENDIAN);
+		status->c1 = load_int(&msg[2], 2, MP_LITTLE_ENDIAN);
+		status->c2 = load_int(&msg[4], 2, MP_LITTLE_ENDIAN);
+	}
+	return msg[9]; //return the ovc status
 }
 
-void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr,
-		uint8_t *buf, size_t len)
+void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len)
 {
 	msg_init(msg, type, handle->device, handle->icsp);
 	format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
@@ -178,8 +184,7 @@ void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr,
 	msg_recv(handle, buf, len);
 }
 
-void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr,
-		uint8_t *buf, size_t len)
+void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len)
 {
 	msg_init(msg, type, handle->device, handle->icsp);
 	format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
@@ -199,8 +204,7 @@ uint32_t minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type)
 	return (msg[1] ? load_int(&(msg[2]), msg[1], MP_BIG_ENDIAN) : 0); //Check for positive length.
 }
 
-void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
-		uint8_t *buf)
+void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf)
 {
 	msg_init(msg, type, handle->device, handle->icsp);
 	msg[2] = (type == MP_READ_CFG && length == 4) ? 2 : 1; // note that PICs with 1 config word will show length==2
@@ -210,8 +214,7 @@ void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
 	memcpy(buf, &(msg[7]), length);
 }
 
-void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
-		uint8_t *buf)
+void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf)
 {
 	// Perform actual writing
 	switch (type & 0xf0)

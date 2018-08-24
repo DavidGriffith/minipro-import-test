@@ -185,8 +185,7 @@ int Config_set_str(const char *par_name, const char *value)
 				return -1;
 			}
 			strcpy(config_content[i].param_value, value);
-			if (strlen(par_name) + strlen(value) + 4
-					>= sizeof(config_content[i].config_line))
+			if (strlen(par_name) + strlen(value) + 4 >= sizeof(config_content[i].config_line))
 			{
 				return -1;
 			}
@@ -196,8 +195,7 @@ int Config_set_str(const char *par_name, const char *value)
 		}
 	}
 
-	if (strlen(par_name) + strlen(value) + 4
-			>= sizeof(config_content[i].config_line))
+	if (strlen(par_name) + strlen(value) + 4 >= sizeof(config_content[i].config_line))
 	{
 		return -1;
 	}

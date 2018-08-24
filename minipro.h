@@ -124,22 +124,27 @@ typedef struct minipro_handle
 	uint32_t icsp;
 } minipro_handle_t;
 
+typedef struct minipro_status_s
+{
+	uint32_t error;
+	uint32_t address;
+	uint16_t c1;
+	uint16_t c2;
+
+} minipro_status_t;
+
 minipro_handle_t *minipro_open(device_t *device);
 void minipro_close(minipro_handle_t *handle);
 void minipro_begin_transaction(minipro_handle_t *handle);
 void minipro_end_transaction(minipro_handle_t *handle);
 void minipro_protect_off(minipro_handle_t *handle);
 void minipro_protect_on(minipro_handle_t *handle);
-uint32_t minipro_get_ovc_status(minipro_handle_t *handle);
-void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr,
-		uint8_t *buf, size_t len);
-void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr,
-		uint8_t *buf, size_t len);
+uint32_t minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status);
+void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
+void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
 uint32_t minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type);
-void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
-		uint8_t *buf);
-void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
-		uint8_t *buf);
+void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
+void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 uint32_t minipro_erase(minipro_handle_t *handle);
 void minipro_print_device_info(minipro_handle_t *handle);
 uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
