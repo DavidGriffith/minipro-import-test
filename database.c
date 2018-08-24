@@ -15,24 +15,27 @@
  *
  */
 
-#include "database.h"
 #include <stdio.h>
 #include <strings.h>
+#include "database.h"
 
-device_t devices[] = {
-	#include "devices.h"
-	{ .name = NULL },
-};
+device_t devices[] =
+{
+#include "devices.h"
+		{ .name = NULL }, };
 
-const chip_id_t chip_ids[] = {
-	#include "deviceid.h"
-};
+const chip_id_t chip_ids[] =
+{
+#include "deviceid.h"
+		};
 
-device_t *get_device_by_name(const char *name) {
+device_t *get_device_by_name(const char *name)
+{
 	device_t *device;
-	for(device = &(devices[0]); device[0].name; device = &(device[1])) {
-		if(!strcasecmp(name, device->name))
-			return(device);
+	for (device = &(devices[0]); device[0].name; device = &(device[1]))
+	{
+		if (!strcasecmp(name, device->name))
+			return (device);
 	}
 	return NULL;
 }

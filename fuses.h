@@ -18,11 +18,14 @@
 #ifndef __FUSES_H
 #define __FUSES_H
 
-typedef struct fuse_decl {
+#include <stdint.h>
+
+typedef struct fuse_decl
+{
 	const char *name;
-	char minipro_cmd;
-	char length;
-	int offset;
+	uint8_t minipro_cmd;
+	uint8_t length;
+	uint32_t offset;
 } fuse_decl_t;
 
 extern fuse_decl_t avr_fuses[];

@@ -20,32 +20,35 @@
 #define __DATABASE_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include "fuses.h"
 
-typedef struct device {
+typedef struct device
+{
 	const char *name;
-	unsigned int protocol_id;
-	unsigned int variant;
+	uint32_t protocol_id;
+	uint32_t variant;
 	size_t read_buffer_size;
 	size_t write_buffer_size;
 	size_t code_memory_size; // Presenting for every device
 	size_t data_memory_size;
 	size_t data_memory2_size;
-	unsigned int chip_id; // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
-	unsigned int chip_id_bytes_count : 3;
-	unsigned int opts1;
-	unsigned int opts2;
-	unsigned int opts3;
-	unsigned int opts4;
-	unsigned int package_details; // pins count or image ID for some devices
-	unsigned int write_unlock;
+	uint32_t chip_id; // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
+	uint32_t chip_id_bytes_count :3;
+	uint32_t opts1;
+	uint32_t opts2;
+	uint32_t opts3;
+	uint32_t opts4;
+	uint32_t package_details; // pins count or image ID for some devices
+	uint32_t write_unlock;
 
 	fuse_decl_t *fuses; // Configuration bytes that's presenting in some architectures
 } device_t;
 
-typedef struct chip_id_s {
-	unsigned char shift;
-	unsigned int chip_id;
+typedef struct chip_id_s
+{
+	uint8_t shift;
+	uint32_t chip_id;
 } chip_id_t;
 
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
