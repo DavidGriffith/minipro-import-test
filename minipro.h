@@ -148,6 +148,26 @@ typedef struct zif_pins_s
 	uint8_t mask;
 } zif_pins_t;
 
+enum VPP_PINS
+	{
+		VPP1,	VPP2,	VPP3,	VPP4,	VPP9,	VPP10,	VPP30,	VPP31,
+		VPP32,	VPP33,	VPP34,	VPP36,	VPP37,	VPP38,	VPP39,	VPP40
+	};
+
+enum VCC_PINS
+	{
+		VCC1,	VCC2,	VCC3,	VCC4,	VCC5,	VCC6,	VCC7,	VCC8,
+		VCC9,	VCC10,	VCC11,	VCC12,	VCC13,	VCC21,	VCC30,	VCC32,
+		VCC33,	VCC34,	VCC35,	VCC36,	VCC37,	VCC38,	VCC39,	VCC40
+	};
+
+enum GND_PINS
+	{
+		GND1,	GND2,	GND3,	GND4,	GND5,	GND6,	GND7,	GND8,
+		GND9,	GND10,	GND11,	GND12,	GND14,	GND16,	GND20,	GND30,
+		GND31,	GND32,	GND34,	GND35,	GND36,	GND37,	GND38,	GND39,
+		GND40
+	};
 
 minipro_handle_t *minipro_open(device_t *device);
 void minipro_close(minipro_handle_t *handle);

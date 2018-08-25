@@ -338,6 +338,7 @@ void update_status(char *status_msg, char *fmt, ...)
 	printf("\r\e[K%s", status_msg);
 	vprintf(fmt, args);
 	fflush(stdout);
+	va_end(args);
 }
 
 int32_t compare_memory(uint8_t *buf1, uint8_t *buf2, size_t size, uint8_t *c1, uint8_t *c2)

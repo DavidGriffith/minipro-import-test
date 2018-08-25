@@ -125,13 +125,11 @@ minipro_handle_t * minipro_open(device_t *device)
 		ERROR2("Error initializing libusb: %s", libusb_error_name(ret));
 	}
 
-	handle->usb_handle = libusb_open_device_with_vid_pid(handle->ctx, 0x04d8,
-			0xe11c);
+	handle->usb_handle = libusb_open_device_with_vid_pid(handle->ctx, 0x04d8, 0xe11c);
 	if (handle->usb_handle == NULL)
 	{
 		// We didn't match the vid / pid of the "original" TL866 - so try the new TL866II+
-		handle->usb_handle = libusb_open_device_with_vid_pid(handle->ctx,
-				0xa466, 0x0a53);
+		handle->usb_handle = libusb_open_device_with_vid_pid(handle->ctx, 0xa466, 0x0a53);
 
 		// If we don't get that either report error in connecting; otherwise report incompatability...
 		if (handle->usb_handle == NULL)
@@ -142,8 +140,7 @@ minipro_handle_t * minipro_open(device_t *device)
 		else
 		{
 			free(handle);
-			ERROR(
-					"This version of the software is not compatible with the TL866 II+");
+			ERROR("This version of the software is not compatible with the TL866 II+");
 		}
 	}
 
@@ -539,10 +536,10 @@ void minipro_hardware_check()
 	//Testing 25 GND pin drivers
 	for (i = 0; i < 24; i++)
 	{
-		msg[0] = MP_SET_LATCH;
-		msg[7] = gnd_pins[i].pin == 20 ? 9 : 1; //Special handle of pin GND20
-		msg[8] = gnd_pins[i].oe;
-		msg[9] = gnd_pins[i].latch;
+		msg[0] 	= MP_SET_LATCH;
+		msg[7] 	= gnd_pins[i].pin == 20 ? 9 : 1; //Special handle of pin GND20
+		msg[8] 	= gnd_pins[i].oe;
+		msg[9] 	= gnd_pins[i].latch;
 		msg[10] = gnd_pins[i].mask;
 		msg_send(handle, msg, 32);
 		usleep(5000);
@@ -569,13 +566,13 @@ void minipro_hardware_check()
 
 	printf("\n");
 	//Testing VPP overcurrent protection
-	msg[0] = MP_SET_LATCH;
-	msg[7] = 2; // We will set two latches
-	msg[8] = 3; //Both OE_VPP and OE_GND active
-	msg[9] = vpp_pins[0].latch;
-	msg[10] = vpp_pins[0].mask; //Put the VPP voltage to the ZIF pin1
-	msg[11] = gnd_pins[0].latch;
-	msg[12] = gnd_pins[0].mask; //Now put the same pin ZIF 1 to the GND
+	msg[0] 	= MP_SET_LATCH;
+	msg[7] 	= 2; // We will set two latches
+	msg[8] 	= 3; //Both OE_VPP and OE_GND active
+	msg[9] 	= vpp_pins[VPP1].latch;
+	msg[10] = vpp_pins[VPP1].mask; //Put the VPP voltage to the ZIF pin1
+	msg[11] = gnd_pins[GND1].latch;
+	msg[12] = gnd_pins[GND1].mask; //Now put the same pin ZIF 1 to the GND
 	msg_send(handle, msg, 32);
 	msg[0] = MP_READ_ZIF_PINS; //Now read back the OVC status
 	msg_send(handle, msg, 18);
@@ -591,13 +588,13 @@ void minipro_hardware_check()
 	}
 
 	//Testing VCC overcurrent protection
-	msg[0] = MP_SET_LATCH;
-	msg[7] = 2; // We will set two latches
-	msg[8] = 3; //OE GND is active
-	msg[9] = vcc_pins[39].latch;
-	msg[10] = vpp_pins[39].mask; //Put the VCC voltage to the ZIF pin 40
-	msg[11] = gnd_pins[39].latch;
-	msg[12] = gnd_pins[39].mask; //Now put the same pin ZIF 40 to the GND
+	msg[0] 	= MP_SET_LATCH;
+	msg[7] 	= 2; // We will set two latches
+	msg[8] 	= 3; //OE GND is active
+	msg[9] 	= vcc_pins[VCC40].latch;
+	msg[10] = vcc_pins[VCC40].mask; //Put the VCC voltage to the ZIF pin 40
+	msg[11] = gnd_pins[GND40].latch;
+	msg[12] = gnd_pins[GND40].mask; //Now put the same pin ZIF 40 to the GND
 	msg_send(handle, msg, 32);
 	msg[0] = MP_READ_ZIF_PINS; //Read back the OVC status
 	msg_send(handle, msg, 18);
