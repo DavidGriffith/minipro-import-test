@@ -42,16 +42,16 @@ struct
 	{
 		UNSPECIFIED = 0, CODE, DATA, CONFIG
 	} page;
-	uint32_t no_erase;
-	uint32_t no_protect_off;
-	uint32_t no_protect_on;
-	uint32_t size_error;
-	uint32_t size_nowarn;
-	uint32_t no_verify;
-	uint32_t icsp;
-	uint32_t idcheck_skip;
-	uint32_t idcheck_continue;
-	uint32_t idcheck_only;
+	uint8_t no_erase;
+	uint8_t no_protect_off;
+	uint8_t no_protect_on;
+	uint8_t size_error;
+	uint8_t size_nowarn;
+	uint8_t no_verify;
+	uint8_t icsp;
+	uint8_t idcheck_skip;
+	uint8_t idcheck_continue;
+	uint8_t idcheck_only;
 } cmdopts;
 
 void print_version_and_exit(uint32_t rv)
@@ -91,6 +91,7 @@ void print_help_and_exit(char *progname, uint32_t rv)
 			"	-x		Do NOT attempt to read ID (only valid in read mode)\n"
 			"	-y		Do NOT error on ID mismatch\n"
 			"	-V		Show version information\n"
+			"	-t		Start hardware check\n"
 			"	-h		Show help (this text)\n";
 	fprintf(rv ? stderr : stdout, usage, GIT_TAG, basename(progname));
 	exit(rv);
@@ -188,7 +189,7 @@ void parse_cmdline(int argc, char **argv)
 	memset(&cmdopts, 0, sizeof(cmdopts));
 	device_t *device;
 
-	while ((c = getopt(argc, argv, "lL:d:euPvxyr:w:p:c:iIsSVhD")) != -1)
+	while ((c = getopt(argc, argv, "lL:d:euPvxyr:w:p:c:iIsSVhDt")) != -1)
 	{
 		switch (c)
 		{
@@ -297,6 +298,10 @@ void parse_cmdline(int argc, char **argv)
 			print_version_and_exit(0);
 			break;
 
+		case 't':
+			minipro_hardware_check();
+			exit(0);
+			break;
 		default:
 			print_help_and_exit(argv[0], -1);
 			break;
@@ -337,7 +342,8 @@ void update_status(char *status_msg, char *fmt, ...)
 
 int32_t compare_memory(uint8_t *buf1, uint8_t *buf2, size_t size, uint8_t *c1, uint8_t *c2)
 {
-	for (uint32_t i = 0; i < size; i++)
+	uint32_t i;
+	for (i = 0; i < size; i++)
 	{
 		if (buf1[i] != buf2[i])
 		{
@@ -363,7 +369,8 @@ void read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type, const 
 
 	struct timeval begin, end;
 	gettimeofday(&begin, NULL);
-	for (uint32_t i = 0; i < blocks_count; i++)
+	uint32_t i;
+	for (i = 0; i < blocks_count; i++)
 	{
 		update_status(status_msg, "%2d%%", i * 100 / blocks_count);
 		// Translating address to protocol-specific
@@ -381,6 +388,7 @@ void read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type, const 
 
 		if (minipro_get_ovc_status(handle, NULL))
 		{
+			minipro_close(handle);
 			ERROR("\nOvercurrent protection!");
 		}
 	}
@@ -404,7 +412,8 @@ void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type, const
 	struct timeval begin, end;
 	gettimeofday(&begin, NULL);
 	minipro_status_t status;
-	for (uint32_t i = 0; i < blocks_count; i++)
+	uint32_t i;
+	for (i = 0; i < blocks_count; i++)
 	{
 		update_status(status_msg, "%2d%%", i * 100 / blocks_count);
 		// Translating address to protocol-specific
@@ -422,6 +431,7 @@ void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type, const
 
 		if (minipro_get_ovc_status(handle, &status))
 		{
+			minipro_close(handle);
 			ERROR("\nOvercurrent protection!");
 		}
 		if (status.error)
@@ -445,12 +455,14 @@ void read_page_file(minipro_handle_t *handle, const char *filename, uint32_t typ
 	FILE *file = fopen(filename, "w");
 	if (file == NULL)
 	{
+		minipro_close(handle);
 		PERROR("Couldn't open file for writing");
 	}
 
 	uint8_t *buf = malloc(size);
 	if (!buf)
 	{
+		minipro_close(handle);
 		ERROR("Can't malloc");
 	}
 
@@ -466,6 +478,7 @@ void write_page_file(minipro_handle_t *handle, const char *filename, uint32_t ty
 	FILE *file = fopen(filename, "r");
 	if (file == NULL)
 	{
+		minipro_close(handle);
 		PERROR("Couldn't open file for reading");
 	}
 
@@ -478,6 +491,7 @@ void write_page_file(minipro_handle_t *handle, const char *filename, uint32_t ty
 	if (fread(buf, 1, size, file) != size && !cmdopts.size_error)
 	{
 		free(buf);
+		minipro_close(handle);
 		ERROR("Short read");
 	}
 	write_page_ram(handle, buf, type, name, size);
@@ -492,6 +506,7 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 	fflush(stdout);
 	if (Config_init(filename))
 	{
+		minipro_close(handle);
 		PERROR("Couldn't create config");
 	}
 
@@ -506,6 +521,7 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 		data_length += fuses[i].length;
 		if (fuses[i].minipro_cmd < opcode)
 		{
+			minipro_close(handle);
 			ERROR("fuse_decls are not sorted");
 		}
 		if (fuses[i + 1].name == NULL || fuses[i + 1].minipro_cmd > opcode)
@@ -521,7 +537,10 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 				uint32_t value = load_int(&(buf[fuses[d].offset]),
 						fuses[d].length, MP_LITTLE_ENDIAN);
 				if (Config_set_int(fuses[d].name, value) == -1)
-					ERROR("Couldn't set configuration");
+					{
+						minipro_close(handle);
+						ERROR("Couldn't set configuration");
+					}
 			}
 
 			opcode = fuses[i + 1].minipro_cmd;
@@ -530,6 +549,7 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 	}
 	if (minipro_get_ovc_status(handle, NULL))
 	{
+		minipro_close(handle);
 		ERROR("\nOvercurrent protection!");
 	}
 	minipro_end_transaction(handle);
@@ -544,25 +564,28 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 	printf("Writing fuses... ");
 	fflush(stdout);
 	if (Config_open(filename))
-	{
-		PERROR("Couldn't parse config");
-	}
+		{
+			minipro_close(handle);
+			PERROR("Couldn't parse config");
+		}
 
 	minipro_begin_transaction(handle);
 	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
 	uint8_t buf[11];
 	struct timeval begin, end;
 	gettimeofday(&begin, NULL);
-	for (uint32_t i = 0; fuses[i].name; i++)
+	uint32_t i, d;
+	for (i = 0; fuses[i].name; i++)
 	{
 		data_length += fuses[i].length;
 		if (fuses[i].minipro_cmd < opcode)
 		{
+			minipro_close(handle);
 			ERROR("fuse_decls are not sorted");
 		}
 		if (fuses[i + 1].name == NULL || fuses[i + 1].minipro_cmd > opcode)
 		{
-			for (uint32_t d = 0; fuses[d].name; d++)
+			for (d = 0; fuses[d].name; d++)
 			{
 				if (fuses[d].minipro_cmd != opcode)
 				{
@@ -570,7 +593,10 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 				}
 				int32_t value = Config_get_int(fuses[d].name);
 				if (value == -1)
+				{
+					minipro_close(handle);
 					ERROR("Could not read configuration");
+				}
 				format_int(&(buf[fuses[d].offset]), value, fuses[d].length,
 				MP_LITTLE_ENDIAN);
 			}
@@ -582,6 +608,7 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 	}
 	if (minipro_get_ovc_status(handle, NULL))
 	{
+		minipro_close(handle);
 		ERROR("\nOvercurrent protection!");
 	}
 	minipro_end_transaction(handle);
@@ -596,6 +623,7 @@ void verify_page_file(minipro_handle_t *handle, const char *filename, uint32_t t
 	FILE *file = fopen(filename, "r");
 	if (file == NULL)
 	{
+		minipro_close(handle);
 		PERROR("Couldn't open file for reading");
 	}
 
@@ -604,6 +632,7 @@ void verify_page_file(minipro_handle_t *handle, const char *filename, uint32_t t
 	uint8_t *file_data = malloc(file_size);
 	if (fread(file_data, 1, file_size, file) != file_size)
 	{
+		minipro_close(handle);
 		ERROR("Short read");
 	}
 	fclose(file);
@@ -626,15 +655,14 @@ void verify_page_file(minipro_handle_t *handle, const char *filename, uint32_t t
 	free(chip_data);
 
 	if (idx != -1)
-	{
-		ERROR2(
-				"Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-				idx, c1, c2);
-	}
+		{
+			minipro_close(handle);
+			ERROR2("Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n", idx, c1, c2);
+		}
 	else
-	{
-		printf("Verification OK\n");
-	}
+		{
+			printf("Verification OK\n");
+		}
 }
 
 /* replace_filename_extension("filename.foo", ".bar") --> "filename.bar" */
@@ -707,8 +735,11 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 		if (fsize != device->code_memory_size)
 		{
 			if (!cmdopts.size_error)
-				ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
+				{
+					minipro_close(handle);
+					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
 						device->code_memory_size);
+				}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
 						fsize, device->code_memory_size);
@@ -720,8 +751,11 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 		if (fsize != device->data_memory_size)
 		{
 			if (!cmdopts.size_error)
-				ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
+				{
+					minipro_close(handle);
+					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
 						device->data_memory_size);
+				}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
 						fsize, device->data_memory_size);
@@ -750,6 +784,7 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 			fprintf(stderr, "Overcurrent protection!");
 		if (erase || ovc)
 		{
+			minipro_close(handle);
 			ERROR("Erase failed!\n");
 		}
 	}
@@ -758,6 +793,7 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 	if (minipro_get_ovc_status(handle, NULL))
 	{
 		minipro_end_transaction(handle);
+		minipro_close(handle);
 		ERROR("Overcurrent protection!");
 	}
 	if (cmdopts.no_protect_off == 0 && (device->opts4 & 0xc000))
@@ -828,7 +864,10 @@ int main(int argc, char **argv)
 	handle->icsp = cmdopts.icsp;
 
 	if(!device->read_buffer_size || !device->protocol_id)
+		{
+			minipro_close(handle);
 			ERROR("Unsupported device!");
+		}
 
 	// Printing system info
 	minipro_print_device_info(handle);
@@ -843,6 +882,7 @@ int main(int argc, char **argv)
 			break;
 		case MP_TSOP48_TYPE_NONE:
 			minipro_end_transaction(handle); //We need this to turn off the power on the ZIF socket.
+			minipro_close(handle);
 			ERROR("TSOP adapter not found!");
 			break;
 		case MP_TSOP48_TYPE_V0:
@@ -862,6 +902,7 @@ int main(int argc, char **argv)
 		uint32_t chip_id = minipro_get_chip_id(handle, &id_type);
 		if (minipro_get_ovc_status(handle, NULL))
 		{
+			minipro_close(handle);
 			ERROR("Overcurrent protection!");
 		}
 		minipro_end_transaction(handle);
@@ -897,6 +938,7 @@ int main(int argc, char **argv)
 		minipro_begin_transaction(handle);
 		if (minipro_get_ovc_status(handle, NULL))
 		{
+			minipro_close(handle);
 			ERROR("Overcurrent protection!");
 		}
 		uint32_t chip_id = minipro_get_chip_id(handle, &id_type);
@@ -945,9 +987,12 @@ int main(int argc, char **argv)
 						"WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X\n",
 						device->chip_id, chip_id_temp);
 			else
-				ERROR2(
-						"Invalid Chip ID: expected 0x%04X, got 0x%04X\n(use '-y' to continue anyway at your own risk)\n",
-						device->chip_id, chip_id_temp);
+				{
+					minipro_close(handle);
+					ERROR2(
+							"Invalid Chip ID: expected 0x%04X, got 0x%04X\n(use '-y' to continue anyway at your own risk)\n",
+							device->chip_id, chip_id_temp);
+				}
 		}
 	}
 

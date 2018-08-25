@@ -88,6 +88,7 @@
 #define MP_ICSP_ENABLE 0x80
 #define MP_ICSP_VCC 0x01
 
+//TSOP48
 #define MP_UNLOCK_TSOP48 0xFD
 #define MP_TSOP48_TYPE_V3	0x00
 #define	MP_TSOP48_TYPE_NONE	0x01
@@ -100,6 +101,12 @@
 #define MP_ID_TYPE3		0x03
 #define MP_ID_TYPE4		0x04
 #define MP_ID_TYPE5		0x05
+
+//Hardware Bit Banging
+#define MP_RESET_PIN_DRIVERS 0xD0
+#define MP_SET_LATCH 0xD1
+#define MP_READ_ZIF_PINS 0xD2
+
 
 #include "database.h"
 
@@ -133,6 +140,15 @@ typedef struct minipro_status_s
 
 } minipro_status_t;
 
+typedef struct zif_pins_s
+{
+	uint8_t pin;
+	uint8_t latch;
+	uint8_t oe;
+	uint8_t mask;
+} zif_pins_t;
+
+
 minipro_handle_t *minipro_open(device_t *device);
 void minipro_close(minipro_handle_t *handle);
 void minipro_begin_transaction(minipro_handle_t *handle);
@@ -148,5 +164,6 @@ void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
 uint32_t minipro_erase(minipro_handle_t *handle);
 void minipro_print_device_info(minipro_handle_t *handle);
 uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
+void minipro_hardware_check();
 
 #endif
