@@ -20,28 +20,31 @@
 #define __DATABASE_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include "fuses.h"
 
-typedef struct device {
+typedef struct device
+{
 	const char *name;
-	unsigned int protocol_id;
-	unsigned int variant;
-	size_t read_buffer_size;
-	size_t write_buffer_size;
-	size_t code_memory_size; // Presenting for every device
-	size_t data_memory_size;
+	uint8_t protocol_id;
+	uint8_t variant;
+	uint32_t read_buffer_size;
+	uint32_t write_buffer_size;
+	uint32_t code_memory_size; // Presenting for every device
+	uint32_t data_memory_size;
 	size_t data_memory2_size;
-	unsigned int chip_id; // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
-	unsigned int chip_id_bytes_count : 3;
-	unsigned int opts1;
-	unsigned int opts2;
-	unsigned int opts3;
-	unsigned int opts4;
-	unsigned int package_details; // pins count or image ID for some devices
-	unsigned int write_unlock;
-
+	uint32_t chip_id; // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
+	uint8_t chip_id_bytes_count;
+	uint16_t opts1;
+	uint16_t opts2;
+	uint32_t opts3;
+	uint32_t opts4;
+	uint32_t package_details; // pins count or image ID for some devices
+	uint16_t write_unlock;
 	fuse_decl_t *fuses; // Configuration bytes that's presenting in some architectures
+	uint8_t	id_shift;//PIC controllers device ID have a variable bitfield Revision number
 } device_t;
+
 
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 

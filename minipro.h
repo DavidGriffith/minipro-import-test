@@ -55,6 +55,8 @@
 
 #define MP_TL866A 1
 #define MP_TL866CS 2
+#define MP_STATUS_NORMAL 1
+#define MP_STATUS_BOOTLOADER 2
 
 #define MP_FIRMWARE_VERSION 0x0255
 #define MP_FIRMWARE_STRING "03.2.85"
@@ -69,7 +71,7 @@
 #define MP_READ_DATA 0x30
 #define MP_WRITE_CODE 0x20
 #define MP_WRITE_DATA 0x31
-#define MP_PREPARE_WRITING 0x22
+#define MP_ERASE 0x22
 
 #define MP_READ_USER 0x10
 #define MP_WRITE_USER 0x11
@@ -86,41 +88,86 @@
 #define MP_ICSP_ENABLE 0x80
 #define MP_ICSP_VCC 0x01
 
-#define MAX_READ_BUFFER_SIZE 0x400
-#define MAX_WRITE_BUFFER_SIZE 0x210
+//TSOP48
+#define MP_UNLOCK_TSOP48 0xFD
+#define MP_TSOP48_TYPE_V3	0x00
+#define	MP_TSOP48_TYPE_NONE	0x01
+#define	MP_TSOP48_TYPE_V0	0x02
+#define	MP_TSOP48_TYPE_FAKE1	0x03
+#define	MP_TSOP48_TYPE_FAKE2	0x04
+
+#define MP_ID_TYPE1		0x01
+#define MP_ID_TYPE2		0x02
+#define MP_ID_TYPE3		0x03
+#define MP_ID_TYPE4		0x04
+#define MP_ID_TYPE5		0x05
+
+//Hardware Bit Banging
+#define MP_RESET_PIN_DRIVERS 0xD0
+#define MP_SET_LATCH 0xD1
+#define MP_READ_ZIF_PINS 0xD2
+
 
 #include "database.h"
 
-typedef struct minipro_report_info {
-	unsigned char echo;
-	unsigned char device_status;
-	unsigned short report_size;
-	unsigned char firmware_version_minor;
-	unsigned char firmware_version_major;
-	unsigned char device_version;
-	unsigned char device_code[8];
-	unsigned char serial_number[24];
-	unsigned char hardware_version;
-	unsigned char b0;
-	unsigned char b1;
-	unsigned char b2;
-	unsigned char b3;
+typedef struct minipro_report_info
+{
+	uint8_t echo;
+	uint8_t device_status;
+	uint16_t report_size;
+	uint8_t firmware_version_minor;
+	uint8_t firmware_version_major;
+	uint8_t device_version;
+	uint8_t device_code[8];
+	uint8_t serial_number[24];
+	uint8_t hardware_version;
 } minipro_report_info_t;
 
-typedef struct minipro_system_info {
-	unsigned char protocol;
-	unsigned char model;
-	char *model_str;
-	unsigned int firmware;
-	char firmware_str[16];
-} minipro_system_info_t;
-
-typedef struct minipro_handle {
+typedef struct minipro_handle
+{
 	libusb_device_handle *usb_handle;
 	libusb_context *ctx;
 	device_t *device;
-	int icsp;
+	uint32_t icsp;
 } minipro_handle_t;
+
+typedef struct minipro_status_s
+{
+	uint32_t error;
+	uint32_t address;
+	uint16_t c1;
+	uint16_t c2;
+
+} minipro_status_t;
+
+typedef struct zif_pins_s
+{
+	uint8_t pin;
+	uint8_t latch;
+	uint8_t oe;
+	uint8_t mask;
+} zif_pins_t;
+
+enum VPP_PINS
+	{
+		VPP1,	VPP2,	VPP3,	VPP4,	VPP9,	VPP10,	VPP30,	VPP31,
+		VPP32,	VPP33,	VPP34,	VPP36,	VPP37,	VPP38,	VPP39,	VPP40
+	};
+
+enum VCC_PINS
+	{
+		VCC1,	VCC2,	VCC3,	VCC4,	VCC5,	VCC6,	VCC7,	VCC8,
+		VCC9,	VCC10,	VCC11,	VCC12,	VCC13,	VCC21,	VCC30,	VCC32,
+		VCC33,	VCC34,	VCC35,	VCC36,	VCC37,	VCC38,	VCC39,	VCC40
+	};
+
+enum GND_PINS
+	{
+		GND1,	GND2,	GND3,	GND4,	GND5,	GND6,	GND7,	GND8,
+		GND9,	GND10,	GND11,	GND12,	GND14,	GND16,	GND20,	GND30,
+		GND31,	GND32,	GND34,	GND35,	GND36,	GND37,	GND38,	GND39,
+		GND40
+	};
 
 minipro_handle_t *minipro_open(device_t *device);
 void minipro_close(minipro_handle_t *handle);
@@ -128,13 +175,15 @@ void minipro_begin_transaction(minipro_handle_t *handle);
 void minipro_end_transaction(minipro_handle_t *handle);
 void minipro_protect_off(minipro_handle_t *handle);
 void minipro_protect_on(minipro_handle_t *handle);
-int minipro_get_status(minipro_handle_t *handle);
-void minipro_read_block(minipro_handle_t *handle, unsigned int type, unsigned int addr, unsigned char *buf, size_t len);
-void minipro_write_block(minipro_handle_t *handle, unsigned int type, unsigned int addr, unsigned char *buf, size_t len);
-int minipro_get_chip_id(minipro_handle_t *handle);
-void minipro_read_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
-void minipro_write_fuses(minipro_handle_t *handle, unsigned int type, size_t length, unsigned char *buf);
-void minipro_prepare_writing(minipro_handle_t *handle);
-void minipro_get_system_info(minipro_handle_t *handle, minipro_system_info_t *out);
+uint32_t minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status);
+void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
+void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
+uint32_t minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type);
+void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
+void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
+uint32_t minipro_erase(minipro_handle_t *handle);
+void minipro_print_device_info(minipro_handle_t *handle);
+uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
+void minipro_hardware_check();
 
 #endif
