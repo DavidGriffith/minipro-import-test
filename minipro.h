@@ -102,12 +102,6 @@
 #define MP_ID_TYPE4		0x04
 #define MP_ID_TYPE5		0x05
 
-//Hardware Bit Banging
-#define MP_RESET_PIN_DRIVERS 0xD0
-#define MP_SET_LATCH 0xD1
-#define MP_READ_ZIF_PINS 0xD2
-
-
 #include "database.h"
 
 typedef struct minipro_report_info
@@ -140,6 +134,14 @@ typedef struct minipro_status_s
 
 } minipro_status_t;
 
+
+//Hardware Bit Banging
+#define MP_RESET_PIN_DRIVERS 0xD0
+#define MP_SET_LATCH 0xD1
+#define MP_READ_ZIF_PINS 0xD2
+#define MP_OE_VPP 0x01
+#define MP_OE_VCC_GND 0x02
+#define MP_OE_ALL 0x03
 typedef struct zif_pins_s
 {
 	uint8_t pin;

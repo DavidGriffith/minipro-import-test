@@ -534,7 +534,7 @@ void minipro_hardware_check()
 	}
 	printf("\n");
 	//Testing 25 GND pin drivers
-	for (i = 0; i < 24; i++)
+	for (i = 0; i < 25; i++)
 	{
 		msg[0] 	= MP_SET_LATCH;
 		msg[7] 	= gnd_pins[i].pin == 20 ? 9 : 1; //Special handle of pin GND20
@@ -568,7 +568,7 @@ void minipro_hardware_check()
 	//Testing VPP overcurrent protection
 	msg[0] 	= MP_SET_LATCH;
 	msg[7] 	= 2; // We will set two latches
-	msg[8] 	= 3; //Both OE_VPP and OE_GND active
+	msg[8] 	= MP_OE_ALL; //Both OE_VPP and OE_GND active
 	msg[9] 	= vpp_pins[VPP1].latch;
 	msg[10] = vpp_pins[VPP1].mask; //Put the VPP voltage to the ZIF pin1
 	msg[11] = gnd_pins[GND1].latch;
@@ -590,7 +590,7 @@ void minipro_hardware_check()
 	//Testing VCC overcurrent protection
 	msg[0] 	= MP_SET_LATCH;
 	msg[7] 	= 2; // We will set two latches
-	msg[8] 	= 3; //OE GND is active
+	msg[8] 	= MP_OE_VCC_GND; //OE GND is active
 	msg[9] 	= vcc_pins[VCC40].latch;
 	msg[10] = vcc_pins[VCC40].mask; //Put the VCC voltage to the ZIF pin 40
 	msg[11] = gnd_pins[GND40].latch;
