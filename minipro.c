@@ -537,7 +537,7 @@ void minipro_hardware_check()
 	for (i = 0; i < 25; i++)
 	{
 		msg[0] 	= MP_SET_LATCH;
-		msg[7] 	= gnd_pins[i].pin == 20 ? 9 : 1; //Special handle of pin GND20
+		msg[7] 	= gnd_pins[i].latch == 9 ? 2 : 1;//Special handle for pin GND20
 		msg[8] 	= gnd_pins[i].oe;
 		msg[9] 	= gnd_pins[i].latch;
 		msg[10] = gnd_pins[i].mask;

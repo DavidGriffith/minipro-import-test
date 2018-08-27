@@ -149,7 +149,6 @@ int Config_open(const char *path)
 		counter++;
 		counter1++;
 	}
-	free(config_content);
 	fclose(pFile);
 	return ret;
 }
