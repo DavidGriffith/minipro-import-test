@@ -51,5 +51,6 @@ typedef struct device
 extern device_t devices[];
 
 device_t *get_device_by_name(const char *name);
+const char *get_device_from_id(uint32_t id);
 
 #endif

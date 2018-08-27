@@ -503,20 +503,27 @@ void write_page_file(minipro_handle_t *handle, const char *filename, uint32_t ty
 
 void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fuses)
 {
-	printf("Reading fuses... ");
-	fflush(stdout);
-	if (Config_init(filename))
-	{
-		minipro_close(handle);
-		PERROR("Couldn't create config");
-	}
-
-	minipro_begin_transaction(handle);
 	uint32_t i, d;
-	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
 	uint8_t buf[11];
 	struct timeval begin, end;
+	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
+
+	if(opcode & 0x80)
+	{
+		minipro_close(handle);
+		ERROR("Can't read the lock byte of this device!");
+	}
+
+	if (Config_init(filename))
+		{
+			minipro_close(handle);
+			PERROR("Couldn't create config");
+		}
+
+	printf("Reading fuses... ");
+	fflush(stdout);
 	gettimeofday(&begin, NULL);
+	minipro_begin_transaction(handle);
 	for (i = 0; fuses[i].name; i++)
 	{
 		data_length += fuses[i].length;
@@ -543,7 +550,6 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 						ERROR("Couldn't set configuration");
 					}
 			}
-
 			opcode = fuses[i + 1].minipro_cmd;
 			data_length = 0;
 		}
@@ -562,16 +568,17 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 
 void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fuses)
 {
-	printf("Writing fuses... ");
-	fflush(stdout);
+
 	if (Config_open(filename))
 		{
 			minipro_close(handle);
 			PERROR("Couldn't parse config");
 		}
 
+	printf("Writing fuses... ");
+	fflush(stdout);
 	minipro_begin_transaction(handle);
-	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd;
+	uint8_t data_length = 0, opcode = fuses[0].minipro_cmd & 0x7f;
 	uint8_t buf[11];
 	struct timeval begin, end;
 	gettimeofday(&begin, NULL);
@@ -579,16 +586,16 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 	for (i = 0; fuses[i].name; i++)
 	{
 		data_length += fuses[i].length;
-		if (fuses[i].minipro_cmd < opcode)
+		if ((fuses[i].minipro_cmd & 0x7f) < opcode)
 		{
 			minipro_close(handle);
 			ERROR("fuse_decls are not sorted");
 		}
-		if (fuses[i + 1].name == NULL || fuses[i + 1].minipro_cmd > opcode)
+		if (fuses[i + 1].name == NULL || (fuses[i + 1].minipro_cmd & 0x7f) > opcode)
 		{
 			for (d = 0; fuses[d].name; d++)
 			{
-				if (fuses[d].minipro_cmd != opcode)
+				if ((fuses[d].minipro_cmd & 0x7f) != opcode)
 				{
 					continue;
 				}
@@ -603,7 +610,7 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 			}
 			minipro_write_fuses(handle, opcode, data_length, buf);
 
-			opcode = fuses[i + 1].minipro_cmd;
+			opcode = fuses[i + 1].minipro_cmd & 0x7f;
 			data_length = 0;
 		}
 	}
@@ -897,48 +904,17 @@ int main(int argc, char **argv)
 	}
 
 	uint8_t id_type;
-	if (cmdopts.idcheck_only)
-	{
-		minipro_begin_transaction(handle);
-		uint32_t chip_id = minipro_get_chip_id(handle, &id_type);
-		if (minipro_get_ovc_status(handle, NULL))
-		{
-			minipro_close(handle);
-			ERROR("Overcurrent protection!");
-		}
-		minipro_end_transaction(handle);
-
-		switch (id_type)
-		{
-		case MP_ID_TYPE1:
-		case MP_ID_TYPE2:
-		case MP_ID_TYPE5:
-			printf("Chip ID: 0x%02X\n", chip_id);
-			break;
-		case MP_ID_TYPE3:
-			printf("Chip ID: 0x%04X Rev.0x%02X\n", chip_id >> 5,
-					chip_id & 0x1f);
-			break;
-		case MP_ID_TYPE4:
-			printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
-					chip_id >> device->id_shift,
-					chip_id & ~(0xFF >>  device->id_shift));
-			break;
-		}
-		minipro_close(handle);
-		return (0);
-	}
-
 	// Verifying Chip ID (if applicable)
 	if (cmdopts.idcheck_skip)
 	{
 		printf("WARNING: skipping Chip ID test\n");
 	}
-	else if (device->chip_id_bytes_count && device->chip_id_bytes_count)
+	else if (device->chip_id_bytes_count && device->chip_id)
 	{
 		minipro_begin_transaction(handle);
 		if (minipro_get_ovc_status(handle, NULL))
 		{
+			minipro_end_transaction(handle);
 			minipro_close(handle);
 			ERROR("Overcurrent protection!");
 		}
@@ -981,18 +957,34 @@ int main(int argc, char **argv)
 			break;
 		}
 
+		if (cmdopts.idcheck_only && ok)
+					{
+						minipro_close(handle);
+						exit (0);
+					}
+
 		if (!ok)
 		{
+			const char *name = get_device_from_id(chip_id_temp);
+			if (cmdopts.idcheck_only)
+			{
+				printf("Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
+						device->chip_id, chip_id_temp, name ? name : "");
+				minipro_close(handle);
+				exit (0);
+			}
 			if (cmdopts.idcheck_continue)
+			{
 				printf(
-						"WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X\n",
-						device->chip_id, chip_id_temp);
+						"WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
+						device->chip_id, chip_id_temp, name ? name : "");
+			}
 			else
 				{
 					minipro_close(handle);
 					ERROR2(
-							"Invalid Chip ID: expected 0x%04X, got 0x%04X\n(use '-y' to continue anyway at your own risk)\n",
-							device->chip_id, chip_id_temp);
+							"Invalid Chip ID: expected 0x%04X, got 0x%04X (%s)\n(use '-y' to continue anyway at your own risk)\n",
+							device->chip_id, chip_id_temp, name ? name : "");
 				}
 		}
 	}

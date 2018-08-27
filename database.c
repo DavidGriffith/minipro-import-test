@@ -36,3 +36,14 @@ device_t *get_device_by_name(const char *name)
 	return NULL;
 }
 
+const char *get_device_from_id(uint32_t id)
+{
+	device_t *device;
+	for (device = &(devices[0]); device[0].name; device = &(device[1]))
+	{
+		if (device->chip_id == id)
+			return (device->name);
+	}
+	return NULL;
+}
+

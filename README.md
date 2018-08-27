@@ -136,7 +136,7 @@ port install libusb
 ```
 ### Checkout source code and compile
 ```nohighlight
-git clone git@gitlab.com:radiomanV/minipro.git
+git clone git@gitlab.com:com:DavidGriffith/minipro.git
 cd minipro
 make
 sudo make install

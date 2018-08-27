@@ -305,10 +305,10 @@ void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
 		uint8_t *buf)
 {
 	msg_init(msg, type, handle->device, handle->icsp);
-	msg[2] = (type == MP_READ_CFG && length == 4) ? 2 : 1; // note that PICs with 1 config word will show length==2
+	msg[2] = (type == MP_READ_CFG && length == 4) ? 2 : length; // note that PICs with 1 config word will show length==2
 	msg[5] = 0x10;
 	msg_send(handle, msg, 18);
-	msg_recv(handle, msg, 7 + length);
+	msg_recv(handle, msg, sizeof(msg));
 	memcpy(buf, &(msg[7]), length);
 }
 
@@ -318,31 +318,30 @@ void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
 	// Perform actual writing
 	switch (type & 0xf0)
 	{
-	case 0x10: // MP_READ_CFG, MP_READ_USER
+	case MP_READ_USER: // MP_READ_CFG, MP_READ_USER
 		msg_init(msg, type + 1, handle->device, handle->icsp);
-		msg[2] = (length == 4) ? 0x02 : 0x01;  // 2 fuse PICs have len=8
+		msg[2] = (length == 4) ? 0x02 : length;  // 2 fuse PICs have len=8
 		msg[4] = 0xc8;
 		msg[5] = 0x0f;
 		msg[6] = 0x00;
 		memcpy(&(msg[7]), buf, length);
-
 		msg_send(handle, msg, 64);
 		break;
-	case 0x40: // MP_READ_LOCK, MP_PROTECT_ON
+
+	case MP_WRITE_LOCK: // MP_WRITE_LOCK, MP_PROTECT_ON
 		msg_init(msg, type - 1, handle->device, handle->icsp);
 		memcpy(&(msg[7]), buf, length);
-
 		msg_send(handle, msg, 10);
 		break;
 	}
 
 	// The device waits us to get the status now
 	msg_init(msg, type, handle->device, handle->icsp);
-	msg[2] = (type == MP_READ_CFG && length == 4) ? 2 : 1; // note that PICs with 1 config word will show length==2
+	msg[2] = (type == MP_READ_CFG && length == 4) ? 2 : length; // note that PICs with 1 config word will show length==2
 	memcpy(&(msg[7]), buf, length);
 
 	msg_send(handle, msg, 18);
-	msg_recv(handle, msg, 7 + length);
+	msg_recv(handle, msg, sizeof(msg));
 
 	if (memcmp(buf, &(msg[7]), length))
 	{

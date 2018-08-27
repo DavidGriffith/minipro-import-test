@@ -28,6 +28,7 @@ typedef struct fuse_decl
 	uint32_t offset;
 } fuse_decl_t;
 
+extern fuse_decl_t atmel_lock[];
 extern fuse_decl_t avr_fuses[];
 extern fuse_decl_t avr2_fuses[];
 extern fuse_decl_t avr3_fuses[];

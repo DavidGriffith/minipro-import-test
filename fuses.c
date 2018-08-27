@@ -19,6 +19,11 @@
 #include "fuses.h"
 #include "minipro.h"
 
+fuse_decl_t atmel_lock[] =
+{
+{ .name = "lock_byte", .minipro_cmd = MP_READ_LOCK | 0x80, .length = 1, .offset = 0 },
+{ .name = NULL }, };
+
 fuse_decl_t avr_fuses[] =
 {
 { .name = "fuses", .minipro_cmd = MP_READ_CFG, .length = 1, .offset = 0 },
