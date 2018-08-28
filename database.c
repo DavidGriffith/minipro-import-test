@@ -22,7 +22,8 @@
 device_t devices[] =
 {
 #include "devices.h"
-		{ .name = NULL }, };
+	{ .name = NULL },
+};
 
 
 device_t *get_device_by_name(const char *name)
@@ -36,12 +37,12 @@ device_t *get_device_by_name(const char *name)
 	return NULL;
 }
 
-const char *get_device_from_id(uint32_t id)
+const char *get_device_from_id(uint32_t id, uint8_t protocol)
 {
 	device_t *device;
 	for (device = &(devices[0]); device[0].name; device = &(device[1]))
 	{
-		if (device->chip_id == id)
+		if (device->chip_id == id && device->protocol_id == protocol && device->chip_id && device->chip_id_bytes_count)
 			return (device->name);
 	}
 	return NULL;

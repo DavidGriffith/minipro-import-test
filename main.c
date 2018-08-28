@@ -62,7 +62,7 @@ void print_version_and_exit(uint32_t rv)
 			"Git tag:\t%s\n"
 			"Git branch:\t%s\n";
 	fprintf(rv ? stderr : stdout, output, GIT_TAG, build_timestamp, GIT_HASH,
-	GIT_TAG, GIT_BRANCH);
+			GIT_TAG, GIT_BRANCH);
 	exit(rv);
 }
 
@@ -183,6 +183,7 @@ void print_device_info_and_exit(device_t *device)
 	exit(0);
 }
 
+
 void parse_cmdline(int argc, char **argv)
 {
 	int8_t c;
@@ -195,6 +196,7 @@ void parse_cmdline(int argc, char **argv)
 		{
 		case 'l':
 			print_devices_and_exit();
+			exit(0);
 			break;
 
 		case 'L':
@@ -511,14 +513,14 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 	if(opcode & 0x80)
 	{
 		minipro_close(handle);
-		ERROR("Can't read the lock byte of this device!");
+		ERROR("Can't read the lock byte for this device!");
 	}
 
 	if (Config_init(filename))
-		{
-			minipro_close(handle);
-			PERROR("Couldn't create config");
-		}
+	{
+		minipro_close(handle);
+		PERROR("Couldn't create config");
+	}
 
 	printf("Reading fuses... ");
 	fflush(stdout);
@@ -545,10 +547,10 @@ void read_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fus
 				uint32_t value = load_int(&(buf[fuses[d].offset]),
 						fuses[d].length, MP_LITTLE_ENDIAN);
 				if (Config_set_int(fuses[d].name, value) == -1)
-					{
-						minipro_close(handle);
-						ERROR("Couldn't set configuration");
-					}
+				{
+					minipro_close(handle);
+					ERROR("Couldn't set configuration");
+				}
 			}
 			opcode = fuses[i + 1].minipro_cmd;
 			data_length = 0;
@@ -570,10 +572,10 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 {
 
 	if (Config_open(filename))
-		{
-			minipro_close(handle);
-			PERROR("Couldn't parse config");
-		}
+	{
+		minipro_close(handle);
+		PERROR("Couldn't parse config");
+	}
 
 	printf("Writing fuses... ");
 	fflush(stdout);
@@ -606,7 +608,7 @@ void write_fuses(minipro_handle_t *handle, const char *filename, fuse_decl_t *fu
 					ERROR("Could not read configuration");
 				}
 				format_int(&(buf[fuses[d].offset]), value, fuses[d].length,
-				MP_LITTLE_ENDIAN);
+						MP_LITTLE_ENDIAN);
 			}
 			minipro_write_fuses(handle, opcode, data_length, buf);
 
@@ -663,14 +665,14 @@ void verify_page_file(minipro_handle_t *handle, const char *filename, uint32_t t
 	free(chip_data);
 
 	if (idx != -1)
-		{
-			minipro_close(handle);
-			ERROR2("Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n", idx, c1, c2);
-		}
+	{
+		minipro_close(handle);
+		ERROR2("Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n", idx, c1, c2);
+	}
 	else
-		{
-			printf("Verification OK\n");
-		}
+	{
+		printf("Verification OK\n");
+	}
 }
 
 /* replace_filename_extension("filename.foo", ".bar") --> "filename.bar" */
@@ -743,11 +745,11 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 		if (fsize != device->code_memory_size)
 		{
 			if (!cmdopts.size_error)
-				{
-					minipro_close(handle);
-					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
+			{
+				minipro_close(handle);
+				ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
 						device->code_memory_size);
-				}
+			}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
 						fsize, device->code_memory_size);
@@ -759,11 +761,11 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 		if (fsize != device->data_memory_size)
 		{
 			if (!cmdopts.size_error)
-				{
-					minipro_close(handle);
-					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
+			{
+				minipro_close(handle);
+				ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
 						device->data_memory_size);
-				}
+			}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
 						fsize, device->data_memory_size);
@@ -872,10 +874,10 @@ int main(int argc, char **argv)
 	handle->icsp = cmdopts.icsp;
 
 	if(!device->read_buffer_size || !device->protocol_id)
-		{
-			minipro_close(handle);
-			ERROR("Unsupported device!");
-		}
+	{
+		minipro_close(handle);
+		ERROR("Unsupported device!");
+	}
 
 	// Printing system info
 	minipro_print_device_info(handle);
@@ -919,9 +921,9 @@ int main(int argc, char **argv)
 			ERROR("Overcurrent protection!");
 		}
 		uint32_t chip_id = minipro_get_chip_id(handle, &id_type);
-		uint32_t chip_id_temp = chip_id;
 		minipro_end_transaction(handle);
-
+		uint32_t chip_id_temp = chip_id;
+		uint8_t shift = 0;
 		/* The id_type will tell us the Chip ID type. There are 5 types */
 		uint32_t ok = 0;
 		switch (id_type)
@@ -930,46 +932,51 @@ int main(int argc, char **argv)
 		case MP_ID_TYPE2: //4 bytes ID
 		case MP_ID_TYPE5: //3 bytes ID, this ID type is returning from 25 SPI series.
 			ok = (chip_id == device->chip_id);
-			chip_id_temp = chip_id;
 			if (ok)
 			{
 				printf("Chip ID OK: 0x%02X\n", chip_id);
 			}
 			break;
 		case MP_ID_TYPE3: //Microchip controllers with 5 bit revision number.
-			ok = (device->chip_id == (chip_id >> 5)); //Throwing the chip revision (last 5 bits).
-			chip_id_temp = chip_id >> 5;
+			chip_id = (chip_id >> 8) | (uint16_t)(chip_id << 8);// firmware bug endianess
+			ok = (device->chip_id >> 5  == (chip_id >> 5)); //Throw the chip revision (last 5 bits).
 			if (ok)
 			{
 				printf("Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> 5,
-						chip_id & 0x1f);
+						chip_id & 0x1F);
 			}
+			chip_id >>= 5;
+			chip_id_temp = chip_id << 5;
+			shift = 5;
 			break;
 		case MP_ID_TYPE4: //Microchip controllers with 4-5 bit revision number.
-			ok = (device->chip_id == (chip_id >> device->id_shift)); //Throwing the chip revision (last .shift bits).
-			chip_id_temp = chip_id >>  device->id_shift;
+			chip_id = (chip_id >> 8) | (uint16_t)(chip_id << 8);// firmware bug endianess
+			ok = ( device->chip_id >> device->id_shift == (chip_id >> device->id_shift)); //Throw the chip revision (last .shift bits).
 			if (ok)
 			{
 				printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
-						chip_id >> device->id_shift,
+						chip_id,
 						chip_id & ~(0xFF >>  device->id_shift));
 			}
+			chip_id >>= device->id_shift;
+			chip_id_temp = chip_id << device->id_shift;
+			shift = device->id_shift;
 			break;
 		}
 
 		if (cmdopts.idcheck_only && ok)
-					{
-						minipro_close(handle);
-						exit (0);
-					}
+		{
+			minipro_close(handle);
+			exit (0);
+		}
 
 		if (!ok)
 		{
-			const char *name = get_device_from_id(chip_id_temp);
+			const char *name = get_device_from_id(chip_id_temp, device->protocol_id);
 			if (cmdopts.idcheck_only)
 			{
 				printf("Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
-						device->chip_id, chip_id_temp, name ? name : "");
+						device->chip_id >> shift, chip_id_temp >> shift, name ? name : "unknown");
 				minipro_close(handle);
 				exit (0);
 			}
@@ -977,20 +984,24 @@ int main(int argc, char **argv)
 			{
 				printf(
 						"WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
-						device->chip_id, chip_id_temp, name ? name : "");
+						device->chip_id >> shift, chip_id_temp >> shift, name ? name : "unknown");
 			}
 			else
-				{
-					minipro_close(handle);
-					ERROR2(
-							"Invalid Chip ID: expected 0x%04X, got 0x%04X (%s)\n(use '-y' to continue anyway at your own risk)\n",
-							device->chip_id, chip_id_temp, name ? name : "");
-				}
+			{
+				minipro_close(handle);
+				ERROR2(
+						"Invalid Chip ID: expected 0x%04X, got 0x%04X (%s)\n(use '-y' to continue anyway at your own risk)\n",
+						device->chip_id >> shift, chip_id_temp, name ? name : "unknown");
+			}
 		}
+	}
+	else if(!cmdopts.filename)
+	{
+		minipro_close(handle);
+		ERROR("Can't read the device ID for this device!");
 	}
 
 	cmdopts.action(cmdopts.filename, handle, device);
-
 	minipro_close(handle);
 
 	return (0);

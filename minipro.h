@@ -181,8 +181,8 @@ uint32_t minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *stat
 void minipro_read_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
 void minipro_write_block(minipro_handle_t *handle, uint32_t type, uint32_t addr, uint8_t *buf, size_t len);
 uint32_t minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type);
-void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
-void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
+void minipro_read_fuses(minipro_handle_t *handle, uint8_t command, size_t length, uint8_t *buf);
+void minipro_write_fuses(minipro_handle_t *handle, uint8_t command, size_t length, uint8_t *buf);
 uint32_t minipro_erase(minipro_handle_t *handle);
 void minipro_print_device_info(minipro_handle_t *handle);
 uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
