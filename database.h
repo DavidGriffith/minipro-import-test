@@ -34,7 +34,7 @@ typedef struct device
 	uint32_t data_memory_size;
 	size_t data_memory2_size;
 	uint32_t chip_id; // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
-	uint8_t chip_id_bytes_count;
+	uint8_t chip_id_size;
 	uint16_t opts1;
 	uint16_t opts2;
 	uint32_t opts3;

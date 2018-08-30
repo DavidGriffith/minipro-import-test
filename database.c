@@ -42,7 +42,7 @@ const char *get_device_from_id(uint32_t id, uint8_t protocol)
 	device_t *device;
 	for (device = &(devices[0]); device[0].name; device = &(device[1]))
 	{
-		if (device->chip_id == id && device->protocol_id == protocol && device->chip_id && device->chip_id_bytes_count)
+		if (device->chip_id == id && device->protocol_id == protocol && device->chip_id && device->chip_id_size)
 			return (device->name);
 	}
 	return NULL;

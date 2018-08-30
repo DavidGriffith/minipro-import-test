@@ -102,6 +102,9 @@
 #define MP_ID_TYPE4		0x04
 #define MP_ID_TYPE5		0x05
 
+#define MP_ERASE_MASK 0x10
+#define MP_ID_MASK 0x20
+
 #include "database.h"
 
 typedef struct minipro_report_info

@@ -437,7 +437,7 @@ void write_page_ram(minipro_handle_t *handle, uint8_t *buf, uint32_t type, const
 			minipro_close(handle);
 			ERROR("\nOvercurrent protection!");
 		}
-		if (status.error)
+		if (status.error && !cmdopts.no_verify)
 		{
 			ERROR2(
 					"\nVerification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
@@ -728,6 +728,11 @@ void action_read(const char *filename, minipro_handle_t *handle, device_t *devic
 		read_fuses(handle, config_filename, device->fuses);
 	}
 
+	if (cmdopts.page == CONFIG && !device->fuses)
+	{
+		printf("Missing fuse type in database...\n");
+	}
+
 	minipro_end_transaction(handle);
 
 	free(default_config_filename);
@@ -774,13 +779,14 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 	case CONFIG:
 		break;
 	}
-	minipro_begin_transaction(handle);
-	if (cmdopts.no_erase == 0)
+
+	if (cmdopts.no_erase == 0 && (device->opts4 & MP_ERASE_MASK))//Not all chips can be erased...
 	{
 		printf("Erasing... ");
 		fflush(stdout);
 		struct timeval begin, end;
 		gettimeofday(&begin, NULL);
+		minipro_begin_transaction(handle);
 		uint32_t erase = minipro_erase(handle); //Erase device..;
 		if (!erase)
 		{
@@ -911,7 +917,7 @@ int main(int argc, char **argv)
 	{
 		printf("WARNING: skipping Chip ID test\n");
 	}
-	else if (device->chip_id_bytes_count && device->chip_id)
+	else if ((device->chip_id_size && device->chip_id) || (device->opts4 & MP_ID_MASK))
 	{
 		minipro_begin_transaction(handle);
 		if (minipro_get_ovc_status(handle, NULL))
@@ -998,7 +1004,7 @@ int main(int argc, char **argv)
 	else if(!cmdopts.filename)
 	{
 		minipro_close(handle);
-		ERROR("Can't read the device ID for this device!");
+		ERROR("Can't read the device ID for this chip!");
 	}
 
 	cmdopts.action(cmdopts.filename, handle, device);
