@@ -33,7 +33,7 @@
  *
  * Firmware	Official	Release		Firmware
  * Version	Program		Date		Version
- * String	Version		Date		ID
+ * String	Version				ID
  *
  * 3.2.85	6.82		Jul 14, 2018	0x0255
  * 3.2.82	6.71		Apr 17, 2018	0x0252
@@ -50,6 +50,7 @@
  * 3.2.59	5.80		Nov  1, 2012	0x023b
  * 3.2.58	5.71		Aug 31, 2012	0x023a
  *		5.70		Aug 27, 2012
+ * 3.2.56	5.60
  *		1.00		Jun 18, 2010
  *
  */
