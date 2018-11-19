@@ -23,6 +23,7 @@
 #include <libgen.h>
 #include <signal.h>
 #include "minipro.h"
+#include "tl866a.h"
 #include "database.h"
 #include "byte_utils.h"
 #include "fuses.h"
@@ -182,6 +183,17 @@ void print_device_info_and_exit(device_t *device)
 	exit(0);
 }
 
+
+void hardware_check_and_exit(int exit_code)
+{
+	minipro_handle_t *handle = minipro_open(NULL);
+	minipro_hardware_check(handle);
+	minipro_close(handle);
+	exit(exit_code);
+
+}
+
+
 void parse_cmdline(int argc, char **argv)
 {
 	int8_t c;
@@ -298,8 +310,7 @@ void parse_cmdline(int argc, char **argv)
 			break;
 
 		case 't':
-			minipro_hardware_check();
-			exit(0);
+			hardware_check_and_exit(0);
 			break;
 		default:
 			print_help_and_exit(argv[0], -1);
@@ -704,13 +715,13 @@ void action_read(const char *filename, minipro_handle_t *handle, device_t *devic
 	}
 	if (cmdopts.page == CODE)
 	{
-		read_page_file(handle, code_filename, MP_READ_CODE, "Code",
+		read_page_file(handle, code_filename, MP_CODE, "Code",
 				device->code_memory_size);
 	}
 	if (cmdopts.page == DATA && device->data_memory_size)
 	{
 
-		read_page_file(handle, data_filename, MP_READ_DATA, "Data",
+		read_page_file(handle, data_filename, MP_DATA, "Data",
 				device->data_memory_size);
 	}
 	if (cmdopts.page == CONFIG && device->fuses)
@@ -805,17 +816,17 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 	{
 	case UNSPECIFIED:
 	case CODE:
-		write_page_file(handle, filename, MP_WRITE_CODE, "Code",
+		write_page_file(handle, filename, MP_CODE, "Code",
 				device->code_memory_size);
 		if (cmdopts.no_verify == 0)
-			verify_page_file(handle, filename, MP_READ_CODE, "Code",
+			verify_page_file(handle, filename, MP_CODE, "Code",
 					device->code_memory_size);
 		break;
 	case DATA:
-		write_page_file(handle, filename, MP_WRITE_DATA, "Data",
+		write_page_file(handle, filename, MP_DATA, "Data",
 				device->data_memory_size);
 		if (cmdopts.no_verify == 0)
-			verify_page_file(handle, filename, MP_READ_DATA, "Data",
+			verify_page_file(handle, filename, MP_DATA, "Data",
 					device->data_memory_size);
 		break;
 	case CONFIG:

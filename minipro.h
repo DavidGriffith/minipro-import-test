@@ -18,42 +18,9 @@
 #ifndef __MINIPRO_H
 #define __MINIPRO_H
 
-/*
- * This header only contains low-level wrappers against typical requests.
- * Please refer main.c if you're looking for higher-level logic.
- */
-
 #include <libusb.h>
 
 #include "version.h"
-
-/*
- * These are the known firmware versions along with the versions of the
- * official software from whence they came.
- *
- * Firmware	Official	Release		Firmware
- * Version	Program		Date		Version
- * String	Version				ID
- *
- * 3.2.85	6.82		Jul 14, 2018	0x0255
- * 3.2.82	6.71		Apr 17, 2018	0x0252
- * 3.2.81	6.70		Mar  7, 2018	0x0251
- * 3.2.80	6.60		May  9, 2017	0x0250
- * 3.2.72	6.50		Dec 25, 2015	0x0248
- * 3.2.69	6.17		Jul 11, 2015	0x0245
- * 3.2.68	6.16		Jun 12, 2015	0x0244
- * 3.2.66	6.13		Jun  9, 2015	0x0242
- * 3.2.63	6.10		Jul 16, 2014	0x023f
- * 3.2.62	6.00		Jan  7, 2014	0x023e
- * 3.2.61	5.91		Mar  9, 2013	0x023d
- * 3.2.60	5.90		Mar  4, 2013	0x023c
- * 3.2.59	5.80		Nov  1, 2012	0x023b
- * 3.2.58	5.71		Aug 31, 2012	0x023a
- * 3.2.57	5.70		Aug 27, 2012	0x0239
- * 3.2.56	5.60		Jun 12, 2012	0x0238
- *		1.00		Jun 18, 2010
- *
- */
 
 #define MP_TL866A 1
 #define MP_TL866CS 2
@@ -64,35 +31,16 @@
 #define MP_FIRMWARE_VERSION 0x0255
 #define MP_FIRMWARE_STRING "03.2.85"
 
-#define MP_REQUEST_STATUS1_MSG1 0x03
-#define MP_REQUEST_STATUS1_MSG2 0xfe
+#define MP_CODE                 0x00
+#define MP_DATA                 0x01
 
-#define MP_GET_SYSTEM_INFO 0x00
-#define MP_END_TRANSACTION 0x04
-#define MP_GET_CHIP_ID 0x05
-#define MP_READ_CODE 0x21
-#define MP_READ_DATA 0x30
-#define MP_WRITE_CODE 0x20
-#define MP_WRITE_DATA 0x31
-#define MP_ERASE 0x22
+#define MP_FUSE_USER            0x00
+#define MP_FUSE_CFG             0x01
+#define MP_FUSE_LOCK            0x02
 
-#define MP_READ_USER 0x10
-#define MP_WRITE_USER 0x11
+#define MP_ICSP_ENABLE          0x80
+#define MP_ICSP_VCC             0x01
 
-#define MP_READ_CFG 0x12
-#define MP_WRITE_CFG 0x13
-
-#define MP_WRITE_LOCK 0x40
-#define MP_READ_LOCK 0x41
-
-#define MP_PROTECT_OFF 0x44
-#define MP_PROTECT_ON 0x45
-
-#define MP_ICSP_ENABLE 0x80
-#define MP_ICSP_VCC 0x01
-
-//TSOP48
-#define MP_UNLOCK_TSOP48 0xFD
 #define MP_TSOP48_TYPE_V3	0x00
 #define	MP_TSOP48_TYPE_NONE	0x01
 #define	MP_TSOP48_TYPE_V0	0x02
@@ -104,12 +52,6 @@
 #define MP_ID_TYPE3		0x03
 #define MP_ID_TYPE4		0x04
 #define MP_ID_TYPE5		0x05
-
-//Hardware Bit Banging
-#define MP_RESET_PIN_DRIVERS 0xD0
-#define MP_SET_LATCH 0xD1
-#define MP_READ_ZIF_PINS 0xD2
-
 
 #include "database.h"
 
@@ -125,18 +67,6 @@ typedef struct minipro_report_info
 	uint8_t serial_number[24];
 	uint8_t hardware_version;
 } minipro_report_info_t;
-
-typedef struct minipro_handle
-{
-	char model[16];
-	char firmware_str[16];
-	uint32_t firmware;
-
-	libusb_device_handle *usb_handle;
-	libusb_context *ctx;
-	device_t *device;
-	uint32_t icsp;
-} minipro_handle_t;
 
 typedef struct minipro_status_s
 {
@@ -154,6 +84,33 @@ typedef struct zif_pins_s
 	uint8_t oe;
 	uint8_t mask;
 } zif_pins_t;
+
+typedef struct minipro_handle
+{
+	char model[16];
+	char firmware_str[16];
+	uint32_t firmware;
+
+	libusb_device_handle *usb_handle;
+	libusb_context *ctx;
+
+	void (*minipro_begin_transaction)(struct minipro_handle *);
+	void (*minipro_end_transaction)(struct minipro_handle *);
+	void (*minipro_protect_off)(struct minipro_handle *);
+	void (*minipro_protect_on)(struct minipro_handle *);
+	uint32_t (*minipro_get_ovc_status)(struct minipro_handle *, struct minipro_status_s *);
+	void (*minipro_read_block)(struct minipro_handle *, uint32_t, uint32_t, uint8_t *, size_t);
+	void (*minipro_write_block)(struct minipro_handle *, uint32_t, uint32_t, uint8_t *, size_t);
+	uint32_t (*minipro_get_chip_id)(struct minipro_handle *, uint8_t *);
+	void (*minipro_read_fuses)(struct minipro_handle *, uint32_t, size_t, uint8_t *);
+	void (*minipro_write_fuses)(struct minipro_handle *, uint32_t, size_t, uint8_t *);
+	uint32_t (*minipro_erase)(struct minipro_handle *);
+	uint8_t (*minipro_unlock_tsop48)(struct minipro_handle *);
+	void (*minipro_hardware_check)(struct minipro_handle *);
+
+	device_t *device;
+	uint32_t icsp;
+} minipro_handle_t;
 
 enum VPP_PINS
 	{
@@ -194,7 +151,6 @@ void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, 
 void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 uint32_t minipro_erase(minipro_handle_t *handle);
 uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
-
-void minipro_hardware_check();
+void minipro_hardware_check(minipro_handle_t *handle);
 
 #endif
