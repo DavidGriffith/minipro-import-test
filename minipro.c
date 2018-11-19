@@ -112,6 +112,8 @@ zif_pins_t gnd_pins[] =
 minipro_handle_t * minipro_open(device_t *device)
 {
 	int32_t ret;
+	minipro_report_info_t info;
+
 	minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
 	if (handle == NULL)
 	{
@@ -131,28 +133,119 @@ minipro_handle_t * minipro_open(device_t *device)
 		// We didn't match the vid / pid of the "original" TL866 - so try the new TL866II+
 		handle->usb_handle = libusb_open_device_with_vid_pid(handle->ctx, 0xa466, 0x0a53);
 
-		// If we don't get that either report error in connecting; otherwise report incompatability...
+		// If we don't get that either report error in connecting
 		if (handle->usb_handle == NULL)
 		{
 			free(handle);
 			ERROR("Error opening device");
 		}
-		else
-		{
-			free(handle);
-			ERROR("This version of the software is not compatible with the TL866 II+");
-		}
+	}
+
+	ret = libusb_claim_interface(handle->usb_handle, 0);
+	if (ret != 0)
+	{
+		minipro_close(handle);
+		ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
 	}
 
 	handle->device = device;
+	minipro_get_system_info(handle, &info);
 
+	switch (info.device_status) {
+	case MP_STATUS_NORMAL:
+		break;
+	case MP_STATUS_BOOTLOADER:
+		minipro_close(handle);
+		ERROR("In bootloader mode!\nExiting...\n");
+		break;
+	default:
+		minipro_close(handle);
+		ERROR("Unknown device status!\nExiting...\n");
+	}
+
+	switch (info.device_version) {
+	case MP_TL866A:
+		strcpy(handle->model, "TL866A");
+		break;
+	case MP_TL866CS:
+		strcpy(handle->model, "TL866CS");
+		break;
+	case MP_TL866IIPLUS:
+		strcpy(handle->model, "TL866II+");
+		break;
+	}
+
+	handle->firmware = load_int(&info.firmware_version_minor,
+	                            2, MP_LITTLE_ENDIAN);
+	sprintf(handle->firmware_str, "%02d.%d.%d", info.hardware_version,
+	        info.firmware_version_major, info.firmware_version_minor);
+	printf("Found %s %s (%#03x)\n", handle->model,
+	       handle->firmware_str, handle->firmware);
+
+	if (handle->firmware < MP_FIRMWARE_VERSION)
+	{
+		fprintf(stderr, "Warning: Firmware is out of date.\n");
+		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
+		MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Found     %s (%#03x)\n", handle->firmware_str, handle->firmware);
+	}
+	else if (handle->firmware > MP_FIRMWARE_VERSION)
+	{
+		fprintf(stderr, "Warning: Firmware is newer than expected.\n");
+		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
+		MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Found     %s (%#03x)\n", handle->firmware_str, handle->firmware);
+	}
+
+	if (info.device_version == MP_TL866IIPLUS) {
+		minipro_close(handle);
+		ERROR("TL866II+ is not supported.\n");
+	}
 	return (handle);
 }
 
 void minipro_close(minipro_handle_t *handle)
 {
+	int32_t ret;
+
+	ret = libusb_release_interface(handle->usb_handle, 0);
+	if (ret != 0)
+	{
+		minipro_close(handle);
+		ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
+	}
 	libusb_close(handle->usb_handle);
 	free(handle);
+}
+
+void minipro_get_system_info(minipro_handle_t *handle, minipro_report_info_t *info)
+{
+	uint8_t msg[sizeof(*info)];
+
+	memset(info, 0x0, sizeof(*info));
+	memset(msg, 0x0, sizeof(msg));
+	msg_send(handle, msg, 5);
+	msg_recv(handle, msg, sizeof(msg));
+
+	switch (msg[6]) {
+	case MP_TL866IIPLUS:
+		memcpy(info, msg, sizeof(*info));
+		break;
+	case MP_TL866A:
+	case MP_TL866CS:
+		info->echo = msg[0];
+		info->device_status = msg[1];
+		info->report_size = load_int((msg+2), 2, MP_LITTLE_ENDIAN);
+		info->firmware_version_minor = msg[4];
+		info->firmware_version_major = msg[5];
+		info->device_version = msg[6];
+		memcpy(info->device_code, (msg+7), 32);
+		info->hardware_version = msg[39];
+		break;
+	default:
+		minipro_close(handle);
+		ERROR("Unknown Device!");
+	}
 }
 
 uint8_t msg[1024];
@@ -179,13 +272,6 @@ static size_t msg_transfer(minipro_handle_t *handle, uint8_t *buf,
 {
 	int bytes_transferred;
 	uint32_t ret;
-	ret = libusb_claim_interface(handle->usb_handle, 0);
-
-	if (ret != 0)
-	{
-		minipro_close(handle);
-		ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
-	}
 	ret = libusb_bulk_transfer(handle->usb_handle, (1 | direction), buf,
 			(int) length, &bytes_transferred, 0);
 
@@ -195,17 +281,11 @@ static size_t msg_transfer(minipro_handle_t *handle, uint8_t *buf,
 		ERROR2("IO error: bulk_transfer: %s\n", libusb_error_name(ret));
 	}
 
-	ret = libusb_release_interface(handle->usb_handle, 0);
-	if (ret != 0)
-	{
-		minipro_close(handle);
-		ERROR2("IO error: release_interface: %s\n", libusb_error_name(ret));
-	}
 	return (size_t) bytes_transferred;
 }
 
 #ifndef TEST
-static uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length)
+uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length)
 {
 	uint32_t bytes_transferred = msg_transfer(handle, buf, length,
 			LIBUSB_ENDPOINT_OUT);
@@ -218,7 +298,7 @@ static uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length)
 	return bytes_transferred;
 }
 
-static uint32_t msg_recv(minipro_handle_t *handle, uint8_t *buf, size_t length)
+uint32_t msg_recv(minipro_handle_t *handle, uint8_t *buf, size_t length)
 {
 	return msg_transfer(handle, buf, length, LIBUSB_ENDPOINT_IN);
 }
@@ -351,75 +431,6 @@ void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
 	}
 }
 
-void minipro_print_device_info(minipro_handle_t *handle)
-{
-	minipro_report_info_t info;
-
-	memset(msg, 0x0, sizeof(msg));
-	msg[0] = MP_GET_SYSTEM_INFO;
-	msg_send(handle, msg, 5);
-	msg_recv(handle, msg, sizeof(msg));
-	memcpy(&info, msg, sizeof(info));
-
-	// Model
-	char *model;
-	switch (info.device_version)
-	{
-	case MP_TL866A:
-		model = "TL866A";
-		break;
-	case MP_TL866CS:
-		model = "TL866CS";
-		break;
-	default:
-	{
-		minipro_close(handle);
-		ERROR("Unknown device!");
-	}
-	}
-
-	// Device status
-	switch (info.device_status)
-	{
-	case MP_STATUS_NORMAL:
-		break;
-	case MP_STATUS_BOOTLOADER:
-	{
-		minipro_close(handle);
-		ERROR2("Found %s in bootloader mode!\nExiting...\n", model);
-	}
-		break;
-	default:
-	{
-		minipro_close(handle);
-		ERROR2("Found %s with unknown device status!\nExiting...\n", model);
-	}
-	}
-
-	// Firmware
-	uint32_t firmware = load_int(&info.firmware_version_minor, 2,
-	MP_LITTLE_ENDIAN);
-	char firmware_str[16];
-	sprintf(firmware_str, "%02d.%d.%d", info.hardware_version,
-			info.firmware_version_major, info.firmware_version_minor);
-	printf("Found %s %s (%#03x)\n", model, firmware_str, firmware);
-
-	if (firmware < MP_FIRMWARE_VERSION)
-	{
-		fprintf(stderr, "Warning: Firmware is out of date.\n");
-		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
-		MP_FIRMWARE_VERSION);
-		fprintf(stderr, "  Found     %s (%#03x)\n", firmware_str, firmware);
-	}
-	else if (firmware > MP_FIRMWARE_VERSION)
-	{
-		fprintf(stderr, "Warning: Firmware is newer than expected.\n");
-		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
-		MP_FIRMWARE_VERSION);
-		fprintf(stderr, "  Found     %s (%#03x)\n", firmware_str, firmware);
-	}
-}
-
 uint32_t minipro_erase(minipro_handle_t *handle)
 {
 	msg_init(msg, MP_ERASE, handle->device, handle->icsp);
@@ -463,7 +474,6 @@ void minipro_hardware_check()
 {
 	uint8_t read_buffer[64];
 	minipro_handle_t *handle = minipro_open(NULL);
-	minipro_print_device_info(handle);
 	memset(&msg, 0x00, 32);
 
 	uint8_t i, error = 0;

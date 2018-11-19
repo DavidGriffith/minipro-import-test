@@ -57,6 +57,7 @@
 
 #define MP_TL866A 1
 #define MP_TL866CS 2
+#define MP_TL866IIPLUS 5
 #define MP_STATUS_NORMAL 1
 #define MP_STATUS_BOOTLOADER 2
 
@@ -119,7 +120,7 @@ typedef struct minipro_report_info
 	uint16_t report_size;
 	uint8_t firmware_version_minor;
 	uint8_t firmware_version_major;
-	uint8_t device_version;
+	uint16_t device_version;
 	uint8_t device_code[8];
 	uint8_t serial_number[24];
 	uint8_t hardware_version;
@@ -127,6 +128,10 @@ typedef struct minipro_report_info
 
 typedef struct minipro_handle
 {
+	char model[16];
+	char firmware_str[16];
+	uint32_t firmware;
+
 	libusb_device_handle *usb_handle;
 	libusb_context *ctx;
 	device_t *device;
@@ -173,6 +178,10 @@ enum GND_PINS
 
 minipro_handle_t *minipro_open(device_t *device);
 void minipro_close(minipro_handle_t *handle);
+void minipro_get_system_info(minipro_handle_t *handle, minipro_report_info_t *info);
+uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length);
+uint32_t msg_recv(minipro_handle_t *handle, uint8_t *buf, size_t length);
+
 void minipro_begin_transaction(minipro_handle_t *handle);
 void minipro_end_transaction(minipro_handle_t *handle);
 void minipro_protect_off(minipro_handle_t *handle);
@@ -184,8 +193,8 @@ uint32_t minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type);
 void minipro_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 void minipro_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 uint32_t minipro_erase(minipro_handle_t *handle);
-void minipro_print_device_info(minipro_handle_t *handle);
 uint8_t minipro_unlock_tsop48(minipro_handle_t *handle);
+
 void minipro_hardware_check();
 
 #endif

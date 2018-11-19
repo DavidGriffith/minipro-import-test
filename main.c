@@ -869,9 +869,6 @@ int main(int argc, char **argv)
 			ERROR("Unsupported device!");
 		}
 
-	// Printing system info
-	minipro_print_device_info(handle);
-
 	// Unlocking the TSOP48 adapter (if applicable)
 	if (device && device->opts4 == 0x1002078)
 	{
