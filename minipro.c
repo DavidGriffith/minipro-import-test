@@ -28,6 +28,7 @@
 #endif
 #include "minipro.h"
 #include "tl866a.h"
+#include "tl866iiplus.h"
 #include "byte_utils.h"
 #include "error.h"
 
@@ -110,6 +111,14 @@ minipro_handle_t * minipro_open(device_t *device)
 		break;
 	case MP_TL866IIPLUS:
 		strcpy(handle->model, "TL866II+");
+		handle->minipro_begin_transaction = tl866iiplus_begin_transaction;
+		handle->minipro_end_transaction = tl866iiplus_end_transaction;
+		handle->minipro_get_chip_id = tl866iiplus_get_chip_id;
+		handle->minipro_read_block = tl866iiplus_read_block;
+		handle->minipro_write_block = tl866iiplus_write_block;
+		handle->minipro_protect_off = tl866iiplus_protect_off;
+		handle->minipro_protect_on = tl866iiplus_protect_on;
+		handle->minipro_erase = tl866iiplus_erase;
 		break;
 	}
 
@@ -204,6 +213,7 @@ uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length)
 {
 	uint32_t bytes_transferred = msg_transfer(handle, buf, length,
 			LIBUSB_ENDPOINT_OUT);
+
 	if (bytes_transferred != length)
 	{
 		minipro_close(handle);
@@ -267,6 +277,10 @@ uint32_t minipro_get_ovc_status(minipro_handle_t *handle,
 		minipro_status_t *status)
 {
 	assert(handle != NULL);
+
+	if (status){
+		memset (status, 0x00, sizeof(*status));
+	}
 
 	if (handle->minipro_get_ovc_status) {
 		return handle->minipro_get_ovc_status(handle, status);
