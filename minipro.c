@@ -35,7 +35,10 @@
 
 minipro_handle_t * minipro_open(device_t *device)
 {
-	int32_t ret;
+	int32_t  ret;
+	uint16_t expected_firmware;
+	char    *expected_firmware_str;
+
 	minipro_report_info_t info;
 
 	minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
@@ -90,6 +93,8 @@ minipro_handle_t * minipro_open(device_t *device)
 	switch (info.device_version) {
 	case MP_TL866A:
 	case MP_TL866CS:
+		expected_firmware = TL866A_FIRMWARE_VERSION;
+		expected_firmware_str = TL866A_FIRMWARE_STRING;
 		if (info.device_version == MP_TL866A) {
 			strcpy(handle->model, "TL866A");
 		} else {
@@ -110,6 +115,8 @@ minipro_handle_t * minipro_open(device_t *device)
 		handle->minipro_hardware_check = tl866a_hardware_check;
 		break;
 	case MP_TL866IIPLUS:
+		expected_firmware = TL866IIPLUS_FIRMWARE_VERSION;
+		expected_firmware_str = TL866IIPLUS_FIRMWARE_STRING;
 		strcpy(handle->model, "TL866II+");
 		handle->minipro_begin_transaction = tl866iiplus_begin_transaction;
 		handle->minipro_end_transaction = tl866iiplus_end_transaction;
@@ -129,18 +136,18 @@ minipro_handle_t * minipro_open(device_t *device)
 	printf("Found %s %s (%#03x)\n", handle->model,
 	       handle->firmware_str, handle->firmware);
 
-	if (handle->firmware < MP_FIRMWARE_VERSION)
+	if (handle->firmware < expected_firmware)
 	{
 		fprintf(stderr, "Warning: Firmware is out of date.\n");
-		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
-		MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Expected  %s (%#03x)\n", expected_firmware_str,
+		expected_firmware);
 		fprintf(stderr, "  Found     %s (%#03x)\n", handle->firmware_str, handle->firmware);
 	}
-	else if (handle->firmware > MP_FIRMWARE_VERSION)
+	else if (handle->firmware > expected_firmware)
 	{
 		fprintf(stderr, "Warning: Firmware is newer than expected.\n");
-		fprintf(stderr, "  Expected  %s (%#03x)\n", MP_FIRMWARE_STRING,
-		MP_FIRMWARE_VERSION);
+		fprintf(stderr, "  Expected  %s (%#03x)\n", expected_firmware_str,
+		expected_firmware);
 		fprintf(stderr, "  Found     %s (%#03x)\n", handle->firmware_str, handle->firmware);
 	}
 

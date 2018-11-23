@@ -28,8 +28,6 @@
 #define MP_STATUS_NORMAL 1
 #define MP_STATUS_BOOTLOADER 2
 
-#define MP_FIRMWARE_VERSION 0x0255
-#define MP_FIRMWARE_STRING "03.2.85"
 
 #define MP_CODE                 0x00
 #define MP_DATA                 0x01
