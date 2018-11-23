@@ -31,14 +31,14 @@
 #include "error.h"
 #include "minipro.h"
 
-void action_read(const char *filename, minipro_handle_t *handle, device_t *device);
-void action_write(const char *filename, minipro_handle_t *handle, device_t *device);
+void action_read(const char *filename, minipro_handle_t *handle);
+void action_write(const char *filename, minipro_handle_t *handle);
 
 struct
 {
-	void (*action)(const char *, minipro_handle_t *handle, device_t *device);
+	void (*action)(const char *, minipro_handle_t *handle);
 	char *filename;
-	device_t *device;
+	char *device;
 	enum
 	{
 		UNSPECIFIED = 0, CODE, DATA, CONFIG
@@ -97,9 +97,9 @@ void print_help_and_exit(char *progname, uint32_t rv)
 	exit(rv);
 }
 
-void print_devices_and_exit()
+void print_devices_and_exit(const char *device_name)
 {
-	if (isatty(STDOUT_FILENO))
+	if (isatty(STDOUT_FILENO) && device_name == NULL)
 	{
 		// stdout is a terminal, opening pager
 		signal(SIGINT, SIG_IGN);
@@ -110,17 +110,26 @@ void print_devices_and_exit()
 		dup2(fileno(pager), STDOUT_FILENO);
 	}
 
+	minipro_handle_t *handle = minipro_open(NULL);
 	device_t *device;
-	for (device = &(devices[0]); device[0].name; device = &(device[1]))
+	for (device = get_device_table(handle); device[0].name; device = &(device[1]))
 	{
-		printf("%s\n", device->name);
+		if (device_name == NULL || !strncasecmp(device[0].name, device_name, strlen(device_name)))
+		{
+			printf("%s\n", device->name);
+		}
 	}
+	minipro_close(handle);
 	exit(0);
 }
 
 
-void print_device_info_and_exit(device_t *device)
+void print_device_info_and_exit(const char *device_name)
 {
+
+	minipro_handle_t * handle = minipro_open(device_name);
+	device_t *device = handle->device;
+		
 	printf("Name: %s\n", device->name);
 
 	/* Memory shape */
@@ -137,6 +146,7 @@ void print_device_info_and_exit(device_t *device)
 		printf(" Bits");
 		break;
 	default:
+		minipro_close(handle);
 		ERROR2("Unknown memory shape: 0x%x\n", device->opts4 & 0xFF000000);
 	}
 	if (device->data_memory_size)
@@ -180,6 +190,8 @@ void print_device_info_and_exit(device_t *device)
 	printf("Protocol: 0x%02x\n", device->protocol_id);
 	printf("Read buffer size: %u Bytes\n", device->read_buffer_size);
 	printf("Write buffer size: %u Bytes\n", device->write_buffer_size);
+
+	minipro_close(handle);
 	exit(0);
 }
 
@@ -198,33 +210,21 @@ void parse_cmdline(int argc, char **argv)
 {
 	int8_t c;
 	memset(&cmdopts, 0, sizeof(cmdopts));
-	device_t *device;
 
 	while ((c = getopt(argc, argv, "lL:d:euPvxyr:w:p:c:iIsSVhDt")) != -1)
 	{
 		switch (c)
 		{
 		case 'l':
-			print_devices_and_exit();
+			print_devices_and_exit(NULL);
 			break;
 
 		case 'L':
-			cmdopts.device = get_device_by_name(optarg);
-			for (device = &(devices[0]); device[0].name; device = &(device[1]))
-			{
-				if (!strncasecmp(device[0].name, optarg, strlen(optarg)))
-				{
-					printf("%s\n", device[0].name);
-				}
-			}
-			exit(0);
+			print_devices_and_exit(optarg);
 			break;
 
 		case 'd':
-			cmdopts.device = get_device_by_name(optarg);
-			if (!cmdopts.device)
-				ERROR2("Unknown device: %s\n", optarg);
-			print_device_info_and_exit(cmdopts.device);
+			print_device_info_and_exit(optarg);
 			break;
 
 		case 'e':
@@ -253,10 +253,8 @@ void parse_cmdline(int argc, char **argv)
 
 		case 'p':
 			if (!strcasecmp(optarg, "help"))
-				print_devices_and_exit();
-			cmdopts.device = get_device_by_name(optarg);
-			if (!cmdopts.device)
-				ERROR("Unknown device");
+				print_devices_and_exit(NULL);
+			cmdopts.device = strdup(optarg);
 			break;
 
 		case 'c':
@@ -696,7 +694,7 @@ static char* replace_filename_extension(const char* filename, const char* extens
 }
 
 /* Higher-level logic */
-void action_read(const char *filename, minipro_handle_t *handle, device_t *device)
+void action_read(const char *filename, minipro_handle_t *handle)
 {
 	char *code_filename = (char*) filename;
 	char *data_filename = (char*) filename;
@@ -716,17 +714,17 @@ void action_read(const char *filename, minipro_handle_t *handle, device_t *devic
 	if (cmdopts.page == CODE)
 	{
 		read_page_file(handle, code_filename, MP_CODE, "Code",
-				device->code_memory_size);
+				handle->device->code_memory_size);
 	}
-	if (cmdopts.page == DATA && device->data_memory_size)
+	if (cmdopts.page == DATA && handle->device->data_memory_size)
 	{
 
 		read_page_file(handle, data_filename, MP_DATA, "Data",
-				device->data_memory_size);
+				handle->device->data_memory_size);
 	}
-	if (cmdopts.page == CONFIG && device->fuses)
+	if (cmdopts.page == CONFIG && handle->device->fuses)
 	{
-		read_fuses(handle, config_filename, device->fuses);
+		read_fuses(handle, config_filename, handle->device->fuses);
 	}
 
 	minipro_end_transaction(handle);
@@ -735,7 +733,7 @@ void action_read(const char *filename, minipro_handle_t *handle, device_t *devic
 	free(default_data_filename);
 }
 
-void action_write(const char *filename, minipro_handle_t *handle, device_t *device)
+void action_write(const char *filename, minipro_handle_t *handle)
 {
 	size_t fsize;
 	switch (cmdopts.page)
@@ -743,33 +741,33 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 	case UNSPECIFIED:
 	case CODE:
 		fsize = get_file_size(filename);
-		if (fsize != device->code_memory_size)
+		if (fsize != handle->device->code_memory_size)
 		{
 			if (!cmdopts.size_error)
 				{
 					minipro_close(handle);
 					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
-						device->code_memory_size);
+						handle->device->code_memory_size);
 				}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
-						fsize, device->code_memory_size);
+						fsize, handle->device->code_memory_size);
 		}
 		break;
 	case DATA:
 
 		fsize = get_file_size(filename);
-		if (fsize != device->data_memory_size)
+		if (fsize != handle->device->data_memory_size)
 		{
 			if (!cmdopts.size_error)
 				{
 					minipro_close(handle);
 					ERROR2("Incorrect file size: %zu (needed %u)\n", fsize,
-						device->data_memory_size);
+						handle->device->data_memory_size);
 				}
 			else if (cmdopts.size_nowarn == 0)
 				printf("Warning: Incorrect file size: %zu (needed %u)\n",
-						fsize, device->data_memory_size);
+						fsize, handle->device->data_memory_size);
 		}
 		break;
 	case CONFIG:
@@ -807,7 +805,7 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 		minipro_close(handle);
 		ERROR("Overcurrent protection!");
 	}
-	if (cmdopts.no_protect_off == 0 && (device->opts4 & 0xc000))
+	if (cmdopts.no_protect_off == 0 && (handle->device->opts4 & 0xc000))
 	{
 		minipro_protect_off(handle);
 	}
@@ -817,28 +815,28 @@ void action_write(const char *filename, minipro_handle_t *handle, device_t *devi
 	case UNSPECIFIED:
 	case CODE:
 		write_page_file(handle, filename, MP_CODE, "Code",
-				device->code_memory_size);
+				handle->device->code_memory_size);
 		if (cmdopts.no_verify == 0)
 			verify_page_file(handle, filename, MP_CODE, "Code",
-					device->code_memory_size);
+					handle->device->code_memory_size);
 		break;
 	case DATA:
 		write_page_file(handle, filename, MP_DATA, "Data",
-				device->data_memory_size);
+				handle->device->data_memory_size);
 		if (cmdopts.no_verify == 0)
 			verify_page_file(handle, filename, MP_DATA, "Data",
-					device->data_memory_size);
+					handle->device->data_memory_size);
 		break;
 	case CONFIG:
-		if (device->fuses)
+		if (handle->device->fuses)
 		{
-			write_fuses(handle, filename, device->fuses);
+			write_fuses(handle, filename, handle->device->fuses);
 		}
 		break;
 	}
 	minipro_end_transaction(handle); // Let prepare_writing() to make an effect
 
-	if (cmdopts.no_protect_on == 0 && (device->opts4 & 0xc000))
+	if (cmdopts.no_protect_on == 0 && (handle->device->opts4 & 0xc000))
 	{
 		minipro_begin_transaction(handle);
 		minipro_protect_on(handle);
@@ -870,18 +868,17 @@ int main(int argc, char **argv)
 		print_help_and_exit(argv[0], -1);
 	}
 
-	device_t *device = cmdopts.device;
-	minipro_handle_t *handle = minipro_open(device);
+	minipro_handle_t *handle = minipro_open(cmdopts.device);
 	handle->icsp = cmdopts.icsp;
 
-	if(!device->read_buffer_size || !device->protocol_id)
+	if(!handle->device->read_buffer_size || !handle->device->protocol_id)
 		{
 			minipro_close(handle);
 			ERROR("Unsupported device!");
 		}
 
 	// Unlocking the TSOP48 adapter (if applicable)
-	if (device && device->opts4 == 0x1002078)
+	if (handle->device && handle->device->opts4 == 0x1002078)
 	{
 		switch (minipro_unlock_tsop48(handle))
 		{
@@ -928,8 +925,8 @@ int main(int argc, char **argv)
 			break;
 		case MP_ID_TYPE4:
 			printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
-					chip_id >> device->id_shift,
-					chip_id & ~(0xFF >>  device->id_shift));
+					chip_id >> handle->device->id_shift,
+					chip_id & ~(0xFF >>  handle->device->id_shift));
 			break;
 		}
 		minipro_close(handle);
@@ -941,7 +938,7 @@ int main(int argc, char **argv)
 	{
 		printf("WARNING: skipping Chip ID test\n");
 	}
-	else if (device->chip_id_bytes_count && device->chip_id_bytes_count)
+	else if (handle->device->chip_id_bytes_count && handle->device->chip_id)
 	{
 		minipro_begin_transaction(handle);
 		if (minipro_get_ovc_status(handle, NULL))
@@ -960,7 +957,7 @@ int main(int argc, char **argv)
 		case MP_ID_TYPE1: //1-3 bytes ID
 		case MP_ID_TYPE2: //4 bytes ID
 		case MP_ID_TYPE5: //3 bytes ID, this ID type is returning from 25 SPI series.
-			ok = (chip_id == device->chip_id);
+			ok = (chip_id == handle->device->chip_id);
 			chip_id_temp = chip_id;
 			if (ok)
 			{
@@ -968,7 +965,7 @@ int main(int argc, char **argv)
 			}
 			break;
 		case MP_ID_TYPE3: //Microchip controllers with 5 bit revision number.
-			ok = (device->chip_id == (chip_id >> 5)); //Throwing the chip revision (last 5 bits).
+			ok = (handle->device->chip_id == (chip_id >> 5)); //Throwing the chip revision (last 5 bits).
 			chip_id_temp = chip_id >> 5;
 			if (ok)
 			{
@@ -977,13 +974,13 @@ int main(int argc, char **argv)
 			}
 			break;
 		case MP_ID_TYPE4: //Microchip controllers with 4-5 bit revision number.
-			ok = (device->chip_id == (chip_id >> device->id_shift)); //Throwing the chip revision (last .shift bits).
-			chip_id_temp = chip_id >>  device->id_shift;
+			ok = (handle->device->chip_id == (chip_id >> handle->device->id_shift)); //Throwing the chip revision (last .shift bits).
+			chip_id_temp = chip_id >>  handle->device->id_shift;
 			if (ok)
 			{
 				printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
-						chip_id >> device->id_shift,
-						chip_id & ~(0xFF >>  device->id_shift));
+						chip_id >> handle->device->id_shift,
+						chip_id & ~(0xFF >>  handle->device->id_shift));
 			}
 			break;
 		}
@@ -993,18 +990,18 @@ int main(int argc, char **argv)
 			if (cmdopts.idcheck_continue)
 				printf(
 						"WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X\n",
-						device->chip_id, chip_id_temp);
+						handle->device->chip_id, chip_id_temp);
 			else
 				{
 					minipro_close(handle);
 					ERROR2(
 							"Invalid Chip ID: expected 0x%04X, got 0x%04X\n(use '-y' to continue anyway at your own risk)\n",
-							device->chip_id, chip_id_temp);
+							handle->device->chip_id, chip_id_temp);
 				}
 		}
 	}
 
-	cmdopts.action(cmdopts.filename, handle, device);
+	cmdopts.action(cmdopts.filename, handle);
 
 	minipro_close(handle);
 

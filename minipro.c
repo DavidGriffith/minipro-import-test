@@ -33,7 +33,7 @@
 #include "error.h"
 
 
-minipro_handle_t * minipro_open(device_t *device)
+minipro_handle_t * minipro_open(const char *device_name)
 {
 	int32_t  ret;
 	uint16_t expected_firmware;
@@ -75,7 +75,6 @@ minipro_handle_t * minipro_open(device_t *device)
 		ERROR2("IO error: claim_interface: %s\n", libusb_error_name(ret));
 	}
 
-	handle->device = device;
 	minipro_get_system_info(handle, &info);
 
 	switch (info.device_status) {
@@ -149,6 +148,14 @@ minipro_handle_t * minipro_open(device_t *device)
 		fprintf(stderr, "  Expected  %s (%#03x)\n", expected_firmware_str,
 		expected_firmware);
 		fprintf(stderr, "  Found     %s (%#03x)\n", handle->firmware_str, handle->firmware);
+	}
+
+	if (device_name != NULL) {
+		handle->device = get_device_by_name(handle, device_name);
+		if (handle->device == NULL) {
+			minipro_close(handle);
+			ERROR2("Device %s not found\n", device_name);
+		}
 	}
 
 	return (handle);

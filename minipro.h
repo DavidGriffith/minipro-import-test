@@ -131,7 +131,7 @@ enum GND_PINS
 		GND40
 	};
 
-minipro_handle_t *minipro_open(device_t *device);
+minipro_handle_t *minipro_open(const char *device_name);
 void minipro_close(minipro_handle_t *handle);
 void minipro_get_system_info(minipro_handle_t *handle, minipro_report_info_t *info);
 uint32_t msg_send(minipro_handle_t *handle, uint8_t *buf, size_t length);
