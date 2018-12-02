@@ -268,13 +268,14 @@ void tl866iiplus_write_fuses(minipro_handle_t *handle, uint32_t type, size_t len
 
 uint32_t tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type)
 {
-	uint8_t msg[8];
+	uint8_t msg[8], format;
 	msg_init(handle, TL866IIPLUS_READID, msg, sizeof(msg));
 	msg_send(handle, msg, sizeof(msg));
 	msg_recv(handle, msg, 6);
 	*type = msg[0]; //The Chip ID type (1-5)
+	format = (*type == MP_ID_TYPE3 || *type == MP_ID_TYPE4 ? MP_LITTLE_ENDIAN : MP_BIG_ENDIAN);
 	msg[1] &= 0x03; //The length byte is always 1-4 but never know, truncate to max. 4 bytes.
-	return (msg[1] ? load_int(&(msg[2]), msg[1], MP_BIG_ENDIAN) : 0); //Check for positive length.
+	return (msg[1] ? load_int(&(msg[2]), msg[1], format) : 0); //Check for positive length.
 }
 
 void tl866iiplus_protect_off(minipro_handle_t *handle)

@@ -55,6 +55,7 @@ struct
 	uint8_t idcheck_only;
 } cmdopts;
 
+
 void print_version_and_exit(uint32_t rv)
 {
 	char output[] = "minipro version %s     A free and open TL866XX programmer\n"
@@ -926,7 +927,7 @@ int main(int argc, char **argv)
 		case MP_ID_TYPE4:
 			printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
 					chip_id >> handle->device->id_shift,
-					chip_id & ~(0xFF >>  handle->device->id_shift));
+					chip_id & ((1 << handle->device->id_shift) - 1));
 			break;
 		}
 		minipro_close(handle);
@@ -980,7 +981,7 @@ int main(int argc, char **argv)
 			{
 				printf("Chip ID OK: 0x%04X Rev.0x%02X\n",
 						chip_id >> handle->device->id_shift,
-						chip_id & ~(0xFF >>  handle->device->id_shift));
+						chip_id & ((1 << handle->device->id_shift) - 1));
 			}
 			break;
 		}
