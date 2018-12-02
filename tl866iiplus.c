@@ -223,6 +223,49 @@ void tl866iiplus_write_block(minipro_handle_t *handle, uint32_t type,
 	}
 }
 
+void tl866iiplus_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
+	                    uint8_t *buf)
+{
+	uint8_t msg[16];
+
+	if (type == MP_FUSE_USER) {
+		type = TL866IIPLUS_READ_USER;
+	} else if (type == MP_FUSE_CFG) {
+		type = TL866IIPLUS_READ_CFG;
+	} else if (type == MP_FUSE_LOCK) {
+		type = TL866IIPLUS_READ_LOCK;
+	} else {
+		ERROR2("Unknown type for read_fuses (%d)\n", type);
+	}
+
+	msg_init(handle, type, msg, 8);
+	format_int(&(msg[2]), length/WORD_SIZE(handle->device), 2, MP_LITTLE_ENDIAN);
+	msg_send(handle, msg, 8);
+	msg_recv(handle, msg, 8 + length);
+	memcpy(buf, &(msg[8]), length);
+}
+
+void tl866iiplus_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length,
+	                     uint8_t *buf)
+{
+	uint8_t msg[16];
+
+	if (type == MP_FUSE_USER) {
+		type = TL866IIPLUS_WRITE_USER;
+	} else if (type == MP_FUSE_CFG) {
+		type = TL866IIPLUS_WRITE_CFG;
+	} else if (type == MP_FUSE_LOCK) {
+		type = TL866IIPLUS_WRITE_LOCK;
+	} else {
+		ERROR2("Unknown type for write_fuses (%d)\n", type);
+	}
+
+	msg_init(handle, type, msg, 8);
+	format_int(&(msg[2]), length/WORD_SIZE(handle->device), 2, MP_LITTLE_ENDIAN);
+	memcpy(&(msg[8]), buf, length);
+	msg_send(handle, msg, 8 + length);
+}
+
 uint32_t tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type)
 {
 	uint8_t msg[8];

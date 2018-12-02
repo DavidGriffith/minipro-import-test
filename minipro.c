@@ -125,6 +125,8 @@ minipro_handle_t * minipro_open(const char *device_name)
 		handle->minipro_protect_off = tl866iiplus_protect_off;
 		handle->minipro_protect_on = tl866iiplus_protect_on;
 		handle->minipro_erase = tl866iiplus_erase;
+		handle->minipro_read_fuses = tl866iiplus_read_fuses;
+		handle->minipro_write_fuses = tl866iiplus_write_fuses;
 		break;
 	}
 
