@@ -18,6 +18,7 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf, si
 	buf[0] = command;
 	buf[1] = handle->device->protocol_id;
 	buf[2] = handle->device->variant;
+	buf[3] = handle->icsp;
 }
 
 static void payload_transfer_cb(struct libusb_transfer *transfer)
