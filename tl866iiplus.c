@@ -16,8 +16,10 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf, si
 
 	memset(buf, 0x00, length);
 	buf[0] = command;
-	buf[1] = handle->device->protocol_id;
-	buf[2] = handle->device->variant;
+	if (handle->device) {
+		buf[1] = handle->device->protocol_id;
+		buf[2] = handle->device->variant;
+	}
 	buf[3] = handle->icsp;
 }
 
@@ -302,3 +304,13 @@ uint32_t tl866iiplus_erase(minipro_handle_t *handle)
 	return msg[0] != TL866IIPLUS_ERASE;
 }
 
+uint32_t tl866iiplus_get_ovc_status(minipro_handle_t *handle,
+	                            minipro_status_t *status)
+{
+	uint8_t msg[32];
+
+	msg_init(handle, TL866IIPLUS_REQUEST_STATUS, msg, sizeof(msg));
+	msg_send(handle, msg, 8);
+	msg_recv(handle, msg, sizeof(msg));
+	return msg[12]; //return the ovc status
+}

@@ -127,6 +127,7 @@ minipro_handle_t * minipro_open(const char *device_name)
 		handle->minipro_erase = tl866iiplus_erase;
 		handle->minipro_read_fuses = tl866iiplus_read_fuses;
 		handle->minipro_write_fuses = tl866iiplus_write_fuses;
+		handle->minipro_get_ovc_status = tl866iiplus_get_ovc_status;
 		break;
 	}
 
