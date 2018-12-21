@@ -38,6 +38,7 @@
 #define TL866IIPLUS_PROTECT_OFF     0x18
 #define TL866IIPLUS_PROTECT_ON      0x19
 
+#define TL866IIPLUS_UNLOCK_TSOP48   0x38
 #define TL866IIPLUS_REQUEST_STATUS  0x39
 
 void tl866iiplus_begin_transaction(minipro_handle_t *handle);
@@ -51,6 +52,7 @@ uint32_t tl866iiplus_erase(minipro_handle_t *handle);
 void tl866iiplus_read_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 void tl866iiplus_write_fuses(minipro_handle_t *handle, uint32_t type, size_t length, uint8_t *buf);
 uint32_t tl866iiplus_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status);
+uint8_t tl866iiplus_unlock_tsop48(minipro_handle_t *handle);
 
 #endif
 

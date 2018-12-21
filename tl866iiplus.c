@@ -314,3 +314,30 @@ uint32_t tl866iiplus_get_ovc_status(minipro_handle_t *handle,
 	msg_recv(handle, msg, sizeof(msg));
 	return msg[12]; //return the ovc status
 }
+
+uint8_t tl866iiplus_unlock_tsop48(minipro_handle_t *handle)
+{
+	uint8_t msg[48];
+	uint16_t i, crc = 0;
+
+	msg_init(handle, TL866IIPLUS_UNLOCK_TSOP48, msg, sizeof(msg));
+
+	srandom(time(NULL));
+	for (i = 8; i < 16; i++)
+	{
+		msg[i] = (uint8_t) random();
+		//Calculate the crc16
+		crc = (crc >> 8) | (crc << 8);
+		crc ^= msg[i];
+		crc ^= (crc & 0xFF) >> 4;
+		crc ^= (crc << 12);
+		crc ^= (crc & 0xFF) << 5;
+	}
+	msg[16] = msg[10];
+	msg[17] = msg[12];
+	msg[10] = (uint8_t) crc;
+	msg[12] = (uint8_t) (crc >> 8);
+	msg_send(handle, msg, sizeof(msg));
+	msg_recv(handle, msg, 8);
+	return msg[1];
+}
