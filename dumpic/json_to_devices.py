@@ -1016,6 +1016,9 @@ def print_entry(ic, fd):
 
     if ic['name'].startswith('PIC') and ic['name'].split()[0] in pic_devid_lookup:
         if int(ic['chip_id_bytes_count']) > 0:
+            if 'id_shift' not in ic:
+                print('Missing "id_shift" for {}'.format(ic['name']))
+                return
             chip_id = pic_devid_lookup[ic['name'].split()[0]] >> ic['id_shift']
 
     print("{", file=fd)
