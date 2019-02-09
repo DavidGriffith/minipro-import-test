@@ -54,7 +54,7 @@ permissions.
 
 #### Debian/Ubuntu
 ```nohighlight
-sudo cp udev/debian/60-minipro.rules /etc/udev/rules.d/
+sudo cp udev/rules.d/80-minipro.rules /etc/udev/rules.d/
 sudo udevadm trigger
 ```
 You'll also have to add your regular user to the `plugdev` system
