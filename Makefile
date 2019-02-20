@@ -69,6 +69,10 @@ COMPLETIONS_INSTDIR=$(DESTDIR)$(COMPLETIONS_DIR)
 libusb_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0)
 libusb_LIBS := $(shell $(PKG_CONFIG) --libs libusb-1.0)
 
+ifeq ($(libusb_LIBS),)
+        ERROR := $(error "libusb-1.0 not found")
+endif
+
 override CFLAGS += $(libusb_CFLAGS)
 override LIBS += $(libusb_LIBS) $(EXTRA_LIBS)
 
