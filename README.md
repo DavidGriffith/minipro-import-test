@@ -52,9 +52,8 @@ If you want to access the programmer as a regular user, you'll have to
 configure udev to recognize the programmer and set appropriate access
 permissions.
 
-#### Debian/Ubuntu
 ```nohighlight
-sudo cp udev/debian/60-minipro.rules /etc/udev/rules.d/
+sudo cp udev/rules.d/80-minipro.rules /etc/udev/rules.d/
 sudo udevadm trigger
 ```
 You'll also have to add your regular user to the `plugdev` system
@@ -64,14 +63,6 @@ sudo usermod -a -G plugdev YOUR-USER
 ```
 Note that this change will only become effective after your next
 login.
-
-#### CentOS 7
-```nohighlight
-sudo cp udev/centos7/80-minipro.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-```
-The CentOS rules file currently make the programmer device writable for 
-all users.
 
 ### Bash completion (optional)
 
