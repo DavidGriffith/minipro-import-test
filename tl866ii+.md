@@ -2,12 +2,11 @@
 # TL866II+ Protocol Documentation #
 
 
-The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used to send commands to the programmer and receive status information back from the programmer. Endpoints 2 and 3 are used when reading or writing a program to a chip, presumably to help increase performance.
-
+The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used to send commands to the programmer and receive status information back from the programmer. Endpoints 2 and 3 are used when reading or writing a payload to a chip, presumably to help increase performance.
 
 ## Commands Bytes ##
 
-* 0x00 - Get system(prgorammer) info
+* 0x00 - Get system(programmer) info
 * 0x03 - Begin transaction
 * 0x04 - End trasaction
 * 0x05 - Read chipid
@@ -27,12 +26,18 @@ The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used to send c
 * 0x16 - Read RC calibration
 * 0x18 - Protect off
 * 0x19 - Protect on
+* 0x1b - ???
+* 0x2d - Reset pin drivers
+* 0x2e - ???
+* 0x2f - ???
+* 0x30 - ???
 * 0x31 - ???
 * 0x32 - ???
 * 0x34 - ???
-* 0x35 - ???
+* 0x35 - Read pin state
 * 0x36 - ???
-* 0x39 - ???
+* 0x38 - Unlock TSOP48
+* 0x39 - Request status message
 
 
 ## Get Programmer Information ##
@@ -56,9 +61,13 @@ struct minipro_report_info
 
 For the TL866II+ the device version is 5.
 
-## Pin Detect ##
+## Pin drivers ##
 
-The pin detect feature of the TL866II+ devices appears to use the following command bytes 0x31, 0x32, 0x34, 0x35, and 0x36. All command bytes except for 0x35 are outputs, 0x35 returns 48 bytes of data over endpoint 1.
+The following command ids are used for for direct pin control: 0x1b, 0x2d-0x32, 0x34-0x36. These sets of commands are used to implement pin detect and the hardware check feature.
+
+Command 0x2d will reset the pin drivers to their defualt state and command 0x35 will read the current pin state.
+
+The read pin state command will return 48 bytes over endpoint 1. The first 8 bytes are a header and the next 40 tell the current pin state for each pin.
 
 ## Transactions ##
 
@@ -69,7 +78,8 @@ struct begin_transaction {
 	uint8_t  cmd;                 // 0x00
 	uint8_t  protocol;            // 0x01
 	uint8_t  variant;             // 0x02
-	uint16_t unknown1;            // 0x03
+	uint8_t  icsp;                // 0x03
+	uint8_t  unknown1;            // 0x04
 	uint16_t opts1;               // 0x05
 	uint8_t  unknown2;            // 0x07
 	uint16_t data_memory_size;    // 0x08
