@@ -57,12 +57,11 @@ struct
 void print_version_and_exit(uint32_t rv)
 {
 	char output[] = "minipro version %s     A free and open TL866XX programmer\n"
-			"Build:\t\t%s\n"
+			"Build date:\t%s\n"
+			"Commit date:\t%s\n"
 			"Git commit:\t%s\n"
-			"Git tag:\t%s\n"
 			"Git branch:\t%s\n";
-	fprintf(rv ? stderr : stdout, output, GIT_TAG, build_timestamp, GIT_HASH,
-	GIT_TAG, GIT_BRANCH);
+	fprintf(rv ? stderr : stdout, output, VERSION, build_timestamp, GIT_DATE, GIT_HASH, GIT_BRANCH);
 	exit(rv);
 }
 
@@ -93,7 +92,7 @@ void print_help_and_exit(char *progname, uint32_t rv)
 			"	-V		Show version information\n"
 			"	-t		Start hardware check\n"
 			"	-h		Show help (this text)\n";
-	fprintf(rv ? stderr : stdout, usage, GIT_TAG, basename(progname));
+	fprintf(rv ? stderr : stdout, usage, VERSION, basename(progname));
 	exit(rv);
 }
 
