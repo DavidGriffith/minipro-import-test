@@ -4,9 +4,9 @@ Priority: extra
 Maintainer: Valentin Dudouyt <valentin.dudouyt@gmail.com>
 Build-Depends: debhelper (>= 8.0.0), libusb-1.0-0-dev, pkg-config
 Standards-Version: 3.9.4
-Homepage: https://github.com/vdudouyt/minipro
-Vcs-Git: git://github.com/vdudouyt/minipro
-Vcs-Browser: https://github.com/vdudouyt/minipro
+Homepage: https://gitlab.com/DavidGriffith/minipro
+Vcs-Git: git://gitlab.com/DavidGriffith/minipro
+Vcs-Browser: https://gitlab.com/DavidGriffith/minipro
 
 Package: minipro
 Architecture: any

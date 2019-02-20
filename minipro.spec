@@ -14,8 +14,8 @@ Version: 0.1
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 Release: %{commitdate}.%{shortcommit}%{?dist}
 License: GPLv3
-URL: https://github.com/vdudouyt/minipro
-Source: https://github.com/vdudouyt/%{name}/archive/%{commit}/%{name}-%{shortcommit}.tar.gz
+URL: https://gitlab.com/DavidGriffith/minipro
+Source: https://gitlab.com/DavidGriffith/%{name}/archive/%{commit}/%{name}-%{shortcommit}.tar.gz
 BuildRequires: libusbx-devel
 
 %description
