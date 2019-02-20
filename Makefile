@@ -1,8 +1,16 @@
 # Install Configuration
 
+# Your C compiler
+CC=gcc
+#CC=clang
+
+# Compiler options
+CFLAGS = -g -O0 -Wall
+
 # Normally minipro is installed to /usr/local.  If you want to put it
 # somewhere else, define that location here.
-PREFIX=/usr/local
+PREFIX ?= /usr/local
+MANDIR ?= $(PREFIX)/share/man
 
 # Some older releases of MacOS need some extra library flags.
 #EXTRA_LIBS += "-framework Foundation -framework IOKit"
@@ -55,7 +63,6 @@ MAN_INSTDIR=$(DESTDIR)$(PREFIX)/share/man/man1
 libusb_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0)
 libusb_LIBS := $(shell $(PKG_CONFIG) --libs libusb-1.0)
 
-CFLAGS = -g -O0 -Wall
 override CFLAGS += $(libusb_CFLAGS)
 override LIBS += $(libusb_LIBS) $(EXTRA_LIBS)
 
