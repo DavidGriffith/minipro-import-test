@@ -60,10 +60,10 @@ DIST_DIR = $(MINIPRO)-$(GIT_TAG)
 BIN_INSTDIR=$(DESTDIR)$(PREFIX)/bin
 MAN_INSTDIR=$(DESTDIR)$(PREFIX)/share/man/man1
 
-UDEV_DIR=$(shell pkg-config --define-variable=prefix=$(PREFIX) --silence-errors --variable=udevdir udev)
+UDEV_DIR=$(shell $(PKG_CONFIG) --define-variable=prefix=$(PREFIX) --silence-errors --variable=udevdir udev)
 UDEV_RULES_INSTDIR=$(DESTDIR)$(UDEV_DIR)/rules.d
 
-COMPLETIONS_DIR=$(shell pkg-config --define-variable=prefix=$(PREFIX) --silence-errors --variable=completionsdir bash-completion)
+COMPLETIONS_DIR=$(shell $(PKG_CONFIG) --define-variable=prefix=$(PREFIX) --silence-errors --variable=completionsdir bash-completion)
 COMPLETIONS_INSTDIR=$(DESTDIR)$(COMPLETIONS_DIR)
 
 libusb_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0)
