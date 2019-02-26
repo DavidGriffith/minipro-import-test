@@ -56,7 +56,7 @@ MINIPROHEX=miniprohex
 TESTS=$(wildcard tests/test_*.c);
 OBJCOPY=objcopy
 
-DIST_DIR = $(MINIPRO)-$(GIT_TAG)
+DIST_DIR = $(MINIPRO)-$(VERSION)
 BIN_INSTDIR=$(DESTDIR)$(PREFIX)/bin
 MAN_INSTDIR=$(DESTDIR)$(PREFIX)/share/man/man1
 
@@ -109,7 +109,7 @@ clean:
 	rm -f version.h version.c version.o
 
 distclean: clean
-	rm -rf $(NAME)-$(GIT_TAG)*
+	rm -rf $(DIST_DIR)*
 
 install:
 	mkdir -p $(BIN_INSTDIR)
@@ -135,8 +135,8 @@ uninstall:
 
 dist:
 ifneq ($(and $(wildcard $(GIT_DIR)),$(shell which git)),)
-	git archive --format=tgz --prefix $(NAME)-$(VERSION)/ HEAD -o $(NAME)-$(VERSION).tar.gz
-	@echo Created minipro-$(GIT_TAG).tar.gz
+	git archive --format=tgz --prefix $(DIST_DIR)/ HEAD -o $(DIST_DIR).tar.gz
+	@echo Created $(DIST_DIR).tar.gz
 else
 	@echo "Not in a git repository or git command not found.  Cannot make a tarball."
 endif
