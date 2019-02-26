@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include "fuses.h"
 
+typedef struct minipro_handle minipro_handle_t;
+
 typedef struct device
 {
 	const char *name;
@@ -48,8 +50,7 @@ typedef struct device
 
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 
-extern device_t devices[];
-
-device_t *get_device_by_name(const char *name);
+device_t *get_device_table(minipro_handle_t *handle);
+device_t *get_device_by_name(minipro_handle_t *handle, const char *name);
 
 #endif
