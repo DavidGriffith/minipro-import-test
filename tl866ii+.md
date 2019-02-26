@@ -2,7 +2,10 @@
 # TL866II+ Protocol Documentation #
 
 
-The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used to send commands to the programmer and receive status information back from the programmer. Endpoints 2 and 3 are used when reading or writing a payload to a chip, presumably to help increase performance.
+The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used 
+to send commands to the programmer and receive status information back 
+from the programmer. Endpoints 2 and 3 are used when reading or writing 
+a payload to a chip, presumably to help increase performance.
 
 ## Commands Bytes ##
 
@@ -42,7 +45,12 @@ The TL866II+ programmers have 3 USB bulk endpoints. Endpoint 1 is used to send c
 
 ## Get Programmer Information ##
 
-Sending command 0x00 to the programmer will return a block of information about programmer, including firmware version and the serial number. This command works almost identically to the TL866A/CS series except the returned data is 41 bytes long instead of 40. The updated data structure looks like the following:
+Sending command 0x00 to the programmer will return a block of 
+information about programmer, including firmware version and the serial 
+number. This command works almost identically to the TL866A/CS series 
+except the returned data is 41 bytes long instead of 40. The updated 
+data structure looks like the following:
+
 ```
 struct minipro_report_info
 {
@@ -63,15 +71,23 @@ For the TL866II+ the device version is 5.
 
 ## Pin drivers ##
 
-The following command ids are used for for direct pin control: 0x1b, 0x2d-0x32, 0x34-0x36. These sets of commands are used to implement pin detect and the hardware check feature.
+The following command ids are used for for direct pin control: 0x1b, 
+0x2d-0x32, 0x34-0x36. These sets of commands are used to implement pin 
+detect and the hardware check feature.
 
-Command 0x2d will reset the pin drivers to their defualt state and command 0x35 will read the current pin state.
+Command 0x2d will reset the pin drivers to their defualt state and 
+command 0x35 will read the current pin state.
 
-The read pin state command will return 48 bytes over endpoint 1. The first 8 bytes are a header and the next 40 tell the current pin state for each pin.
+The read pin state command will return 48 bytes over endpoint 1. The 
+first 8 bytes are a header and the next 40 tell the current pin state 
+for each pin.
 
 ## Transactions ##
 
-A transaction needs to be started before you can read, write or erase a chip. The command to start a transaction is 0x03 and is used to give the programmer information about the chip being programmed. It is a 64 byte structure that looks like the following. 
+A transaction needs to be started before you can read, write or erase a 
+chip. The command to start a transaction is 0x03 and is used to give the 
+programmer information about the chip being programmed. It is a 64 byte 
+structure that looks like the following.
 
 ```
 struct begin_transaction {
@@ -92,7 +108,9 @@ struct begin_transaction {
 	uint32_t zero2[20]            // 0x2C
 };
 ```
-When finished you need to send an end transaction command of 0x04. This has a simple structure as follows:
+
+When finished you need to send an end transaction command of 0x04. This 
+has a simple structure as follows:
 
 ```
 struct end_transaction {
@@ -104,7 +122,10 @@ struct end_transaction {
 
 ## Reading/Writing ##
 
-To initiate a read or write you must for send an 8 byte command to EP1 that tells the programmer the protocol to used as well as the length of data being transferred and the offset in memory to start the transfer at.
+To initiate a read or write you must for send an 8 byte command to EP1 
+that tells the programmer the protocol to used as well as the length of 
+data being transferred and the offset in memory to start the transfer 
+at.
 
 #### Example of reading 512 bytes from a AT28C64B EEPROM at offset 0 ####
 
@@ -114,8 +135,18 @@ To initiate a read or write you must for send an 8 byte command to EP1 that tell
 |0x0D  |0x07      |0x00 0x02| 0x00 0x00 0x00 0x00|
 
 
-Actually reading or writing the data depends on the amount of data being read or written. If you are transferring less then 64 bytes of data then you will use endpoint 1 to transfer that data to or from the chip. This works much like the TL866A/CS series.
+Actually reading or writing the data depends on the amount of data being 
+read or written. If you are transferring less then 64 bytes of data then 
+you will use endpoint 1 to transfer that data to or from the chip. This 
+works much like the TL866A/CS series.
 
-If however the data is 64 bytes or more you will need to send or receive the data over endpoints 2 and 3. In this case half the data will be transfered using endoint 2 and the other half will use endpoint 3. The data will be broken up into 64 byte blocks and alternate between the two endpoints.
+If however the data is 64 bytes or more you will need to send or receive 
+the data over endpoints 2 and 3. In this case half the data will be 
+transfered using endoint 2 and the other half will use endpoint 3. The 
+data will be broken up into 64 byte blocks and alternate between the two 
+endpoints.
 
-For example if you were trying to read 512 bytes from an EEPROM, you would expect 256 bytes to be returned over endpoint 2 and another 256 bytes returned over endpoint 3. The data over endpoint 2 would contain blocks [0,2,4,6] while endpoint 3 would give you blocks [1,3,5,7].
+For example if you were trying to read 512 bytes from an EEPROM, you 
+would expect 256 bytes to be returned over endpoint 2 and another 256 
+bytes returned over endpoint 3. The data over endpoint 2 would contain 
+blocks [0,2,4,6] while endpoint 3 would give you blocks [1,3,5,7].
