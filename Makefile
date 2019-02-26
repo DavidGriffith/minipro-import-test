@@ -22,7 +22,7 @@ MANDIR ?= $(PREFIX)/share/man
 ##########################################################################
 
 NAME = minipro
-VERSION = 0.3dev
+VERSION = 0.3
 
 # If we're working from git, we have access to proper variables. If
 # not, make it clear that we're working from a release.
