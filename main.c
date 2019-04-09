@@ -100,6 +100,8 @@ void print_help_and_exit(char *progname, uint32_t rv)
 
 void print_devices_and_exit(const char *device_name)
 {
+	minipro_handle_t *handle = minipro_open(NULL);
+
 	if (isatty(STDOUT_FILENO) && device_name == NULL)
 	{
 		// stdout is a terminal, opening pager
@@ -111,7 +113,6 @@ void print_devices_and_exit(const char *device_name)
 		dup2(fileno(pager), STDOUT_FILENO);
 	}
 
-	minipro_handle_t *handle = minipro_open(NULL);
 	device_t *device;
 	for (device = get_device_table(handle); device[0].name; device = &(device[1]))
 	{
@@ -130,7 +131,7 @@ void print_device_info_and_exit(const char *device_name)
 
 	minipro_handle_t * handle = minipro_open(device_name);
 	device_t *device = handle->device;
-		
+
 	printf("Name: %s\n", device->name);
 
 	/* Memory shape */
