@@ -68,7 +68,7 @@ typedef struct minipro_report_info
 	uint8_t b1;
 	uint8_t checksum;
 	uint8_t bad_serial;
-	uint8_t buffer[20];
+	uint8_t buffer[20]; /* for future autoelectric expansion */
 } minipro_report_info_t;
 
 typedef struct minipro_status_s
