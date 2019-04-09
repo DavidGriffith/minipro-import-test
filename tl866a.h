@@ -31,6 +31,7 @@
  * Version	Program		Date		Version
  * String	Version				ID
  *
+ * 3.2.86	6.85		Oct 19, 2018	0x0256
  * 3.2.85	6.82		Jul 14, 2018	0x0255
  * 3.2.82	6.71		Apr 17, 2018	0x0252
  * 3.2.81	6.70		Mar  7, 2018	0x0251
@@ -51,8 +52,8 @@
  *
  */
 
-#define TL866A_FIRMWARE_VERSION 0x0255
-#define TL866A_FIRMWARE_STRING "03.2.85"
+#define TL866A_FIRMWARE_VERSION 0x0256
+#define TL866A_FIRMWARE_STRING "03.2.86"
 
 #define TL866A_REQUEST_STATUS1_MSG1 0x03
 #define TL866A_REQUEST_STATUS1_MSG2 0xfe

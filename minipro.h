@@ -64,6 +64,11 @@ typedef struct minipro_report_info
 	uint8_t device_code[8];
 	uint8_t serial_number[24];
 	uint8_t hardware_version;
+	uint8_t b0;
+	uint8_t b1;
+	uint8_t checksum;
+	uint8_t bad_serial;
+	uint8_t buffer[20];
 } minipro_report_info_t;
 
 typedef struct minipro_status_s
