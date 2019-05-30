@@ -48,7 +48,7 @@ ifeq ($(PKG_CONFIG),)
         ERROR := $(error "pkg-config utility not found")
 endif
 
-COMMON_OBJECTS=byte_utils.o database.o minipro.o tl866a.o tl866iiplus.o fuses.o easyconfig.o version.o
+COMMON_OBJECTS=jedec.o database.o minipro.o tl866a.o tl866iiplus.o version.o
 OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
 MINIPRO=minipro
