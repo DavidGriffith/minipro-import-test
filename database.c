@@ -17,9 +17,7 @@
 
 #include "database.h"
 #include <stdio.h>
-#include <strings.h>
 #include <string.h>
-#include "minipro.h"
 
 fuse_decl_t atmel_lock[] = {{.num_fuses = 0,
                              .num_locks = 0x81,
@@ -193,7 +191,7 @@ gal_config_t gal4_acw[] = {
      .acw_address = 0x3c,
      .acw_size = 0x52}};
 
-gal_config_t gal5_acw[20] = {
+gal_config_t gal5_acw[] = {
     {.acw_bits = (uint16_t[]){5809, 5808, 5811, 5810, 5813, 5812, 5815,
                               5814, 5817, 5816, 5819, 5818, 5821, 5820,
                               5823, 5822, 5825, 5824, 5827, 5826},
@@ -204,42 +202,41 @@ gal_config_t gal5_acw[20] = {
      .acw_address = 0x10,
      .acw_size = 0x14}};
 
-device_t infoic_devices[] =
-{
+device_t infoic_devices[] = {
 #include "infoic_devices.h"
-		{ .name = NULL }, };
+    {.name = NULL},
+};
 
-device_t infoic2plus_devices[] =
-{
+device_t infoic2plus_devices[] = {
 #include "infoic2plus_devices.h"
-		{ .name = NULL }, };
+    {.name = NULL},
+};
 
-device_t *get_device_table(minipro_handle_t *handle)
-{
-	if (strcmp(handle->model, "TL866II+") == 0) {
-		return &(infoic2plus_devices[0]);
-	}
+device_t *get_device_table(minipro_handle_t *handle) {
+  if (handle->version == MP_TL866IIPLUS) {
+    return &(infoic2plus_devices[0]);
+  }
 
-	return &(infoic_devices[0]);
+  return &(infoic_devices[0]);
 }
 
-device_t *get_device_by_name(minipro_handle_t *handle, const char *name)
-{
-	device_t *device;
-
-	for (device = get_device_table(handle); device[0].name; device = &(device[1]))
-	{
-		if (!strcasecmp(name, device->name))
-			return (device);
-	}
-	return NULL;
-}
-
-const char *get_device_from_id(minipro_handle_t *handle, uint32_t id, uint8_t protocol) {
+device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
   device_t *device;
-  for (device = get_device_table(handle); device[0].name; device = &(device[1])) {
-    if (device->chip_id == id && device->protocol == protocol &&
-        device->chip_id && device->chip_id_size)
+
+  for (device = get_device_table(handle); device[0].name;
+       device = &(device[1])) {
+    if (!strcasecmp(name, device->name)) return (device);
+  }
+  return NULL;
+}
+
+const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
+                               uint8_t protocol) {
+  device_t *device;
+  for (device = get_device_table(handle); device[0].name;
+       device = &(device[1])) {
+    if (device->chip_id == id && device->protocol_id == protocol &&
+        device->chip_id && device->chip_id_bytes_count)
       return (device->name);
   }
   return NULL;
