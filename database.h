@@ -22,6 +22,29 @@
 #include <stdint.h>
 #include "minipro.h"
 
+typedef struct fuse_decl {
+  uint8_t num_fuses;
+  uint8_t num_uids;
+  uint8_t num_locks;
+  uint8_t item_size;
+  uint8_t word;
+  uint8_t erase_num_fuses;
+  uint8_t rev_mask;
+  const char **fnames;
+  const char **unames;
+  const char **lnames;
+} fuse_decl_t;
+
+typedef struct gal_config {
+  uint8_t fuses_size;    // fuses size in bytes
+  uint8_t row_width;     // how many bytes a row have
+  uint16_t ues_address;  // user electronic signature address
+  uint8_t ues_size;      // ues size in bits
+  uint8_t acw_address;   // address of 'architecture control word'
+  uint8_t acw_size;      // acw size in bits
+  uint16_t *acw_bits;    // acw bits order
+} gal_config_t;
+
 device_t *get_device_table(minipro_handle_t *handle);
 device_t *get_device_by_name(minipro_handle_t *handle, const char *name);
 const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,

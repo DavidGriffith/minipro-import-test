@@ -103,29 +103,6 @@
 #define PINS_COUNT(x) (((x)&PIN_COUNT_MASK) >> 24)
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 
-typedef struct fuse_decl {
-  uint8_t num_fuses;
-  uint8_t num_uids;
-  uint8_t num_locks;
-  uint8_t item_size;
-  uint8_t word;
-  uint8_t erase_num_fuses;
-  uint8_t rev_mask;
-  const char **fnames;
-  const char **unames;
-  const char **lnames;
-} fuse_decl_t;
-
-typedef struct gal_config {
-  uint8_t fuses_size;    // fuses size in bytes
-  uint8_t row_width;     // how many bytes a row have
-  uint16_t ues_address;  // user electronic signature address
-  uint8_t ues_size;      // ues size in bits
-  uint8_t acw_address;   // address of 'architecture control word'
-  uint8_t acw_size;      // acw size in bits
-  uint16_t *acw_bits;    // acw bits order
-} gal_config_t;
-
 typedef struct device {
   const char *name;
   uint8_t protocol_id;
@@ -165,7 +142,6 @@ typedef struct minipro_handle {
   uint8_t version;
 
   libusb_device_handle *usb_handle;
-  libusb_context *ctx;
 
   int (*minipro_begin_transaction)(struct minipro_handle *);
   int (*minipro_end_transaction)(struct minipro_handle *);
@@ -213,8 +189,6 @@ void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness);
 uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness);
 
 // Helper functions
-int msg_send(minipro_handle_t *handle, uint8_t *buffer, size_t size);
-int msg_recv(minipro_handle_t *handle, uint8_t *buffer, size_t size);
 int minipro_get_system_info(minipro_handle_t *handle,
                             minipro_report_info_t *info);
 void minipro_print_system_info(minipro_handle_t *handle);

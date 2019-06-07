@@ -30,6 +30,7 @@
 #include "minipro.h"
 #include "tl866a.h"
 #include "tl866iiplus.h"
+#include "usb.h"
 
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness) {
   uint32_t idx;
@@ -50,34 +51,6 @@ uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness) {
   return result;
 }
 
-static int msg_transfer(minipro_handle_t *handle, uint8_t *buffer, size_t size,
-                        uint8_t direction, int *bytes_transferred) {
-  int ret = libusb_bulk_transfer(handle->usb_handle, (1 | direction), buffer,
-                                 size, bytes_transferred, 10000);
-
-  if (ret != LIBUSB_SUCCESS)
-    fprintf(stderr, "IO error: bulk_transfer: %s\n", libusb_error_name(ret));
-  return ret;
-}
-
-int msg_send(minipro_handle_t *handle, uint8_t *buffer, size_t size) {
-  int bytes_transferred, ret;
-  ret = msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_OUT,
-                     &bytes_transferred);
-  if (bytes_transferred != (int)size) {
-    fprintf(stderr, "IO error: expected %zu bytes but %u bytes transferred\n",
-            size, bytes_transferred);
-    return -1;
-  }
-  return ret;
-}
-
-int msg_recv(minipro_handle_t *handle, uint8_t *buffer, size_t size) {
-  int bytes_transferred;
-  return msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_IN,
-                      &bytes_transferred);
-}
-
 minipro_handle_t *minipro_open(const char *device_name, int verbose) {
   int ret;
   minipro_report_info_t info;
@@ -88,7 +61,7 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
     return NULL;
   }
 
-  ret = libusb_init(&(handle->ctx));
+  ret = libusb_init(NULL);
   if (ret < 0) {
     free(handle);
     fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(ret));
@@ -96,16 +69,16 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
   }
 
   handle->usb_handle =
-      libusb_open_device_with_vid_pid(handle->ctx, MP_TL866_VID, MP_TL866_PID);
+      libusb_open_device_with_vid_pid(NULL, MP_TL866_VID, MP_TL866_PID);
   if (handle->usb_handle == NULL) {
     // We didn't match the vid / pid of the "original" TL866 - so try the new
     // TL866II+
-    handle->usb_handle = libusb_open_device_with_vid_pid(
-        handle->ctx, MP_TL866II_VID, MP_TL866II_PID);
+    handle->usb_handle =
+        libusb_open_device_with_vid_pid(NULL, MP_TL866II_VID, MP_TL866II_PID);
 
     // If we don't get that either report error in connecting
     if (handle->usb_handle == NULL) {
-      libusb_exit(handle->ctx);
+      libusb_exit(NULL);
       free(handle);
       if (verbose) fprintf(stderr, "\nError opening device\n");
       return NULL;
@@ -177,7 +150,13 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
       handle->minipro_write_fuses = tl866iiplus_write_fuses;
       handle->minipro_get_ovc_status = tl866iiplus_get_ovc_status;
       handle->minipro_unlock_tsop48 = tl866iiplus_unlock_tsop48;
+      handle->minipro_read_jedec_row = tl866iiplus_read_jedec_row;
+      handle->minipro_write_jedec_row = tl866iiplus_write_jedec_row;
       break;
+    default:
+      minipro_close(handle);
+      fprintf(stderr, "Unknown programmer model!\n");
+      return NULL;
   }
 
   handle->firmware =
@@ -204,7 +183,7 @@ void minipro_close(minipro_handle_t *handle) {
             libusb_error_name(ret));
   }
   libusb_close(handle->usb_handle);
-  libusb_exit(handle->ctx);
+  libusb_exit(NULL);
   free(handle);
 }
 
@@ -254,8 +233,9 @@ int minipro_get_system_info(minipro_handle_t *handle,
 
   memset(info, 0x0, sizeof(*info));
   memset(msg, 0x0, sizeof(msg));
-  if (msg_send(handle, msg, 5)) return -1;
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
+  if (msg_send(handle->usb_handle, msg, 5)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  msg[7] = 0;
 
   switch (msg[6]) {
     case MP_TL866IIPLUS:
@@ -276,31 +256,31 @@ int minipro_get_system_info(minipro_handle_t *handle,
     default:
       minipro_close(handle);
       fprintf(stderr, "Unknown Device!");
-      return -1;
+      return EXIT_FAILURE;
   }
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int minipro_begin_transaction(minipro_handle_t *handle) {
   assert(handle != NULL);
-  //fprintf(stderr, "start transaction\n");
+  // fprintf(stderr, "start transaction\n");
   if (handle->minipro_begin_transaction) {
     return handle->minipro_begin_transaction(handle);
   } else {
     fprintf(stderr, "%s: begin_transaction not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_end_transaction(minipro_handle_t *handle) {
   assert(handle != NULL);
-  //fprintf(stderr, "end transaction\n");
+  // fprintf(stderr, "end transaction\n");
   if (handle->minipro_end_transaction) {
     return handle->minipro_end_transaction(handle);
   } else {
-    fprintf(stderr, "%s: end_transaction not implementedi\n", handle->model);
+    fprintf(stderr, "%s: end_transaction not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_protect_off(minipro_handle_t *handle) {
@@ -311,7 +291,7 @@ int minipro_protect_off(minipro_handle_t *handle) {
   } else {
     fprintf(stderr, "%s: protect_off not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_protect_on(minipro_handle_t *handle) {
@@ -322,13 +302,13 @@ int minipro_protect_on(minipro_handle_t *handle) {
   } else {
     fprintf(stderr, "%s: protect_on not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
                            uint8_t *ovc) {
   assert(handle != NULL);
-  //fprintf(stderr, "get ovc\n");
+  // fprintf(stderr, "get ovc\n");
   if (status) {
     memset(status, 0x00, sizeof(*status));
   }
@@ -337,17 +317,17 @@ int minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
     return handle->minipro_get_ovc_status(handle, status, ovc);
   }
   fprintf(stderr, "%s: get_ovc_status not implemented\n", handle->model);
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_erase(minipro_handle_t *handle) {
   assert(handle != NULL);
-  //fprintf(stderr, "Erase\n");
+  // fprintf(stderr, "Erase\n");
   if (handle->minipro_erase) {
     return handle->minipro_erase(handle);
   }
   fprintf(stderr, "%s: erase not implemented\n", handle->model);
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_read_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
@@ -359,7 +339,7 @@ int minipro_read_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
   } else {
     fprintf(stderr, "%s: read_block not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
@@ -371,19 +351,19 @@ int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
   } else {
     fprintf(stderr, "%s: write_block not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 /* Model-specific ID, e.g. AVR Device ID (not longer than 4 bytes) */
 int minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                         uint32_t *device_id) {
   assert(handle != NULL);
-  //fprintf(stderr, "get id\n");
+  // fprintf(stderr, "get id\n");
   if (handle->minipro_get_chip_id) {
     return handle->minipro_get_chip_id(handle, type, device_id);
   }
   fprintf(stderr, "%s: get_chip_id not implemented\n", handle->model);
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
@@ -396,7 +376,7 @@ int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
   } else {
     fprintf(stderr, "%s: read_fuses not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
@@ -409,29 +389,29 @@ int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
   } else {
     fprintf(stderr, "%s: write_fuses not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                             uint8_t row, size_t size) {
   assert(handle != NULL);
-  if (handle->minipro_hardware_check) {
+  if (handle->minipro_write_jedec_row) {
     return handle->minipro_write_jedec_row(handle, buffer, row, size);
   } else {
     fprintf(stderr, "%s: write jedec row not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                            uint8_t row, size_t size) {
   assert(handle != NULL);
-  if (handle->minipro_hardware_check) {
+  if (handle->minipro_write_jedec_row) {
     return handle->minipro_read_jedec_row(handle, buffer, row, size);
   } else {
     fprintf(stderr, "%s: read jedec row not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 // Unlocking the TSOP48 adapter.
@@ -442,7 +422,7 @@ int minipro_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
     return handle->minipro_unlock_tsop48(handle, status);
   }
   fprintf(stderr, "%s: unlock_tsop48 not implemented\n", handle->model);
-  return -1;
+  return EXIT_FAILURE;
 }
 
 // Minipro hardware check
@@ -454,7 +434,7 @@ int minipro_hardware_check(minipro_handle_t *handle) {
   } else {
     fprintf(stderr, "%s: hardware_check not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }
 
 int minipro_firmware_update(minipro_handle_t *handle, const char *firmware) {
@@ -464,5 +444,5 @@ int minipro_firmware_update(minipro_handle_t *handle, const char *firmware) {
   } else {
     fprintf(stderr, "%s: firmware update not implemented\n", handle->model);
   }
-  return -1;
+  return EXIT_FAILURE;
 }

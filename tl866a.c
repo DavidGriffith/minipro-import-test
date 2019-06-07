@@ -25,8 +25,10 @@
 #include <malloc.h>
 #endif
 #include <sys/stat.h>
-#include "minipro.h"
+
+#include "database.h"
 #include "tl866a.h"
+#include "usb.h"
 
 // Commands
 #define TL866A_GET_SYSTEM_INFO 0x00
@@ -201,76 +203,76 @@ typedef struct update_dat_s {
   uint8_t cs_firmware[TL866A_ENC_FIRMWARE_SIZE];  // Encrypted CS firmware
 } update_dat_t;
 
-static void msg_init(uint8_t *buffer, size_t size, uint8_t command,
-                     device_t *device, uint8_t icsp) {
-  memset(buffer, 0, size);
+static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buffer,
+                     size_t length) {
+  memset(buffer, 0, length);
   buffer[0] = command;
-  buffer[1] = device->protocol_id;
-  buffer[2] = device->variant;
+  buffer[1] = handle->device->protocol_id;
+  buffer[2] = handle->device->variant;
 
   // 16 bit data memory size (3+4)
-  format_int(&(buffer[3]), device->data_memory_size, 2, MP_LITTLE_ENDIAN);
+  format_int(&(buffer[3]), handle->device->data_memory_size, 2,
+             MP_LITTLE_ENDIAN);
 
   // 8 bit device options (VPP voltage for example)
-  buffer[5] = (uint8_t)device->opts1;
+  buffer[5] = (uint8_t)handle->device->opts1;
 
   // 16 bit various options (6+7)
-  format_int(&(buffer[6]), device->opts2, 2, MP_LITTLE_ENDIAN);
+  format_int(&(buffer[6]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
 
   // 8 bit device options (VDD+VCC)
-  buffer[8] = (uint8_t)(device->opts1 >> 8);
+  buffer[8] = (uint8_t)(handle->device->opts1 >> 8);
 
   // 16 bit device specific options (9+10)
-  format_int(&(buffer[9]), device->opts3, 2, MP_LITTLE_ENDIAN);
+  format_int(&(buffer[9]), handle->device->opts3, 2, MP_LITTLE_ENDIAN);
 
   // 8 bit icsp options
-  buffer[11] = icsp;
+  buffer[11] = handle->icsp;
 
   // 24 bit code size (12+13+14)
-  format_int(&(buffer[12]), device->code_memory_size, 3, MP_LITTLE_ENDIAN);
+  format_int(&(buffer[12]), handle->device->code_memory_size, 3,
+             MP_LITTLE_ENDIAN);
 }
 
 int tl866a_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
   uint8_t ovc;
-  msg_init(msg, sizeof(msg), TL866A_START_TRANSACTION, handle->device,
-           handle->icsp);
-  if (msg_send(handle, msg, 48)) return -1;
-  if (minipro_get_ovc_status(handle, NULL, &ovc)) return -1;
+  msg_init(handle, TL866A_START_TRANSACTION, msg, sizeof(msg));
+  if (msg_send(handle->usb_handle, msg, 48)) return EXIT_FAILURE;
+  if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
     fprintf(stderr, "Overcurrent protection!\n");
-    return -1;
+    return EXIT_FAILURE;
   }
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int tl866a_end_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_END_TRANSACTION, handle->device,
-           handle->icsp);
+  msg_init(handle, TL866A_END_TRANSACTION, msg, sizeof(msg));
   msg[3] = 0x00;
-  return msg_send(handle, msg, 4);
+  return msg_send(handle->usb_handle, msg, 4);
 }
 
 int tl866a_protect_off(minipro_handle_t *handle) {
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_PROTECT_OFF, handle->device, handle->icsp);
-  return msg_send(handle, msg, 10);
+  msg_init(handle, TL866A_PROTECT_OFF, msg, sizeof(msg));
+  return msg_send(handle->usb_handle, msg, 10);
 }
 
 int tl866a_protect_on(minipro_handle_t *handle) {
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_PROTECT_ON, handle->device, handle->icsp);
-  return msg_send(handle, msg, 10);
+  msg_init(handle, TL866A_PROTECT_ON, msg, sizeof(msg));
+  return msg_send(handle->usb_handle, msg, 10);
 }
 
 int tl866a_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
                           uint8_t *ovc) {
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_GET_STATUS, handle->device, handle->icsp);
-  if (msg_send(handle, msg, 5)) return -1;
+  msg_init(handle, TL866A_GET_STATUS, msg, sizeof(msg));
+  if (msg_send(handle->usb_handle, msg, 5)) return EXIT_FAILURE;
   memset(msg, 0, sizeof(msg));
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   if (status)  // Check for null
   {
     // This is verify while writing feature.
@@ -280,12 +282,12 @@ int tl866a_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
     status->c2 = load_int(&msg[4], 2, MP_LITTLE_ENDIAN);
   }
   *ovc = msg[9];  // return the ovc status
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int tl866a_erase(minipro_handle_t *handle) {
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_ERASE, handle->device, handle->icsp);
+  msg_init(handle, TL866A_ERASE, msg, sizeof(msg));
   format_int(&(msg[2]), 0x03, 2, MP_LITTLE_ENDIAN);
   /* There's no "write unlock". This is how many fuses the controller have
    * or 1 if the device is something else.
@@ -304,73 +306,73 @@ int tl866a_erase(minipro_handle_t *handle) {
         msg[2] = ((fuse_decl_t *)handle->device->config)->erase_num_fuses;
       }
   }
-  if (msg_send(handle, msg, 15)) return -1;
+  if (msg_send(handle->usb_handle, msg, 15)) return EXIT_FAILURE;
   memset(msg, 0x00, sizeof(msg));
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
-  return 0;
+  return msg_recv(handle->usb_handle, msg, sizeof(msg));
 }
 
 int tl866a_read_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                       uint8_t *buffer, size_t size) {
-
   if (type == MP_CODE) {
     type = TL866A_READ_CODE;
   } else if (type == MP_DATA) {
     type = TL866A_READ_DATA;
   } else {
     fprintf(stderr, "Unknown type for read_block (%d)\n", type);
-    return -1;
+    return EXIT_FAILURE;
   }
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), type, handle->device, handle->icsp);
+  msg_init(handle, type, msg, sizeof(msg));
   format_int(&(msg[2]), size, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[4]), addr, 3, MP_LITTLE_ENDIAN);
-  if (msg_send(handle, msg, 18)) return -1;
-  return msg_recv(handle, buffer, size);
+  if (msg_send(handle->usb_handle, msg, 18)) return EXIT_FAILURE;
+  return msg_recv(handle->usb_handle, buffer, size);
 }
 
 int tl866a_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                        uint8_t *buffer, size_t size) {
-
   if (type == MP_CODE) {
     type = TL866A_WRITE_CODE;
   } else if (type == MP_DATA) {
     type = TL866A_WRITE_DATA;
   } else {
     fprintf(stderr, "Unknown type for read_block (%d)\n", type);
-    return -1;
+    return EXIT_FAILURE;
   }
 
   uint8_t *msg = malloc(size + 7);
   if (!msg) {
     fprintf(stderr, "Out of memory!");
-    return -1;
+    return EXIT_FAILURE;
   }
-  msg_init(msg, sizeof(size + 7), type, handle->device, handle->icsp);
+  msg_init(handle, type, msg, sizeof(size + 7));
   format_int(&(msg[2]), size, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[4]), addr, 3, MP_LITTLE_ENDIAN);
   memcpy(&(msg[7]), buffer, size);
-  if (msg_send(handle, msg, size + 7)) {
+  if (msg_send(handle->usb_handle, msg, size + 7)) {
     free(msg);
-    return -1;
+    return EXIT_FAILURE;
   }
   free(msg);
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 /* Model-specific ID, e.g. AVR Device ID (not longer than 4 bytes) */
 int tl866a_get_chip_id(minipro_handle_t *handle, uint8_t *type,
-                       uint32_t *device_id) {;
-  uint8_t msg[64];
-  msg_init(msg, sizeof(msg), TL866A_GET_CHIP_ID, handle->device, handle->icsp);
-  if (msg_send(handle, msg, 8)) return -1;
-  if (msg_recv(handle, msg, 32)) return -1;
+                       uint32_t *device_id) {
+  ;
+  uint8_t msg[64], format;
+  msg_init(handle, TL866A_GET_CHIP_ID, msg, sizeof(msg));
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, 32)) return EXIT_FAILURE;
   *type = msg[0];  // The Chip ID type (1-5)
-  msg[1] &= 0x03;  // The length byte is always 1-3 but never know, truncate to
+  format = (*type == MP_ID_TYPE3 || *type == MP_ID_TYPE4 ? MP_LITTLE_ENDIAN
+                                                         : MP_BIG_ENDIAN);
+  msg[1] &= 0x03;  // The length byte is always 1-4 but never know, truncate to
                    // max. 4 bytes.
-  *device_id = (msg[1] ? load_int(&(msg[2]), msg[1], MP_BIG_ENDIAN)
+  *device_id = (msg[1] ? load_int(&(msg[2]), msg[1], format)
                        : 0);  // Check for positive length.
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int tl866a_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
@@ -383,16 +385,16 @@ int tl866a_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
     type = TL866A_READ_LOCK;
   } else {
     fprintf(stderr, "Unknown type for read_fuses (%d)\n", type);
-    return -1;
+    return EXIT_FAILURE;
   }
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), type, handle->device, handle->icsp);
+  msg_init(handle, type, msg, sizeof(msg));
   msg[2] = items_count;
   format_int(&msg[4], handle->device->code_memory_size, 3, MP_LITTLE_ENDIAN);
-  if (msg_send(handle, msg, 18)) return -1;
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
+  if (msg_send(handle->usb_handle, msg, 18)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   memcpy(buffer, &(msg[7]), size);
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int tl866a_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
@@ -407,14 +409,14 @@ int tl866a_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
     fprintf(stderr, "Unknown type for write_fuses (%d)\n", type);
   }
   uint8_t msg[64];
-  msg_init(msg, sizeof(msg), type, handle->device, handle->icsp);
+  msg_init(handle, type, msg, sizeof(msg));
   if (buffer != NULL) {
     msg[2] = items_count;
     format_int(&msg[4], handle->device->code_memory_size - 0x38, 3,
                MP_LITTLE_ENDIAN);  // 0x38, firmware bug?
     memcpy(&(msg[7]), buffer, size);
   }
-  return msg_send(handle, msg, buffer != NULL ? 64 : 10);
+  return msg_send(handle->usb_handle, msg, buffer != NULL ? 64 : 10);
 }
 
 int tl866a_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
@@ -426,7 +428,7 @@ int tl866a_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
   msg[2] = size;
   msg[4] = row;
   memcpy(&msg[7], buffer, size / 8 + 1);
-  return msg_send(handle, msg, 64);
+  return msg_send(handle->usb_handle, msg, 64);
 }
 
 int tl866a_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
@@ -437,10 +439,10 @@ int tl866a_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
   msg[1] = handle->device->protocol_id;
   msg[2] = size;
   msg[4] = row;
-  if (msg_send(handle, msg, 18)) return -1;
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
+  if (msg_send(handle->usb_handle, msg, 18)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   memcpy(buffer, msg, size / 8 + 1);
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 // Unlocking the TSOP48 adapter.
@@ -463,10 +465,10 @@ int tl866a_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
   msg[16] = msg[11];
   msg[9] = (uint8_t)crc;
   msg[11] = (uint8_t)(crc >> 8);
-  if (msg_send(handle, msg, 17)) return -1;
-  if (msg_recv(handle, msg, sizeof(msg))) return -1;
+  if (msg_send(handle->usb_handle, msg, 17)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   *status = msg[1];
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 // Minipro hardware check
@@ -478,8 +480,8 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
   uint8_t i, errors = 0;
   // Reset pin drivers state
   msg[0] = TL866A_RESET_PIN_DRIVERS;
-  if (msg_send(handle, msg, 10)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 10)) {
+    return EXIT_FAILURE;
   }
 
   // Testing 16 VPP pin drivers
@@ -492,37 +494,38 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
                                  // (0-7; see the schematic diagram)
     msg[10] = vpp_pins[i].mask;  // This is the latch value we want to write
                                  // (see the schematic diagram)
-    if (msg_send(handle, msg, 32)) {
+    if (msg_send(handle->usb_handle, msg, 32)) {
       minipro_close(handle);
-      return -1;
+      return EXIT_FAILURE;
     }
     usleep(5000);
     msg[0] = TL866A_READ_ZIF_PINS;
-    if (msg_send(handle, msg, 18)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 18)) {
+      return EXIT_FAILURE;
     }
-    if (msg_recv(handle, read_buffer, sizeof(read_buffer))) return -1;
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer)))
+      return EXIT_FAILURE;
     if (read_buffer[1]) {
       msg[0] = TL866A_RESET_PIN_DRIVERS;
-      if (msg_send(handle, msg, 10)) {
-        return -1;
+      if (msg_send(handle->usb_handle, msg, 10)) {
+        return EXIT_FAILURE;
       }
       msg[0] = TL866A_END_TRANSACTION;
-      if (msg_send(handle, msg, 4)) {
-        return -1;
+      if (msg_send(handle->usb_handle, msg, 4)) {
+        return EXIT_FAILURE;
       }
       fprintf(stderr,
               "Overcurrent protection detected while testing VPP pin driver "
               "%u!\007\n",
               vpp_pins[i].pin);
-      return -1;
+      return EXIT_FAILURE;
     }
     if (!read_buffer[6 + vpp_pins[i].pin]) errors++;
     fprintf(stderr, "VPP driver pin %u is %s\n", vpp_pins[i].pin,
             read_buffer[6 + vpp_pins[i].pin] ? "OK" : "Bad");
     msg[0] = TL866A_RESET_PIN_DRIVERS;
-    if (msg_send(handle, msg, 10)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 10)) {
+      return EXIT_FAILURE;
     }
   }
   fprintf(stderr, "\n");
@@ -533,37 +536,37 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
     msg[8] = vcc_pins[i].oe;
     msg[9] = vcc_pins[i].latch;
     msg[10] = vcc_pins[i].mask;
-    if (msg_send(handle, msg, 32)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 32)) {
+      return EXIT_FAILURE;
     }
     usleep(5000);
     msg[0] = TL866A_READ_ZIF_PINS;
-    if (msg_send(handle, msg, 18)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 18)) {
+      return EXIT_FAILURE;
     }
-    if (msg_recv(handle, read_buffer, sizeof(read_buffer))) {
-      return -1;
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+      return EXIT_FAILURE;
     }
     if (read_buffer[1]) {
       msg[0] = TL866A_RESET_PIN_DRIVERS;
-      if (msg_send(handle, msg, 10)) {
-        return -1;
+      if (msg_send(handle->usb_handle, msg, 10)) {
+        return EXIT_FAILURE;
       }
       if (minipro_end_transaction(handle)) {
-        return -1;
+        return EXIT_FAILURE;
       }
       fprintf(stderr,
               "Overcurrent protection detected while testing VCC pin driver "
               "%u!\007\n",
               vcc_pins[i].pin);
-      return -1;
+      return EXIT_FAILURE;
     }
     if (!read_buffer[6 + vcc_pins[i].pin]) errors++;
     fprintf(stderr, "VCC driver pin %u is %s\n", vcc_pins[i].pin,
             read_buffer[6 + vcc_pins[i].pin] ? "OK" : "Bad");
     msg[0] = TL866A_RESET_PIN_DRIVERS;
-    if (msg_send(handle, msg, 10)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 10)) {
+      return EXIT_FAILURE;
     }
   }
   fprintf(stderr, "\n");
@@ -574,38 +577,38 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
     msg[8] = gnd_pins[i].oe;
     msg[9] = gnd_pins[i].latch;
     msg[10] = gnd_pins[i].mask;
-    if (msg_send(handle, msg, 32)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 32)) {
+      return EXIT_FAILURE;
     }
     usleep(5000);
     msg[0] = TL866A_READ_ZIF_PINS;
-    if (msg_send(handle, msg, 18)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 18)) {
+      return EXIT_FAILURE;
     }
-    if (msg_recv(handle, read_buffer, sizeof(read_buffer))) {
-      return -1;
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+      return EXIT_FAILURE;
     }
     if (read_buffer[1]) {
       msg[0] = TL866A_RESET_PIN_DRIVERS;
-      if (msg_send(handle, msg, 10)) {
+      if (msg_send(handle->usb_handle, msg, 10)) {
         minipro_close(handle);
-        return -1;
+        return EXIT_FAILURE;
       }
       if (minipro_end_transaction(handle)) {
-        return -1;
+        return EXIT_FAILURE;
       }
       fprintf(stderr,
               "Overcurrent protection detected while testing GND pin driver "
               "%u!\007\n",
               gnd_pins[i].pin);
-      return -1;
+      return EXIT_FAILURE;
     }
     if (read_buffer[6 + gnd_pins[i].pin]) errors++;
     fprintf(stderr, "GND driver pin %u is %s\n", gnd_pins[i].pin,
             read_buffer[6 + gnd_pins[i].pin] ? "Bad" : "OK");
     msg[0] = TL866A_RESET_PIN_DRIVERS;
-    if (msg_send(handle, msg, 10)) {
-      return -1;
+    if (msg_send(handle->usb_handle, msg, 10)) {
+      return EXIT_FAILURE;
     }
   }
 
@@ -618,15 +621,15 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
   msg[10] = vpp_pins[VPP1].mask;  // Put the VPP voltage to the ZIF pin1
   msg[11] = gnd_pins[GND1].latch;
   msg[12] = gnd_pins[GND1].mask;  // Now put the same pin ZIF 1 to the GND
-  if (msg_send(handle, msg, 32)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 32)) {
+    return EXIT_FAILURE;
   }
   msg[0] = TL866A_READ_ZIF_PINS;  // Read back the OVC status (should be active)
-  if (msg_send(handle, msg, 18)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 18)) {
+    return EXIT_FAILURE;
   }
-  if (msg_recv(handle, read_buffer, sizeof(read_buffer))) {
-    return -1;
+  if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+    return EXIT_FAILURE;
   }
   if (read_buffer[1]) {
     fprintf(stderr, "VPP overcurrent protection is OK.\n");
@@ -638,13 +641,13 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
   // Reset internal state
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_RESET_PIN_DRIVERS;
-  if (msg_send(handle, msg, 10)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 10)) {
+    return EXIT_FAILURE;
   }
 
   msg[0] = TL866A_END_TRANSACTION;
-  if (msg_send(handle, msg, 4)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 4)) {
+    return EXIT_FAILURE;
   }
 
   usleep(5000);
@@ -656,15 +659,15 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
   msg[10] = vcc_pins[VCC40].mask;  // Put the VCC voltage to the ZIF pin 40
   msg[11] = gnd_pins[GND40].latch;
   msg[12] = gnd_pins[GND40].mask;  // Now put the same pin ZIF 40 to the GND
-  if (msg_send(handle, msg, 32)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 32)) {
+    return EXIT_FAILURE;
   }
   msg[0] = TL866A_READ_ZIF_PINS;  // Read back the OVC status
-  if (msg_send(handle, msg, 18)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 18)) {
+    return EXIT_FAILURE;
   }
-  if (msg_recv(handle, read_buffer, sizeof(read_buffer))) {
-    return -1;
+  if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+    return EXIT_FAILURE;
   }
   if (read_buffer[1]) {
     fprintf(stderr, "VCC overcurrent protection is OK.\n");
@@ -681,10 +684,10 @@ int tl866a_hardware_check(minipro_handle_t *handle) {
   // End transaction
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_END_TRANSACTION;
-  if (msg_send(handle, msg, 4)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 4)) {
+    return EXIT_FAILURE;
   }
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 /* Firmware updater section */
@@ -832,9 +835,9 @@ static int minipro_reset(minipro_handle_t **handle) {
   fflush(stderr);
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_RESET;
-  if (msg_send(*handle, msg, 4)) {
+  if (msg_send((*handle)->usb_handle, msg, 4)) {
     minipro_close(*handle);
-    return -1;
+    return EXIT_FAILURE;
   }
 
   minipro_close(*handle);
@@ -846,10 +849,10 @@ static int minipro_reset(minipro_handle_t **handle) {
   } while (*handle == NULL && wait);
   if (!(*handle) || !wait || wait == 200) {
     fprintf(stderr, "Failed\n");
-    return -1;
+    return EXIT_FAILURE;
   }
   fprintf(stderr, "OK\n");
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 // Performing a firmware update
@@ -862,13 +865,13 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   if (stat(firmware, &st)) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Check the update.dat size
   if (st.st_size != TL866A_UPDATE_DAT_SIZE) {
     fprintf(stderr, "File size error!\n");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Open the update.dat firmware file
@@ -876,14 +879,14 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   if (file == NULL) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Read the update.dat file
   if (fread(&update_dat, sizeof(char), st.st_size, file) != st.st_size) {
     fprintf(stderr, "File read error!\n");
     fclose(file);
-    return -1;
+    return EXIT_FAILURE;
   }
   fclose(file);
 
@@ -906,7 +909,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
       (update_dat.cs_crc32 !=
        ~crc32(cs_firmware, sizeof(cs_firmware), 0xFFFFFFFF))) {
     fprintf(stderr, "%s crc error!\n", firmware);
-    return -1;
+    return EXIT_FAILURE;
   }
 
   fprintf(stderr, "%s contains firmware version x.x.%u\n", firmware,
@@ -915,33 +918,33 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   // Read the device status
   if (minipro_get_system_info(handle, &info)) {
     minipro_close(handle);
-    return -1;
+    return EXIT_FAILURE;
   }
   switch (info.device_version) {
     case MP_TL866A:
       break;
     case MP_TL866CS:
       break;
-    default: { return -1; }
+    default: { return EXIT_FAILURE; }
   }
   // Device status
   switch (info.device_status) {
     case MP_STATUS_NORMAL:
     case MP_STATUS_BOOTLOADER:
       break;
-    default: { return -1; }
+    default: { return EXIT_FAILURE; }
   }
   // Save the working firmware version (A/CS)
   uint8_t version = info.device_version;
 
   // Switch to boot mode if necessary
   if (info.device_status == MP_STATUS_NORMAL) {
-    if (minipro_reset(&handle)) return -1;
+    if (minipro_reset(&handle)) return EXIT_FAILURE;
   }
 
   // Read the device status again to see the true device version
   if (minipro_get_system_info(handle, &info)) {
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Reencrypt the firmware if necessary
@@ -970,14 +973,14 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   msg[0] = TL866A_BOOTLOADER_ERASE;
   msg[7] = info.device_version == MP_TL866A ? update_dat.a_erase
                                             : update_dat.cs_erase;
-  if (msg_send(handle, msg, 20)) {
-    return -1;
+  if (msg_send(handle->usb_handle, msg, 20)) {
+    return EXIT_FAILURE;
   }
   memset(msg, 0, sizeof(msg));
-  msg_recv(handle, msg, 32);
+  msg_recv(handle->usb_handle, msg, 32);
   if (msg[0] != TL866A_BOOTLOADER_ERASE) {
     fprintf(stderr, "Failed\n");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Reflash firmware
@@ -997,9 +1000,9 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
     msg[6] = (address & 0xff0000) >> 16;
     memcpy(&msg[7], p_firmware + i, TL866A_FIRMWARE_BLOCK_SIZE);
 
-    if (msg_send(handle, msg, sizeof(msg))) {
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
       fprintf(stderr, "\nReflash... Failed\n");
-      return -1;
+      return EXIT_FAILURE;
     }
     address += 64;  // next data block
     fprintf(stderr, "\r\e[KReflashing... %2d%%", i / 1935);
@@ -1010,18 +1013,18 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   // Switch back to normal mode
   if (minipro_reset(&handle)) {
     fprintf(stderr, "Reflash... Failed\n");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Read the device status again to see if the reflash was ok
   if (minipro_get_system_info(handle, &info)) {
-    return -1;
+    return EXIT_FAILURE;
   }
   if (info.device_status != MP_STATUS_NORMAL) {
     fprintf(stderr, "Reflash... Failed\n");
-    return -1;
+    return EXIT_FAILURE;
   }
   fprintf(stderr, "Reflash... OK\n");
   minipro_close(handle);
-  return 0;
+  return EXIT_SUCCESS;
 }
