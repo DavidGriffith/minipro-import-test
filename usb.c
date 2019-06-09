@@ -52,7 +52,7 @@ static int payload_transfer(libusb_device_handle *handle, uint8_t direction,
   ep2_urb = libusb_alloc_transfer(0);
   ep3_urb = libusb_alloc_transfer(0);
   if (ep2_urb == NULL || ep3_urb == NULL) {
-    fprintf(stderr, "Out of memory");
+    fprintf(stderr, "Out of memory!\n");
     return EXIT_FAILURE;
   }
 
@@ -150,7 +150,7 @@ int read_payload(libusb_device_handle *handle, uint8_t *buffer, size_t length) {
   int bytes_transferred;
   if (length < 64) {
     uint8_t data[64];
-    if (msg_transfer(handle, buffer, length, LIBUSB_ENDPOINT_IN, 0x02,
+    if (msg_transfer(handle, data, sizeof(data), LIBUSB_ENDPOINT_IN, 0x02,
                      &bytes_transferred))
       return EXIT_FAILURE;
     memcpy(buffer, data, length);

@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "database.h"
 #include "tl866iiplus.h"
@@ -42,9 +44,14 @@
 #define TL866IIPLUS_PROTECT_ON 0x19
 #define TL866IIPLUS_READ_JEDEC 0x1D
 #define TL866IIPLUS_WRITE_JEDEC 0x1E
-
 #define TL866IIPLUS_UNLOCK_TSOP48 0x38
 #define TL866IIPLUS_REQUEST_STATUS 0x39
+
+#define TL866IIPLUS_BOOTLOADER_WRITE 0x3B
+#define TL866IIPLUS_BOOTLOADER_ERASE 0x3C
+#define TL866IIPLUS_SWITCH 0x3D
+
+#define TL866IIPLUS_BTLDR_MAGIC 0xA578B986
 
 static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
                      size_t length) {
@@ -55,8 +62,8 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
   if (handle->device) {
     buf[1] = handle->device->protocol_id;
     buf[2] = handle->device->variant;
+    buf[3] = handle->icsp;
   }
-  buf[3] = handle->icsp;
 }
 
 int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
@@ -302,5 +309,341 @@ int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, 32)) return EXIT_FAILURE;
   memcpy(buffer, msg, size / 8 + 1);
+  return EXIT_SUCCESS;
+}
+
+/* Firmware updater section
+//////////////////////////////////////////////////////////////////////////////////
+
+This is the UpdateII.dat file structure.
+It has a variabile size. There are small data blocks of 272 bytes each followed by the last data block which always has 2064 bytes.
+|============|===========|============|==============|=============|=============|===================|======================|
+|File version| File CRC  | XOR Table  | Blocks count | Block 0     | Block 1     | Block N           | Last block           |
+|============|===========|============|==============|=============|=============|===================|======================|
+|  4 bytes   | 4 bytes   | 1024 bytes | 4 bytes      | 272 bytes   | 272 bytes   | 272 bytes         | 2064 bytes           |
+|============|===========|============|==============|=============|=============|===================|======================|
+|  offset 0  | offset 4  | offset 8   | offset 1032  | offset 1036 | offset 1308 | offset 1036+N*272 | offset block N + 272 |
+|============|===========|============|==============|=============|=============|===================|======================|
+
+
+The structure of each data block is as following:
+|============|===================|====================|=============================|================|
+| Block CRC  | XOR table pointer | Encrypted address  | Internal decryption pointer | Encrypted data |
+|============|===================|====================|=============================|================|
+| 4 bytes    | 4 bytes           | 4 bytes            | 4 bytes (only LSB is used)  | 256/2048 bytes |
+|============|===================|====================|=============================|================|
+| offset 0   | offset 4          | offset 8           | offset 12                   | offset 16      |
+|============|===================|====================|=============================|================|
+
+*/
+
+
+// Performing a firmware update
+int tl866iiplus_firmware_update(minipro_handle_t *handle,
+                                const char *firmware) {
+  uint8_t msg[264];
+  struct stat st;
+  if (stat(firmware, &st)) {
+    fprintf(stderr, "%s open error!: ", firmware);
+    perror("");
+    return EXIT_FAILURE;
+  }
+
+  off_t file_size = st.st_size;
+  // Check the update.dat size
+  if (file_size < 3100 || file_size > 1048576) {
+    fprintf(stderr, "%s file size error!\n", firmware);
+    return EXIT_FAILURE;
+  }
+
+  // Open the update.dat firmware file
+  FILE *file = fopen(firmware, "r");
+  if (file == NULL) {
+    fprintf(stderr, "%s open error!: ", firmware);
+    perror("");
+    return EXIT_FAILURE;
+  }
+  uint8_t *update_dat = malloc(file_size);
+  if (!update_dat) {
+    fprintf(stderr, "Out of memory!\n");
+    return EXIT_FAILURE;
+  }
+
+  // Read the updateII.dat file
+  if (fread(update_dat, sizeof(char), st.st_size, file) != st.st_size) {
+    fprintf(stderr, "%s file read error!\n", firmware);
+    fclose(file);
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+  fclose(file);
+
+  // Read the blocks count and check if correct
+  uint32_t blocks = load_int(update_dat + 1032, 4, MP_LITTLE_ENDIAN);
+  if (blocks * 272 + 3100 != file_size) {
+    fprintf(stderr, "%s file size error!\n", firmware);
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+
+  // Compute the file CRC and compare
+  uint crc = 0xFFFFFFFF;
+  // Note the order in which the crc is calculated!
+  // First the data blocks crc
+  if (blocks > 0) {
+    crc = crc32(update_dat + 1036, blocks * 272, crc);
+  }
+  // Second the last block crc
+  crc = crc32(update_dat + blocks * 272 + 1036, 2064, crc);
+  // And last the xortable+blocks_count crc
+  crc = crc32(update_dat + 8, 1028, crc);
+  // The computed CRC32 must match the File CRC from the offset 4
+  if (~crc != load_int(update_dat + 4, 4, MP_LITTLE_ENDIAN)) {
+    fprintf(stderr, "%s file CRC error!\n", firmware);
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+
+  /*
+   * Decrypting each data block (by deobfuscating the address)
+   */
+
+  size_t ptr = 1036;  // This is the offset of the first data block
+
+  // The updateII.dat contains a xor table of 1024 bytes length at the offset 8.
+  // This table is used to obfuscate the block address.
+  uint xorptr;
+  for (uint32_t i = 0; i < blocks; i++) {
+    xorptr = load_int(update_dat + ptr + 4, 4,
+                      MP_LITTLE_ENDIAN);  // Load the xor table pointer
+
+    /*
+     * The destination address of each data block (offset 8) is obfuscated
+     * by xoring the LSB part of the address against a xortable 264 times (44*6)
+     */
+    for (uint i = 0; i < 44; i++) {
+      update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
+      update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
+      update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];
+      update_dat[ptr + 8] ^= update_dat[((xorptr + 3) & 0x3FF) + 8];
+      update_dat[ptr + 8] ^= update_dat[((xorptr + 4) & 0x3FF) + 8];
+      update_dat[ptr + 8] ^= update_dat[((xorptr + 5) & 0x3FF) + 8];
+      xorptr += 6;
+    }
+    // After deobfuscating the address calculate the block crc and compare
+    if (crc32(update_dat + ptr + 4, 268, 0) !=
+        load_int(update_dat + ptr, 4, MP_LITTLE_ENDIAN)) {
+      fprintf(stderr, "%s file CRC error!\n", firmware);
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    ptr += 272;
+  }
+
+  /*
+   * The last data block destination address is obfuscated
+   * by xoring the LSB part of the address against a xortable 2056 times (514*4)
+   */
+  xorptr = load_int(update_dat + ptr + 4, 4, MP_LITTLE_ENDIAN);
+  for (uint i = 0; i < 514; i++) {
+    update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
+    update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
+    update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];
+    update_dat[ptr + 8] ^= update_dat[((xorptr + 3) & 0x3FF) + 8];
+    xorptr += 4;
+  }
+  // After deobfuscating the address calculate the block crc and compare
+  if (crc32(update_dat + ptr + 4, 2060, 0) !=
+      load_int(update_dat + ptr, 4, MP_LITTLE_ENDIAN)) {
+    fprintf(stderr, "%s file CRC error!\n", firmware);
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+
+  fprintf(stderr, "%s contains firmware version %u.%u.%u", firmware,
+          update_dat[1] >> 4, update_dat[1] & 0x0F, update_dat[0]);
+
+  if ((handle->firmware & 0xFF) > update_dat[0])
+    fprintf(stderr, " (older)");
+  else if ((handle->firmware & 0xFF) < update_dat[0])
+    fprintf(stderr, " (newer)");
+  fprintf(stderr, "\n");
+
+  printf("\nDo you want to continue with firmware update? y/n: ");
+  char c = getchar();
+  if (c != 'Y' && c != 'y') {
+    free(update_dat);
+    fprintf(stderr, "Firmware update aborted.\n");
+    return EXIT_FAILURE;
+  }
+
+  // Switching to boot mode if necessary
+  if (handle->status == MP_STATUS_NORMAL) {
+    fprintf(stderr, "Switching to bootloader... ");
+    fflush(stderr);
+
+    memset(msg, 0, sizeof(msg));
+    msg[0] = TL866IIPLUS_SWITCH;
+    format_int(&msg[4], TL866IIPLUS_BTLDR_MAGIC, 4, MP_LITTLE_ENDIAN);
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    if (minipro_reset(handle)) {
+      fprintf(stderr, "failed!\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    handle = minipro_open(NULL);
+    if (!handle) {
+      fprintf(stderr, "failed!\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+
+    if (handle->status == MP_STATUS_NORMAL) {
+      fprintf(stderr, "failed!\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    fprintf(stderr, "OK!\n");
+  }
+
+  // Erase device
+  fprintf(stderr, "Erasing... ");
+  fflush(stderr);
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_BOOTLOADER_ERASE;
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    fprintf(stderr, "\nErase failed!\n");
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+  memset(msg, 0, sizeof(msg));
+  if (msg_recv(handle->usb_handle, msg, 8)) {
+    fprintf(stderr, "\nErase failed!\n");
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+  if (msg[0] != TL866IIPLUS_BOOTLOADER_ERASE) {
+    fprintf(stderr, "failed\n");
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+
+  // Reflash firmware
+  fprintf(stderr, "OK\n");
+  fprintf(stderr, "Reflashing... ");
+  fflush(stderr);
+
+  ptr = 1036;  // First firmware block
+  for (int i = 0; i < blocks; i++) {
+    msg[0] = TL866IIPLUS_BOOTLOADER_WRITE;
+    msg[1] = update_dat[ptr + 12] & 0x7F;         // Xor table index
+    msg[2] = 0;                                   // Data Length LSB
+    msg[3] = 1;                                   // Data length MSB (256 bytes)
+    memcpy(&msg[4], &update_dat[ptr + 8], 4);     // Destination address
+    memcpy(&msg[8], &update_dat[ptr + 16], 256);  // 256  bytes data
+
+    // Send the command to the endpoint 1
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      fprintf(stderr, "\nReflash failed\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+
+    // And the payload to the endpoints 2 and 3
+    if (write_payload(handle->usb_handle, msg + 8, 256)) {
+      fprintf(stderr, "\nReflash failed\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+
+    // Check if the firmware block was successfully written
+    memset(msg, 0, sizeof(msg));
+    msg[0] = TL866IIPLUS_REQUEST_STATUS;
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      fprintf(stderr, "\nReflash... Failed\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    memset(msg, 0, sizeof(msg));
+    if (msg_recv(handle->usb_handle, msg, 32)) {
+      fprintf(stderr, "\nReflash... Failed\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    if (msg[1]) {
+      fprintf(stderr, "\nReflash... Failed\n");
+      free(update_dat);
+      return EXIT_FAILURE;
+    }
+    ptr += 272;
+    fprintf(stderr, "\r\e[KReflashing... %2d%%", i * 100 / blocks);
+    fflush(stderr);
+  }
+
+  // Last firmware block
+  uint8_t block[2056];
+
+  block[0] = TL866IIPLUS_BOOTLOADER_WRITE;
+  block[1] = update_dat[ptr + 12] | 0x80;
+  block[2] = 0;
+  block[3] = 8;
+  memcpy(&block[4], &update_dat[ptr + 8], 4);
+  memcpy(&block[8], &update_dat[ptr + 16], 2048);
+  free(update_dat);
+
+  // Send the command to the endpoint 1
+  if (msg_send(handle->usb_handle, block, 8)) {
+    fprintf(stderr, "\nReflash failed\n");
+    return EXIT_FAILURE;
+  }
+
+  // And the payload to the endpoints 2 and 3
+  if (write_payload(handle->usb_handle, block + 8, 2048)) {
+    fprintf(stderr, "\nReflash failed\n");
+    return EXIT_FAILURE;
+  }
+
+  // Check if the firmware block was successfully written
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_REQUEST_STATUS;
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    fprintf(stderr, "\nReflash failed!\n");
+    return EXIT_FAILURE;
+  }
+  memset(msg, 0, sizeof(msg));
+  if (msg_recv(handle->usb_handle, msg, 32)) {
+    fprintf(stderr, "\nReflash failed!\n");
+    return EXIT_FAILURE;
+  }
+  if (msg[1]) {
+    fprintf(stderr, "\nReflash... Failed\n");
+    return EXIT_FAILURE;
+  }
+  fprintf(stderr, "\r\e[KReflashing... 100%%\n");
+
+  // Switching back to normal mode
+  fprintf(stderr, "Reseting device... ");
+  fflush(stderr);
+  if (minipro_reset(handle)) {
+    fprintf(stderr, "failed!\n");
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+  handle = minipro_open(NULL);
+  if (!handle) {
+    fprintf(stderr, "failed!\n");
+    free(update_dat);
+    return EXIT_FAILURE;
+  }
+  fprintf(stderr, "OK\n");
+  if (handle->status != MP_STATUS_NORMAL) {
+    fprintf(stderr, "Reflash... failed\n");
+    return EXIT_FAILURE;
+  }
+
+  fprintf(stderr, "Reflash... OK\n");
   return EXIT_SUCCESS;
 }

@@ -122,11 +122,12 @@ void print_help_and_exit(char *progname) {
 }
 
 void print_devices_and_exit(const char *device_name) {
-  minipro_handle_t *handle = minipro_open(NULL, 1);
+  minipro_handle_t *handle = minipro_open(NULL);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
   minipro_print_system_info(handle);
+  minipro_close(handle);
   if (isatty(STDOUT_FILENO) && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
@@ -144,23 +145,23 @@ void print_devices_and_exit(const char *device_name) {
       printf("%s\n", device->name);
     }
   }
-  minipro_close(handle);
   exit(EXIT_SUCCESS);
 }
 
 void print_device_info_and_exit(const char *device_name) {
-  minipro_handle_t *handle = minipro_open(NULL, 1);
+  minipro_handle_t *handle = minipro_open(device_name);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
   minipro_print_system_info(handle);
-  device_t *device = handle->device;
+  minipro_close(handle);
 
-  fprintf(stderr, "Name: %s\n", device->name);
+  fprintf(stderr, "Name: %s\n", handle->device->name);
 
   /* Memory shape */
-  fprintf(stderr, "Memory: %u", device->code_memory_size / WORD_SIZE(device));
-  switch (device->opts4 & 0xFF000000) {
+  fprintf(stderr, "Memory: %u",
+          handle->device->code_memory_size / WORD_SIZE(handle->device));
+  switch (handle->device->opts4 & 0xFF000000) {
     case 0x00000000:
       fprintf(stderr, " Bytes");
       break;
@@ -172,20 +173,20 @@ void print_device_info_and_exit(const char *device_name) {
       break;
     default:
       fprintf(stderr, "Unknown memory shape: 0x%x\n",
-              device->opts4 & 0xFF000000);
-      minipro_close(handle);
+              handle->device->opts4 & 0xFF000000);
       exit(EXIT_FAILURE);
   }
-  if (device->data_memory_size) {
-    fprintf(stderr, " + %u Bytes", device->data_memory_size);
+  if (handle->device->data_memory_size) {
+    fprintf(stderr, " + %u Bytes", handle->device->data_memory_size);
   }
-  if (device->data_memory2_size) {
-    fprintf(stderr, " + %u Bytes", device->data_memory2_size);
+  if (handle->device->data_memory2_size) {
+    fprintf(stderr, " + %u Bytes", handle->device->data_memory2_size);
   }
   fprintf(stderr, "\n");
 
   uint8_t package_details[4];
-  format_int(package_details, device->package_details, 4, MP_LITTLE_ENDIAN);
+  format_int(package_details, handle->device->package_details, 4,
+             MP_LITTLE_ENDIAN);
   /* Package info */
   fprintf(stderr, "Package: ");
   if (package_details[0]) {
@@ -193,22 +194,23 @@ void print_device_info_and_exit(const char *device_name) {
   } else if (package_details[3]) {
     fprintf(stderr, "DIP%d\n", package_details[3] & 0x7F);
   } else {
-    fprintf(stderr, "ISP only\n");
+    fprintf(stderr, "ICSP only\n");
   }
 
   /* ISP connection info */
-  fprintf(stderr, "ISP: ");
+  fprintf(stderr, "ICSP: ");
   if (package_details[1]) {
     fprintf(stderr, "ICP%03d.JPG\n", package_details[1]);
   } else {
     fprintf(stderr, "-\n");
   }
 
-  fprintf(stderr, "Protocol: 0x%02x\n", device->protocol_id);
-  fprintf(stderr, "Read buffer size: %u Bytes\n", device->read_buffer_size);
-  fprintf(stderr, "Write buffer size: %u Bytes\n", device->write_buffer_size);
+  fprintf(stderr, "Protocol: 0x%02x\n", handle->device->protocol_id);
+  fprintf(stderr, "Read buffer size: %u Bytes\n",
+          handle->device->read_buffer_size);
+  fprintf(stderr, "Write buffer size: %u Bytes\n",
+          handle->device->write_buffer_size);
 
-  minipro_close(handle);
   exit(EXIT_SUCCESS);
 }
 
@@ -261,7 +263,7 @@ int parse_options() {
 }
 
 void hardware_check_and_exit() {
-  minipro_handle_t *handle = minipro_open(NULL, 1);
+  minipro_handle_t *handle = minipro_open(NULL);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
@@ -279,14 +281,16 @@ void hardware_check_and_exit() {
 }
 
 void firmware_update_and_exit(const char *firmware) {
-  minipro_handle_t *handle = minipro_open(NULL, 1);
+  minipro_handle_t *handle = minipro_open(NULL);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
   minipro_print_system_info(handle);
   if (handle->status == MP_STATUS_BOOTLOADER)
     fprintf(stderr, "in bootloader mode!\n");
-  exit(minipro_firmware_update(handle, firmware));
+  int ret = minipro_firmware_update(handle, firmware);
+  minipro_close(handle);
+  exit(ret);
 }
 
 void parse_cmdline(int argc, char **argv) {
@@ -706,7 +710,7 @@ int write_page_file(minipro_handle_t *handle, const char *filename,
   uint8_t *buffer = malloc(size);
   if (!buffer) {
     fclose(file);
-    fprintf(stderr, "Out of memory\n");
+    fprintf(stderr, "Out of memory!\n");
     return EXIT_FAILURE;
   }
 
@@ -729,7 +733,7 @@ int read_page_file(minipro_handle_t *handle, const char *filename, uint8_t type,
                    const char *name, size_t size) {
   FILE *file = fopen(filename, "w");
   if (file == NULL) {
-    perror("Couldn't open file for writing");
+    perror("Couldn't open file for writing\n");
     return EXIT_FAILURE;
   }
 
@@ -1301,7 +1305,7 @@ int main(int argc, char **argv) {
     print_help_and_exit(argv[0]);
   }
 
-  minipro_handle_t *handle = minipro_open(cmdopts.device, 1);
+  minipro_handle_t *handle = minipro_open(cmdopts.device);
   if (!handle) {
     return EXIT_FAILURE;
   }
@@ -1408,12 +1412,12 @@ int main(int argc, char **argv) {
   }
 
   // Activate ICSP if the chip can only be programmed via ICSP.
-  if ((cmdopts.icsp == 0) &&
-      ((handle->device->package_details & ICSP_MASK) != 0) &&
+  if (((handle->device->package_details & ICSP_MASK) != 0) &&
       ((handle->device->package_details & PIN_COUNT_MASK) == 0)) {
-    handle->icsp = MP_ICSP_ENABLE;
-    fprintf(stderr, "Activating ICSP...\n");
-  }
+    handle->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
+  } else
+    handle->icsp = cmdopts.icsp;
+  if (handle->icsp) fprintf(stderr, "Activating ICSP...\n");
 
   uint8_t id_type;
   // Verifying Chip ID (if applicable)
@@ -1510,7 +1514,7 @@ int main(int argc, char **argv) {
     }
   } else if (!cmdopts.filename) {
     minipro_close(handle);
-    fprintf(stderr, "Can't read the device ID for this chip!");
+    fprintf(stderr, "Can't read the device ID for this chip!\n");
     return EXIT_FAILURE;
   }
   int ret = cmdopts.action(cmdopts.filename, handle);

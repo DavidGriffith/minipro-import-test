@@ -192,16 +192,19 @@ uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness);
 int minipro_get_system_info(minipro_handle_t *handle,
                             minipro_report_info_t *info);
 void minipro_print_system_info(minipro_handle_t *handle);
+uint32_t crc32(uint8_t *data, size_t size, uint32_t initial);
+int minipro_reset(minipro_handle_t *handle);
+int minipro_get_devices_count(uint8_t version);
 
 /*
  * Standard interface functions compatible with both TL866A/TL866II+
  * programmers. High level logic should include this file not the
  * tl866a.h/tl866iiplus.h device specific headers. These functions will return 0
- * on success and -1 on failure. This way we always return the success status to
+ * on success and 1 on failure. This way we always return the success status to
  * the higher logic routines to exit cleanly leaving the device in a clean
  * state.
  */
-minipro_handle_t *minipro_open(const char *device_name, int verbose);
+minipro_handle_t *minipro_open(const char *device_name);
 void minipro_close(minipro_handle_t *handle);
 int minipro_begin_transaction(minipro_handle_t *handle);
 int minipro_end_transaction(minipro_handle_t *handle);

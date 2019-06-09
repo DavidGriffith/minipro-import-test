@@ -32,6 +32,11 @@
 #include "tl866iiplus.h"
 #include "usb.h"
 
+#define TL866A_RESET 0xFF
+#define TL866IIPLUS_RESET 0x3F
+
+#define CRC32_POLYNOMIAL 0xEDB88320
+
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness) {
   uint32_t idx;
   size_t i;
@@ -51,7 +56,19 @@ uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness) {
   return result;
 }
 
-minipro_handle_t *minipro_open(const char *device_name, int verbose) {
+// Simple crc32
+uint32_t crc32(uint8_t *data, size_t size, uint32_t initial) {
+  uint32_t i, j, crc;
+  crc = initial;
+  for (i = 0; i < size; i++) {
+    crc = crc ^ data[i];
+    for (j = 0; j < 8; j++)
+      crc = (crc >> 1) ^ (CRC32_POLYNOMIAL & (-(crc & 1)));
+  }
+  return crc;
+}
+
+minipro_handle_t *minipro_open(const char *device_name) {
   int ret;
   minipro_report_info_t info;
 
@@ -80,7 +97,7 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
     if (handle->usb_handle == NULL) {
       libusb_exit(NULL);
       free(handle);
-      if (verbose) fprintf(stderr, "\nError opening device\n");
+      fprintf(stderr, "\nError opening device\n");
       return NULL;
     }
   }
@@ -152,6 +169,7 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
       handle->minipro_unlock_tsop48 = tl866iiplus_unlock_tsop48;
       handle->minipro_read_jedec_row = tl866iiplus_read_jedec_row;
       handle->minipro_write_jedec_row = tl866iiplus_write_jedec_row;
+      handle->minipro_firmware_update = tl866iiplus_firmware_update;
       break;
     default:
       minipro_close(handle);
@@ -169,7 +187,7 @@ minipro_handle_t *minipro_open(const char *device_name, int verbose) {
     handle->device = get_device_by_name(handle, device_name);
     if (handle->device == NULL) {
       minipro_close(handle);
-      fprintf(stderr, "Device %s not found\n", device_name);
+      fprintf(stderr, "Device %s not found!\n", device_name);
       return NULL;
     }
   }
@@ -182,9 +200,73 @@ void minipro_close(minipro_handle_t *handle) {
     fprintf(stderr, "\nIO error: release_interface: %s\n",
             libusb_error_name(ret));
   }
+
   libusb_close(handle->usb_handle);
   libusb_exit(NULL);
   free(handle);
+}
+
+int minipro_get_devices_count(uint8_t version) {
+  libusb_device **devs;
+  int devices = 0;
+
+  uint16_t PID = version == MP_TL866IIPLUS ? MP_TL866II_PID : MP_TL866_PID;
+  uint16_t VID = version == MP_TL866IIPLUS ? MP_TL866II_VID : MP_TL866_VID;
+
+  if (libusb_init(NULL) < 0) return 0;
+
+  int count = libusb_get_device_list(NULL, &devs);
+  if (count < 0) {
+    libusb_exit(NULL);
+    return 0;
+  }
+
+  for (int i = 0; i < count; i++) {
+    struct libusb_device_descriptor desc;
+    int ret = libusb_get_device_descriptor(devs[i], &desc);
+    if (ret < 0) {
+      libusb_free_device_list(devs, 1);
+      libusb_exit(NULL);
+      return 0;
+    }
+    if (desc.idProduct == PID && desc.idVendor == VID) {
+      devices++;
+    }
+  }
+  libusb_free_device_list(devs, 1);
+  libusb_exit(NULL);
+  return devices;
+}
+
+// Reset TL866 device
+int minipro_reset(minipro_handle_t *handle) {
+  uint8_t msg[8];
+  uint8_t version = handle->version;
+
+  memset(msg, 0, sizeof(msg));
+  msg[0] = version == MP_TL866IIPLUS ? TL866IIPLUS_RESET : TL866A_RESET;
+  if (msg_send(handle->usb_handle, msg, version == MP_TL866IIPLUS ? 8 : 4)) {
+    return EXIT_FAILURE;
+  }
+
+  uint32_t wait = 200;  // 20 Sec wait to disappear
+  do {
+    wait--;
+    usleep(100000);
+  } while (minipro_get_devices_count(version) && wait);
+  if (!wait) {
+    return EXIT_FAILURE;
+  }
+
+  wait = 200;  // 20 Sec wait to appear
+  do {
+    wait--;
+    usleep(100000);
+  } while (!minipro_get_devices_count(version) && wait);
+  if (!wait) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
 void minipro_print_system_info(minipro_handle_t *handle) {
@@ -235,10 +317,10 @@ int minipro_get_system_info(minipro_handle_t *handle,
   memset(msg, 0x0, sizeof(msg));
   if (msg_send(handle->usb_handle, msg, 5)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-  msg[7] = 0;
 
   switch (msg[6]) {
     case MP_TL866IIPLUS:
+      msg[7] = 0;
       memcpy(info, msg, sizeof(*info));
       break;
     case MP_TL866A:
@@ -439,7 +521,7 @@ int minipro_hardware_check(minipro_handle_t *handle) {
 
 int minipro_firmware_update(minipro_handle_t *handle, const char *firmware) {
   assert(handle != NULL);
-  if (handle->minipro_hardware_check) {
+  if (handle->minipro_firmware_update) {
     return handle->minipro_firmware_update(handle, firmware);
   } else {
     fprintf(stderr, "%s: firmware update not implemented\n", handle->model);

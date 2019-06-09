@@ -51,7 +51,6 @@
 #define TL866A_BOOTLOADER_WRITE 0xAA
 #define TL866A_BOOTLOADER_ERASE 0xCC
 #define TL866A_GET_STATUS 0xFE
-#define TL866A_RESET 0xFF
 
 // Hardware Bit Banging
 #define TL866A_RESET_PIN_DRIVERS 0xD0
@@ -60,8 +59,6 @@
 #define TL866A_OE_VPP 0x01
 #define TL866A_OE_VCC_GND 0x02
 #define TL866A_OE_ALL 0x03
-
-#define CRC32_POLYNOMIAL 0xEDB88320
 
 // Firmware
 #define TL866A_UPDATE_DAT_SIZE 312348
@@ -209,35 +206,34 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buffer,
   buffer[0] = command;
   buffer[1] = handle->device->protocol_id;
   buffer[2] = handle->device->variant;
-
-  // 16 bit data memory size (3+4)
-  format_int(&(buffer[3]), handle->device->data_memory_size, 2,
-             MP_LITTLE_ENDIAN);
-
-  // 8 bit device options (VPP voltage for example)
-  buffer[5] = (uint8_t)handle->device->opts1;
-
-  // 16 bit various options (6+7)
-  format_int(&(buffer[6]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
-
-  // 8 bit device options (VDD+VCC)
-  buffer[8] = (uint8_t)(handle->device->opts1 >> 8);
-
-  // 16 bit device specific options (9+10)
-  format_int(&(buffer[9]), handle->device->opts3, 2, MP_LITTLE_ENDIAN);
-
-  // 8 bit icsp options
-  buffer[11] = handle->icsp;
-
-  // 24 bit code size (12+13+14)
-  format_int(&(buffer[12]), handle->device->code_memory_size, 3,
-             MP_LITTLE_ENDIAN);
 }
 
 int tl866a_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
   uint8_t ovc;
   msg_init(handle, TL866A_START_TRANSACTION, msg, sizeof(msg));
+
+  // 16 bit data memory size (3+4)
+  format_int(&(msg[3]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
+
+  // 8 bit device options (VPP voltage for example)
+  msg[5] = (uint8_t)handle->device->opts1;
+
+  // 16 bit various options (6+7)
+  format_int(&(msg[6]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
+
+  // 8 bit device options (VDD+VCC)
+  msg[8] = (uint8_t)(handle->device->opts1 >> 8);
+
+  // 16 bit device specific options (9+10)
+  format_int(&(msg[9]), handle->device->opts3, 2, MP_LITTLE_ENDIAN);
+
+  // 8 bit icsp options
+  msg[11] = handle->icsp;
+
+  // 24 bit code size (12+13+14)
+  format_int(&(msg[12]), handle->device->code_memory_size, 3, MP_LITTLE_ENDIAN);
+
   if (msg_send(handle->usb_handle, msg, 48)) return EXIT_FAILURE;
   if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
@@ -816,48 +812,8 @@ static void decrypt_firmware(uint8_t *data_out, const uint8_t *data_in,
   }
 }
 
-// Simple crc32
-static uint32_t crc32(uint8_t *data, size_t size, uint32_t initial) {
-  uint32_t i, j, crc;
-  crc = initial;
-  for (i = 0; i < size; i++) {
-    crc = crc ^ data[i];
-    for (j = 0; j < 8; j++)
-      crc = (crc >> 1) ^ (CRC32_POLYNOMIAL & (-(crc & 1)));
-  }
-  return crc;
-}
-
-// Reset TL866 device
-static int minipro_reset(minipro_handle_t **handle) {
-  uint8_t msg[8];
-  fprintf(stderr, "Reseting device... ");
-  fflush(stderr);
-  memset(msg, 0, sizeof(msg));
-  msg[0] = TL866A_RESET;
-  if (msg_send((*handle)->usb_handle, msg, 4)) {
-    minipro_close(*handle);
-    return EXIT_FAILURE;
-  }
-
-  minipro_close(*handle);
-  uint32_t wait = 200;  // 20 Sec wait to appear
-  do {
-    usleep(100000);
-    wait--;
-    *handle = minipro_open(NULL, 0);
-  } while (*handle == NULL && wait);
-  if (!(*handle) || !wait || wait == 200) {
-    fprintf(stderr, "Failed\n");
-    return EXIT_FAILURE;
-  }
-  fprintf(stderr, "OK\n");
-  return EXIT_SUCCESS;
-}
-
 // Performing a firmware update
 int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
-  minipro_report_info_t info;
   update_dat_t update_dat;
   uint8_t msg[TL866A_FIRMWARE_BLOCK_SIZE + 7];
 
@@ -912,43 +868,58 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
     return EXIT_FAILURE;
   }
 
-  fprintf(stderr, "%s contains firmware version x.x.%u\n", firmware,
+  fprintf(stderr, "%s contains firmware version 3.2.%u", firmware,
           update_dat.header[0]);
+  if ((handle->firmware & 0xFF) > update_dat.header[0])
+    fprintf(stderr, " (older)");
+  else if ((handle->firmware & 0xFF) < update_dat.header[0])
+    fprintf(stderr, " (newer)");
+  fprintf(stderr, "\n");
 
-  // Read the device status
-  if (minipro_get_system_info(handle, &info)) {
-    minipro_close(handle);
-    return EXIT_FAILURE;
-  }
-  switch (info.device_version) {
-    case MP_TL866A:
+  uint8_t version;
+  printf(
+      "\nWhich firmware version do you want to reflash? \n1) Device default "
+      "(%s)\n2) "
+      "%s\n3) Exit\n",
+      handle->version == MP_TL866A ? "A" : "CS",
+      handle->version == MP_TL866A ? "CS" : "A");
+  char c = getchar();
+  switch (c) {
+    case '1':
+      version = handle->version;
       break;
-    case MP_TL866CS:
+    case '2':
+      version = handle->version == MP_TL866A ? MP_TL866CS : MP_TL866A;
       break;
-    default: { return EXIT_FAILURE; }
+    default:
+      fprintf(stderr, "Firmware update aborted.\n");
+      return EXIT_FAILURE;
   }
-  // Device status
-  switch (info.device_status) {
-    case MP_STATUS_NORMAL:
-    case MP_STATUS_BOOTLOADER:
-      break;
-    default: { return EXIT_FAILURE; }
-  }
-  // Save the working firmware version (A/CS)
-  uint8_t version = info.device_version;
 
   // Switch to boot mode if necessary
-  if (info.device_status == MP_STATUS_NORMAL) {
-    if (minipro_reset(&handle)) return EXIT_FAILURE;
-  }
+  if (handle->status == MP_STATUS_NORMAL) {
+    fprintf(stderr, "Switching to bootloader... ");
+    fflush(stderr);
+    if (minipro_reset(handle)) {
+      fprintf(stderr, "failed\n");
+      return EXIT_FAILURE;
+    }
 
-  // Read the device status again to see the true device version
-  if (minipro_get_system_info(handle, &info)) {
-    return EXIT_FAILURE;
+    handle = minipro_open(NULL);
+    if (!handle) {
+      fprintf(stderr, "failed!\n");
+      return EXIT_FAILURE;
+    }
+
+    if (handle->status == MP_STATUS_NORMAL) {
+      fprintf(stderr, "failed!\n");
+      return EXIT_FAILURE;
+    }
+    fprintf(stderr, "OK!\n");
   }
 
   // Reencrypt the firmware if necessary
-  if (version != info.device_version) {
+  if (version != handle->version) {
     uint8_t data[TL866A_UNENC_FIRMWARE_SIZE];
 
     // First step: decrypt the desired firmware specified by 'version'
@@ -959,11 +930,11 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
      Second step: encrypt back the firmware with the true device version key.
      This way we can have CS devices flashed with A firmware and vice versa.
      */
-    encrypt_firmware(
-        data, info.device_version == MP_TL866A ? a_firmware : cs_firmware,
-        info.device_version,
-        info.device_version == MP_TL866A ? update_dat.a_erase
-                                         : update_dat.cs_erase);
+    encrypt_firmware(data,
+                     handle->version == MP_TL866A ? a_firmware : cs_firmware,
+                     handle->version,
+                     handle->version == MP_TL866A ? update_dat.a_erase
+                                                  : update_dat.cs_erase);
   }
 
   // Erase device
@@ -971,25 +942,30 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   fflush(stderr);
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_BOOTLOADER_ERASE;
-  msg[7] = info.device_version == MP_TL866A ? update_dat.a_erase
-                                            : update_dat.cs_erase;
+  msg[7] =
+      handle->version == MP_TL866A ? update_dat.a_erase : update_dat.cs_erase;
   if (msg_send(handle->usb_handle, msg, 20)) {
+    fprintf(stderr, "\nErase failed!\n");
     return EXIT_FAILURE;
   }
   memset(msg, 0, sizeof(msg));
-  msg_recv(handle->usb_handle, msg, 32);
+  if (msg_recv(handle->usb_handle, msg, 32)) {
+    fprintf(stderr, "\nErase failed!\n");
+    return EXIT_FAILURE;
+  }
   if (msg[0] != TL866A_BOOTLOADER_ERASE) {
-    fprintf(stderr, "Failed\n");
+    fprintf(stderr, "failed\n");
     return EXIT_FAILURE;
   }
 
   // Reflash firmware
   fprintf(stderr, "OK\n");
-  fprintf(stderr, "Reflashing... ");
+  fprintf(stderr, "Reflashing TL866%s firmware... ",
+          version == MP_TL866A ? "A" : "CS");
   fflush(stderr);
+
   uint32_t address = TL866A_BOOTLOADER_SIZE;
-  uint8_t *p_firmware =
-      info.device_version == MP_TL866A ? a_firmware : cs_firmware;
+  uint8_t *p_firmware = handle->version == MP_TL866A ? a_firmware : cs_firmware;
   for (i = 0; i < TL866A_ENC_FIRMWARE_SIZE; i += TL866A_FIRMWARE_BLOCK_SIZE) {
     msg[0] = TL866A_BOOTLOADER_WRITE;     // command LSB
     msg[1] = 0x00;                        // command MSB
@@ -1005,26 +981,31 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
       return EXIT_FAILURE;
     }
     address += 64;  // next data block
-    fprintf(stderr, "\r\e[KReflashing... %2d%%", i / 1935);
+    fprintf(stderr, "\r\e[KReflashing TL866%s firmware...  %2d%%",
+            version == MP_TL866A ? "A" : "CS", i / 1935);
     fflush(stderr);
   }
-  fprintf(stderr, "\r\e[KReflashing... 100%%\n");
+  fprintf(stderr, "\r\e[KReflashing TL866%s firmware... 100%%\n",
+          version == MP_TL866A ? "A" : "CS");
 
-  // Switch back to normal mode
-  if (minipro_reset(&handle)) {
-    fprintf(stderr, "Reflash... Failed\n");
+  // Switching back to normal mode
+  fprintf(stderr, "Reseting device... ");
+  fflush(stderr);
+  if (minipro_reset(handle)) {
+    fprintf(stderr, "failed!\n");
+    return EXIT_FAILURE;
+  }
+  handle = minipro_open(NULL);
+  if (!handle) {
+    fprintf(stderr, "failed!\n");
+    return EXIT_FAILURE;
+  }
+  fprintf(stderr, "OK\n");
+  if (handle->status != MP_STATUS_NORMAL) {
+    fprintf(stderr, "Reflash... failed\n");
     return EXIT_FAILURE;
   }
 
-  // Read the device status again to see if the reflash was ok
-  if (minipro_get_system_info(handle, &info)) {
-    return EXIT_FAILURE;
-  }
-  if (info.device_status != MP_STATUS_NORMAL) {
-    fprintf(stderr, "Reflash... Failed\n");
-    return EXIT_FAILURE;
-  }
   fprintf(stderr, "Reflash... OK\n");
-  minipro_close(handle);
   return EXIT_SUCCESS;
 }
