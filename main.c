@@ -122,12 +122,36 @@ void print_help_and_exit(char *progname) {
 }
 
 void print_devices_and_exit(const char *device_name) {
-  minipro_handle_t *handle = minipro_open(NULL);
-  if (!handle) {
-    exit(EXIT_FAILURE);
+  minipro_handle_t *handle;
+  int count = minipro_get_devices_count(MP_TL866A) +
+              minipro_get_devices_count(MP_TL866IIPLUS);
+  if (!count) {
+    fprintf(stderr,
+            "No TL866 device found. Which database do you want to display?\n1) "
+            "TL866A\n2) TL866II+\n3) Abort\n");
+    handle = malloc(sizeof(minipro_handle_t));
+    if (handle == NULL) {
+      fprintf(stderr, "Out of memory!\n");
+      exit(EXIT_FAILURE);
+    }
+    char c = getchar();
+    switch (c) {
+      case '1':
+        handle->version = MP_TL866A;
+        break;
+      case '2':
+        handle->version = MP_TL866IIPLUS;
+        break;
+      default:
+        fprintf(stderr, "Aborted.\n");
+        exit(EXIT_FAILURE);
+    }
+  } else {
+    handle = minipro_open(NULL);
+    if (!handle) exit(EXIT_FAILURE);
+    minipro_print_system_info(handle);
+    minipro_close(handle);
   }
-  minipro_print_system_info(handle);
-  minipro_close(handle);
   if (isatty(STDOUT_FILENO) && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
@@ -145,6 +169,7 @@ void print_devices_and_exit(const char *device_name) {
       printf("%s\n", device->name);
     }
   }
+  if (!count) free(handle);
   exit(EXIT_SUCCESS);
 }
 
@@ -268,7 +293,6 @@ void hardware_check_and_exit() {
     exit(EXIT_FAILURE);
   }
 
-  minipro_print_system_info(handle);
   minipro_print_system_info(handle);
   if (handle->status == MP_STATUS_BOOTLOADER) {
     fprintf(stderr, "in bootloader mode!\nExiting...\n");
@@ -1412,10 +1436,10 @@ int main(int argc, char **argv) {
   }
 
   // Activate ICSP if the chip can only be programmed via ICSP.
-  if (((handle->device->package_details & ICSP_MASK) != 0) &&
+  if ((handle->device->package_details & ICSP_MASK) &&
       ((handle->device->package_details & PIN_COUNT_MASK) == 0)) {
     handle->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
-  } else
+  } else if (handle->device->package_details & ICSP_MASK)
     handle->icsp = cmdopts.icsp;
   if (handle->icsp) fprintf(stderr, "Activating ICSP...\n");
 
