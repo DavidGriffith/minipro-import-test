@@ -263,7 +263,10 @@ int read_jedec_file(const char *filename, jedec_t *jedec) {
 
   // Get the jed file size
   struct stat st;
-  if (stat(filename, &st)) return FILE_OPEN_ERROR;
+  if (stat(filename, &st)) {
+    fclose(file);
+    return FILE_OPEN_ERROR;
+  }
   off_t size = st.st_size;
 
   // Check for size limits

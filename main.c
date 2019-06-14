@@ -84,7 +84,7 @@ void print_help_and_exit(char *progname) {
       "Usage: %s [options]\n"
       "options:\n"
       "	-l		List all supported devices\n"
-      "	-L <search>	List devices beginning like this\n"
+      "	-L <search>	List devices like this\n"
       "	-d <device>	Show device information\n"
       "	-D 		Just read the chip ID\n"
       "	-r <filename>	Read memory\n"
@@ -152,21 +152,21 @@ void print_devices_and_exit(const char *device_name) {
     minipro_print_system_info(handle);
     minipro_close(handle);
   }
-  if (isatty(STDOUT_FILENO) && device_name == NULL) {
+  if (isatty(STDERR_FILENO) && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
     char *pager_program = getenv("PAGER");
     if (!pager_program) pager_program = "less";
     FILE *pager = popen(pager_program, "w");
-    dup2(fileno(pager), STDOUT_FILENO);
+    dup2(fileno(pager), STDERR_FILENO);
   }
 
   device_t *device;
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
     if (device_name == NULL ||
-        !strncasecmp(device[0].name, device_name, strlen(device_name))) {
-      printf("%s\n", device->name);
+        strcasestr(device[0].name, device_name)) {
+      fprintf(stderr, "%s\n", device->name);
     }
   }
   if (!count) free(handle);
@@ -525,7 +525,7 @@ int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
     uint8_t ovc;
     if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
     if (ovc) {
-      fprintf(stderr, "\nOvercurrent protection!\n");
+      fprintf(stderr, "\nOvercurrent protection!\007\n");
       return EXIT_FAILURE;
     }
   }
@@ -567,7 +567,7 @@ int write_page_ram(minipro_handle_t *handle, uint8_t *buffer, uint8_t type,
     uint8_t ovc = 0;
     if (minipro_get_ovc_status(handle, &status, &ovc)) return EXIT_FAILURE;
     if (ovc) {
-      fprintf(stderr, "\nOvercurrent protection!\n");
+      fprintf(stderr, "\nOvercurrent protection!\007\n");
       return EXIT_FAILURE;
     }
     if (status.error && !cmdopts.no_verify) {
@@ -603,7 +603,7 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   uint8_t ovc = 0;
   if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
-    fprintf(stderr, "\nOvercurrent protection!\n");
+    fprintf(stderr, "\nOvercurrent protection!\007\n");
     return EXIT_FAILURE;
   }
 
@@ -659,7 +659,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   uint8_t ovc = 0;
   if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
-    fprintf(stderr, "\nOvercurrent protection!\n");
+    fprintf(stderr, "\nOvercurrent protection!\007\n");
     return EXIT_FAILURE;
   }
 
@@ -869,6 +869,7 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
                            fuses->num_fuses * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
       free(config);
+      fclose(pFile);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_fuses; i++) {
@@ -883,6 +884,7 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     if (minipro_read_fuses(handle, MP_FUSE_USER,
                            fuses->num_uids * fuses->item_size, 0, buffer)) {
       free(config);
+      fclose(pFile);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_uids; i++) {
@@ -898,6 +900,7 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
                            fuses->num_locks * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
       free(config);
+      fclose(pFile);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_locks; i++) {

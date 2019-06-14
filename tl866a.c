@@ -237,7 +237,7 @@ int tl866a_begin_transaction(minipro_handle_t *handle) {
   if (msg_send(handle->usb_handle, msg, 48)) return EXIT_FAILURE;
   if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
-    fprintf(stderr, "Overcurrent protection!\n");
+    fprintf(stderr, "Overcurrent protection!\007\n");
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;
@@ -915,7 +915,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
       fprintf(stderr, "failed!\n");
       return EXIT_FAILURE;
     }
-    fprintf(stderr, "OK!\n");
+    fprintf(stderr, "OK\n");
   }
 
   // Reencrypt the firmware if necessary
@@ -989,7 +989,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
           version == MP_TL866A ? "A" : "CS");
 
   // Switching back to normal mode
-  fprintf(stderr, "Reseting device... ");
+  fprintf(stderr, "Resetting device... ");
   fflush(stderr);
   if (minipro_reset(handle)) {
     fprintf(stderr, "failed!\n");

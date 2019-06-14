@@ -70,6 +70,7 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
   msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
   format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
+  format_int(&(msg[44]), handle->device->read_buffer_size, 4, MP_LITTLE_ENDIAN);
   format_int(&(msg[16]), handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
   format_int(&(msg[14]), handle->device->data_memory2_size, 2,
              MP_LITTLE_ENDIAN);
@@ -77,6 +78,8 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   format_int(&(msg[10]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[8]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[5]), handle->device->opts1, 2, MP_LITTLE_ENDIAN);
+  msg[21] = (uint8_t)(handle->device->opts5 & 0x0F);
+  msg[22] = (uint8_t)(handle->device->opts5 & 0xF0);
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 
@@ -366,6 +369,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   uint8_t *update_dat = malloc(file_size);
   if (!update_dat) {
     fprintf(stderr, "Out of memory!\n");
+    fclose(file);
     return EXIT_FAILURE;
   }
 
@@ -506,7 +510,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
       free(update_dat);
       return EXIT_FAILURE;
     }
-    fprintf(stderr, "OK!\n");
+    fprintf(stderr, "OK\n");
   }
 
   // Erase device
@@ -625,7 +629,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   fprintf(stderr, "\r\e[KReflashing... 100%%\n");
 
   // Switching back to normal mode
-  fprintf(stderr, "Reseting device... ");
+  fprintf(stderr, "Resetting device... ");
   fflush(stderr);
   if (minipro_reset(handle)) {
     fprintf(stderr, "failed!\n");
