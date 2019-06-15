@@ -119,7 +119,9 @@ install:
 	cp man/minipro.1 $(MAN_INSTDIR)/
 	if [ -n "$(UDEV_DIR)" ]; then \
 		mkdir -p $(UDEV_RULES_INSTDIR); \
-		cp udev/rules.d/80-minipro.rules $(UDEV_RULES_INSTDIR)/; \
+		cp udev/60-minipro.rules $(UDEV_RULES_INSTDIR)/; \
+		cp udev/61-minipro-plugdev.rules $(UDEV_RULES_INSTDIR)/; \
+		cp udev/61-minipro-uaccess.rules $(UDEV_RULES_INSTDIR)/; \
 	fi
 	if [ -n "$(COMPLETIONS_DIR)" ]; then \
 		mkdir -p $(COMPLETIONS_INSTDIR); \
@@ -130,7 +132,9 @@ uninstall:
 	rm -f $(BIN_INSTDIR)/$(MINIPRO)
 	rm -f $(BIN_INSTDIR)/$(MINIPROHEX)
 	rm -f $(MAN_INSTDIR)/minipro.1
-	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/80-minipro.rules; fi
+	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/60-minipro.rules; fi
+	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-plugdev.rules; fi
+	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-uaccess.rules; fi
 	if [ -n "$(COMPLETIONS_DIR)" ]; then rm -f $(COMPLETIONS_INSTDIR)/minipro; fi
 
 dist:

@@ -1,7 +1,0 @@
-# TL866A/CS rules
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="e11c", TAG+="uaccess"
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="e11c", MODE="0660", GROUP="plugdev"
-
-# TL866II+ rules
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="a466", ATTRS{idProduct}=="0a53", TAG+="uaccess"
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="a466", ATTRS{idProduct}=="0a53", MODE="0660", GROUP="plugdev"
