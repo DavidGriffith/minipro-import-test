@@ -70,7 +70,7 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
   msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
   format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
-  format_int(&(msg[44]), handle->device->read_buffer_size, 4, MP_LITTLE_ENDIAN);
+  format_int(&(msg[44]), handle->device->read_buffer_size, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[16]), handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
   format_int(&(msg[14]), handle->device->data_memory2_size, 2,
              MP_LITTLE_ENDIAN);
@@ -78,8 +78,23 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   format_int(&(msg[10]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[8]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[5]), handle->device->opts1, 2, MP_LITTLE_ENDIAN);
-  msg[21] = (uint8_t)(handle->device->opts5 & 0x0F);
-  msg[22] = (uint8_t)(handle->device->opts5 & 0xF0);
+
+  //This is work in progress.
+  msg[4] = (uint8_t)handle->device->opts5;
+  msg[6] = (uint8_t)handle->device->opts7;
+  msg[7] = (uint8_t)handle->device->opts8;
+  msg[20] = (uint8_t)(handle->device->opts5 >> 16);
+
+  if ((handle->device->opts5 & 0xf0) == 0xf0) {
+    msg[21] = 0;
+    msg[22] = (uint8_t)handle->device->opts5;
+  } else {
+    msg[21] = (uint8_t)handle->device->opts5 & 0x0f;
+    msg[22] = (uint8_t)handle->device->opts5 & 0xf0;
+  }
+  if (handle->device->opts5 & 0x80000000)
+    msg[22] = (handle->device->opts5 >> 16) & 0x0f;
+
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 

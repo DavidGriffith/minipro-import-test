@@ -121,6 +121,7 @@ typedef struct device {
   uint32_t opts5;
   uint32_t opts6;
   uint16_t opts7;
+  uint32_t opts8;
   uint32_t package_details;  // pins count or image ID for some devices
   void *config;  // Configuration bytes that's presenting in some architectures
 } device_t;
