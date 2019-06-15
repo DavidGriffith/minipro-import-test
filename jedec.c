@@ -1,5 +1,5 @@
 /*
- * database.c - Functions for dealing with the jedec files.
+ * jedec.c - Functions for dealing with the jedec files.
  *
  * This file is a part of Minipro.
  *
@@ -15,7 +15,7 @@
  *
  */
 
-#include "jedec.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "jedec.h"
+#include "version.h"
 
 /* Parse uint32 value from char buffer */
 static int parse_uint32(const char *buffer, uint32_t *value, char **pEnd,
@@ -315,8 +317,9 @@ int write_jedec_file(const char *filename, jedec_t *jedec) {
   // Print jedec header
   fprintf(file,
           "%c\r\nDevice: %s\r\n\r\nNOTE: Written by Minipro open source"
-          " software.*\r\n\r\nQP%u*\r\nQF%u*\r\nF%u*\r\nG%u*\r\n\r\n",
-          STX, jedec->device_name, jedec->QP, jedec->QF, jedec->F, jedec->G);
+          " software v%s*\r\n\r\nQP%u*\r\nQF%u*\r\nF%u*\r\nG%u*\r\n\r\n",
+          STX, jedec->device_name, VERSION, jedec->QP, jedec->QF, jedec->F,
+          jedec->G);
 
   uint32_t i;
   // Print fuses

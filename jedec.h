@@ -1,5 +1,5 @@
 /*
- * database.h - Definitions and declarations for dealing with the
+ * jedec.h - Definitions and declarations for dealing with the
  *		jedec files.
  *
  * This file is a part of Minipro.
