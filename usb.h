@@ -1,5 +1,5 @@
 /*
- * usb.h - Low level USB declarations and definitions.
+ * usb.h - Low level USB declarations *nix libusb implementation
  *
  * This file is a part of Minipro.
  *
@@ -18,7 +18,12 @@
 #ifndef USB_H_
 #define USB_H_
 
+#include <stdint.h>
 #include <libusb.h>
+
+libusb_device_handle *usb_open();
+int usb_close(libusb_device_handle *usb_handle);
+int minipro_get_devices_count(uint8_t version);
 
 int msg_send(libusb_device_handle *handle, uint8_t *buffer, size_t size);
 int msg_recv(libusb_device_handle *handle, uint8_t *buffer, size_t size);

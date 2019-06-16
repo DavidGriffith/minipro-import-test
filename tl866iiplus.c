@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "database.h"
+#include "minipro.h"
 #include "tl866iiplus.h"
 #include "usb.h"
 

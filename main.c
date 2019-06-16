@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include "database.h"
 #include "jedec.h"
@@ -1439,6 +1440,7 @@ int main(int argc, char **argv) {
   }
 
   // Activate ICSP if the chip can only be programmed via ICSP.
+  handle->icsp = 0;
   if ((handle->device->package_details & ICSP_MASK) &&
       ((handle->device->package_details & PIN_COUNT_MASK) == 0)) {
     handle->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;

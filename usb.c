@@ -1,5 +1,5 @@
 /*
- * usb.c - Low level USB functions.
+ * usb.c - Low level USB functions *nix libusb implementation.
  *
  * This file is a part of Minipro.
  *
@@ -15,12 +15,99 @@
  *
  */
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "usb.h"
+
+#define MP_TL866_VID 0x04d8
+#define MP_TL866_PID 0xe11c
+#define MP_TL866II_VID 0xa466
+#define MP_TL866II_PID 0x0a53
+#define MP_TL866IIPLUS 5
+
+// Open usb device
+libusb_device_handle *usb_open() {
+  int ret = libusb_init(NULL);
+  if (ret < 0) {
+    fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(ret));
+    return NULL;
+  }
+
+  libusb_device_handle *usb_handle =
+      libusb_open_device_with_vid_pid(NULL, MP_TL866_VID, MP_TL866_PID);
+  if (usb_handle == NULL) {
+    // We didn't match the vid / pid of the "original" TL866 - so try the new
+    // TL866II+
+    usb_handle =
+        libusb_open_device_with_vid_pid(NULL, MP_TL866II_VID, MP_TL866II_PID);
+
+    // If we don't get that either report error in connecting
+    if (usb_handle == NULL) {
+      libusb_exit(NULL);
+      fprintf(stderr, "\nError opening device\n");
+      return NULL;
+    }
+  }
+
+  ret = libusb_claim_interface(usb_handle, 0);
+  if (ret != 0) {
+    fprintf(stderr, "\nIO error: claim_interface: %s\n",
+            libusb_error_name(ret));
+    libusb_close(usb_handle);
+    libusb_exit(NULL);
+    return NULL;
+  }
+  return usb_handle;
+}
+
+// Close usb device
+int usb_close(libusb_device_handle *usb_handle) {
+  int ret = EXIT_SUCCESS;
+  ret = libusb_release_interface(usb_handle, 0);
+  if (ret != 0 && ret != LIBUSB_ERROR_NO_DEVICE) {
+    fprintf(stderr, "\nIO error: release_interface: %s\n",
+            libusb_error_name(ret));
+    ret = EXIT_FAILURE;
+  }
+  libusb_close(usb_handle);
+  libusb_exit(NULL);
+  return ret;
+}
+
+// Get no. of devices connected
+int minipro_get_devices_count(uint8_t version) {
+  libusb_device **devs;
+  int devices = 0;
+
+  uint16_t PID = version == MP_TL866IIPLUS ? MP_TL866II_PID : MP_TL866_PID;
+  uint16_t VID = version == MP_TL866IIPLUS ? MP_TL866II_VID : MP_TL866_VID;
+
+  if (libusb_init(NULL) < 0) return 0;
+
+  int count = libusb_get_device_list(NULL, &devs);
+  if (count < 0) {
+    libusb_exit(NULL);
+    return 0;
+  }
+
+  for (int i = 0; i < count; i++) {
+    struct libusb_device_descriptor desc;
+    int ret = libusb_get_device_descriptor(devs[i], &desc);
+    if (ret < 0) {
+      libusb_free_device_list(devs, 1);
+      libusb_exit(NULL);
+      return 0;
+    }
+    if (desc.idProduct == PID && desc.idVendor == VID) {
+      devices++;
+    }
+  }
+  libusb_free_device_list(devs, 1);
+  libusb_exit(NULL);
+  return devices;
+}
 
 static void payload_transfer_cb(struct libusb_transfer *transfer) {
   int *completed = transfer->user_data;
@@ -142,9 +229,9 @@ int write_payload(libusb_device_handle *handle, uint8_t *buffer,
 
 int read_payload(libusb_device_handle *handle, uint8_t *buffer, size_t length) {
   /*
-   * If the payload length is less than 64 bytes increase the buffer to 64 bytes
-   * and  read it over the endpoint2 only. Submitting a buffer less than 64
-   * bytes will cause an libusb overflow.
+   * If the payload length is less than 64 bytes increase the buffer to 64
+   * bytes and  read it over the endpoint2 only. Submitting a buffer less than
+   * 64 bytes will cause an libusb overflow.
    */
 
   int bytes_transferred;

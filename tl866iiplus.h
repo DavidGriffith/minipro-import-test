@@ -21,7 +21,6 @@
 #define TL866IIPLUS_FIRMWARE_VERSION 0x0269
 #define TL866IIPLUS_FIRMWARE_STRING "04.2.105"
 
-#include "minipro.h"
 
 // TL866II+ low level functions.
 int tl866iiplus_begin_transaction(minipro_handle_t *handle);

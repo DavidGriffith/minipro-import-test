@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 
 #include "database.h"
+#include "minipro.h"
 #include "tl866a.h"
 #include "usb.h"
 
@@ -50,6 +51,7 @@
 #define TL866A_PROTECT_ON 0x45
 #define TL866A_BOOTLOADER_WRITE 0xAA
 #define TL866A_BOOTLOADER_ERASE 0xCC
+#define TL866A_UNLOCK_TSOP48 0xFD
 #define TL866A_GET_STATUS 0xFE
 
 // Hardware Bit Banging
@@ -456,7 +458,7 @@ int tl866a_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
     crc ^= (crc << 12);
     crc ^= (crc & 0xFF) << 5;
   }
-  msg[0] = MP_UNLOCK_TSOP48;
+  msg[0] = TL866A_UNLOCK_TSOP48;
   msg[15] = msg[9];
   msg[16] = msg[11];
   msg[9] = (uint8_t)crc;

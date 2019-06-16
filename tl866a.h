@@ -18,7 +18,6 @@
 #ifndef __TL866A_H
 #define __TL866A_H
 
-#include "minipro.h"
 
 #define TL866A_FIRMWARE_VERSION 0x0256
 #define TL866A_FIRMWARE_STRING "03.2.86"

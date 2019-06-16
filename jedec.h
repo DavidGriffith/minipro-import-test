@@ -21,14 +21,6 @@
 
 #include <stdint.h>
 
-#define STX 0x02
-#define ETX 0x03
-
-#define JED_MIN_SIZE 8
-#define JED_MAX_SIZE 1048576
-#define ROW_SIZE 40
-#define DELIMITER '*'
-
 #define NO_ERROR 0
 #define FILE_OPEN_ERROR -1
 #define SIZE_ERROR -2

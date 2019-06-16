@@ -26,6 +26,14 @@
 #include "jedec.h"
 #include "version.h"
 
+#define STX 0x02
+#define ETX 0x03
+#define JED_MIN_SIZE 8
+#define JED_MAX_SIZE 1048576
+#define ROW_SIZE 40
+#define DELIMITER '*'
+
+
 /* Parse uint32 value from char buffer */
 static int parse_uint32(const char *buffer, uint32_t *value, char **pEnd,
                         uint8_t radix) {

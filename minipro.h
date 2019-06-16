@@ -18,8 +18,8 @@
 #ifndef __MINIPRO_H
 #define __MINIPRO_H
 
-#include <libusb.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #define MP_TL866A 1
 #define MP_TL866CS 2
@@ -39,7 +39,6 @@
 #define MP_ICSP_VCC 0x01
 
 // TSOP48
-#define MP_UNLOCK_TSOP48 0xFD
 #define MP_TSOP48_TYPE_V3 0x00
 #define MP_TSOP48_TYPE_NONE 0x01
 #define MP_TSOP48_TYPE_V0 0x02
@@ -55,10 +54,6 @@
 // Various
 #define MP_LITTLE_ENDIAN 0
 #define MP_BIG_ENDIAN 1
-#define MP_TL866_VID 0x04d8
-#define MP_TL866_PID 0xe11c
-#define MP_TL866II_VID 0xa466
-#define MP_TL866II_PID 0x0a53
 
 // Opts 4
 #define MP_ERASE_MASK 0x00000010
@@ -134,7 +129,7 @@ typedef struct minipro_status {
 } minipro_status_t;
 
 typedef struct minipro_handle {
-  char model[16];
+  char *model;
   char firmware_str[16];
   char device_code[9];
   char serial_number[25];
@@ -142,7 +137,10 @@ typedef struct minipro_handle {
   uint8_t status;
   uint8_t version;
 
-  libusb_device_handle *usb_handle;
+  device_t *device;
+  uint8_t icsp;
+
+  void *usb_handle;
 
   int (*minipro_begin_transaction)(struct minipro_handle *);
   int (*minipro_end_transaction)(struct minipro_handle *);
@@ -167,9 +165,6 @@ typedef struct minipro_handle {
   int (*minipro_read_jedec_row)(struct minipro_handle *, uint8_t *, uint8_t,
                                 size_t);
   int (*minipro_firmware_update)(struct minipro_handle *, const char *);
-
-  device_t *device;
-  uint8_t icsp;
 } minipro_handle_t;
 
 typedef struct minipro_report_info {
