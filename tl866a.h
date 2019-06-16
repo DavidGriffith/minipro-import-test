@@ -18,6 +18,40 @@
 #ifndef __TL866A_H
 #define __TL866A_H
 
+/*
+ * This header only contains low-level wrappers against typical requests.
+ * Please refer main.c if you're looking for higher-level logic.
+ */
+
+/*
+ * These are the known firmware versions along with the versions of the
+ * official software from whence they came.
+ *
+ * Firmware	Official	Release		Firmware
+ * Version	Program		Date		Version
+ * String	Version				ID
+ *
+ * 3.2.86	6.85		Oct 19, 2018	0x0256
+ * 3.2.85	6.82		Jul 14, 2018	0x0255
+ * 3.2.82	6.71		Apr 17, 2018	0x0252
+ * 3.2.81	6.70		Mar  7, 2018	0x0251
+ * 3.2.80	6.60		May  9, 2017	0x0250
+ * 3.2.72	6.50		Dec 25, 2015	0x0248
+ * 3.2.69	6.17		Jul 11, 2015	0x0245
+ * 3.2.68	6.16		Jun 12, 2015	0x0244
+ * 3.2.66	6.13		Jun  9, 2015	0x0242
+ * 3.2.63	6.10		Jul 16, 2014	0x023f
+ * 3.2.62	6.00		Jan  7, 2014	0x023e
+ * 3.2.61	5.91		Mar  9, 2013	0x023d
+ * 3.2.60	5.90		Mar  4, 2013	0x023c
+ * 3.2.59	5.80		Nov  1, 2012	0x023b
+ * 3.2.58	5.71		Aug 31, 2012	0x023a
+ * 3.2.57	5.70		Aug 27, 2012	0x0239
+ * 3.2.56	5.60		Jun 12, 2012	0x0238
+ * 3.2.51	4.95		Mar 31, 2012	0x0233
+ *		1.00		Jun 18, 2010
+ *
+ */
 
 #define TL866A_FIRMWARE_VERSION 0x0256
 #define TL866A_FIRMWARE_STRING "03.2.86"
