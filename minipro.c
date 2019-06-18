@@ -177,7 +177,7 @@ int minipro_reset(minipro_handle_t *handle) {
   if (msg_send(handle->usb_handle, msg, version == MP_TL866IIPLUS ? 8 : 4)) {
     return EXIT_FAILURE;
   }
-  minipro_close(handle);
+
   uint32_t wait = 200;  // 20 Sec wait to disappear
   do {
     wait--;

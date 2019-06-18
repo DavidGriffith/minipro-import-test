@@ -738,6 +738,7 @@ int write_page_file(minipro_handle_t *handle, const char *filename,
     return EXIT_FAILURE;
   }
 
+  memset(buffer, 0xFF, size);
   if (fread(buffer, 1, size, file) != size && !cmdopts.size_error) {
     free(buffer);
     fclose(file);
@@ -768,6 +769,7 @@ int read_page_file(minipro_handle_t *handle, const char *filename, uint8_t type,
     return EXIT_FAILURE;
   }
 
+  memset(buffer, 0xFF, size);
   if (read_page_ram(handle, buffer, type, name, size)) {
     fclose(file);
     free(buffer);
