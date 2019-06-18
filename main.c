@@ -27,6 +27,9 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <libgen.h>
+#endif  /* __APPLE__ */
 #include "database.h"
 #include "jedec.h"
 #include "minipro.h"
