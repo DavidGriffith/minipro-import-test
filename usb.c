@@ -120,7 +120,7 @@ static int msg_transfer(libusb_device_handle *handle, uint8_t *buffer,
                         size_t size, uint8_t direction, uint8_t endpoint,
                         int *bytes_transferred) {
   int ret = libusb_bulk_transfer(handle, (endpoint | direction), buffer, size,
-                                 bytes_transferred, 5000);
+                                 bytes_transferred, 20000);
 
   if (ret != LIBUSB_SUCCESS)
     fprintf(stderr, "\nIO error: bulk_transfer: %s\n", libusb_error_name(ret));
@@ -145,10 +145,10 @@ static int payload_transfer(libusb_device_handle *handle, uint8_t direction,
 
   libusb_fill_bulk_transfer(ep2_urb, handle, (0x02 | direction), ep2_buffer,
                             ep2_length, payload_transfer_cb, &ep2_completed,
-                            5000);
+                            20000);
   libusb_fill_bulk_transfer(ep3_urb, handle, (0x03 | direction), ep3_buffer,
                             ep3_length, payload_transfer_cb, &ep3_completed,
-                            5000);
+                            20000);
 
   ret = libusb_submit_transfer(ep2_urb);
   if (ret < 0) {
