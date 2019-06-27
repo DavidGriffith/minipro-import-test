@@ -21,11 +21,16 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "database.h"
 #include "minipro.h"
 #include "tl866iiplus.h"
-#include "usb.h"
+#if defined (_WIN32) || defined (__MSYS__)
+#include "usb_win.h"
+#else
+#include "usb_nix.h"
+#endif
 
 #define TL866IIPLUS_BEGIN_TRANS 0x03
 #define TL866IIPLUS_END_TRANS 0x04
@@ -286,9 +291,9 @@ int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
 
   msg_init(handle, TL866IIPLUS_UNLOCK_TSOP48, msg, sizeof(msg));
 
-  srandom(time(NULL));
+  srand(time(NULL));
   for (i = 8; i < 16; i++) {
-    msg[i] = (uint8_t)random();
+    msg[i] = (uint8_t)rand();
     // Calculate the crc16
     crc = (crc >> 8) | (crc << 8);
     crc ^= msg[i];
@@ -376,7 +381,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   }
 
   // Open the update.dat firmware file
-  FILE *file = fopen(firmware, "r");
+  FILE *file = fopen(firmware, "rb");
   if (file == NULL) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");
@@ -407,7 +412,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   }
 
   // Compute the file CRC and compare
-  uint crc = 0xFFFFFFFF;
+  uint32_t crc = 0xFFFFFFFF;
   // Note the order in which the crc is calculated!
   // First the data blocks crc
   if (blocks > 0) {
@@ -432,7 +437,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
 
   // The updateII.dat contains a xor table of 1024 bytes length at the offset 8.
   // This table is used to obfuscate the block address.
-  uint xorptr;
+  uint32_t xorptr;
   for (uint32_t i = 0; i < blocks; i++) {
     xorptr = load_int(update_dat + ptr + 4, 4,
                       MP_LITTLE_ENDIAN);  // Load the xor table pointer
@@ -441,7 +446,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
      * The destination address of each data block (offset 8) is obfuscated
      * by xoring the LSB part of the address against a xortable 264 times (44*6)
      */
-    for (uint i = 0; i < 44; i++) {
+    for (uint32_t i = 0; i < 44; i++) {
       update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
       update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
       update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];
@@ -465,7 +470,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
    * by xoring the LSB part of the address against a xortable 2056 times (514*4)
    */
   xorptr = load_int(update_dat + ptr + 4, 4, MP_LITTLE_ENDIAN);
-  for (uint i = 0; i < 514; i++) {
+  for (uint32_t i = 0; i < 514; i++) {
     update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
     update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
     update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];

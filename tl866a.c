@@ -19,17 +19,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32)|| defined (__MSYS__)
 #include <stdio.h>
 #else
 #include <malloc.h>
 #endif
 #include <sys/stat.h>
+#include <time.h>
 
 #include "database.h"
 #include "minipro.h"
 #include "tl866a.h"
-#include "usb.h"
+#if defined (_WIN32) || defined (__MSYS__)
+#include "usb_win.h"
+#else
+#include "usb_nix.h"
+#endif
 
 // Commands
 #define TL866A_GET_SYSTEM_INFO 0x00
@@ -833,7 +838,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   }
 
   // Open the update.dat firmware file
-  FILE *file = fopen(firmware, "r");
+  FILE *file = fopen(firmware, "rb");
   if (file == NULL) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");

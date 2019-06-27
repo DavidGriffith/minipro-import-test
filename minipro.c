@@ -16,12 +16,11 @@
  */
 
 #include <assert.h>
-#include <libusb.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32) || (__MSYS__)
 #include <stdio.h>
 #else
 #include <malloc.h>
@@ -30,7 +29,11 @@
 #include "minipro.h"
 #include "tl866a.h"
 #include "tl866iiplus.h"
-#include "usb.h"
+#if defined (_WIN32) || defined (__MSYS__)
+#include "usb_win.h"
+#else
+#include "usb_nix.h"
+#endif
 
 #define TL866A_RESET 0xFF
 #define TL866IIPLUS_RESET 0x3F

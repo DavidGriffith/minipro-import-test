@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "usb.h"
+#include "usb_nix.h"
 
 #define MP_TL866_VID 0x04d8
 #define MP_TL866_PID 0xe11c
