@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32) || (__MSYS__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32) || defined(__MSYS__)
 #include <stdio.h>
 #else
 #include <malloc.h>
