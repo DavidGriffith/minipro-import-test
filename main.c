@@ -27,9 +27,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
-#if defined (__APPLE__)|| defined(_WIN32)
 #include <libgen.h>
-#endif  /* __APPLE__ */
 #include "database.h"
 #include "jedec.h"
 #include "minipro.h"
@@ -1300,11 +1298,11 @@ int action_write(const char *filename, minipro_handle_t *handle) {
           if (file_size != handle->device->code_memory_size) {
             if (!cmdopts.size_error) {
               fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      file_size, handle->device->code_memory_size);
+                      (size_t)file_size, handle->device->code_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
               fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      file_size, handle->device->code_memory_size);
+                      (size_t)file_size, handle->device->code_memory_size);
           }
           if (write_page_file(handle, filename, MP_CODE, "Code",
                               handle->device->code_memory_size))
@@ -1322,11 +1320,11 @@ int action_write(const char *filename, minipro_handle_t *handle) {
           if (file_size != handle->device->data_memory_size) {
             if (!cmdopts.size_error) {
               fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      file_size, handle->device->data_memory_size);
+                      (size_t)file_size, handle->device->data_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
               fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      file_size, handle->device->data_memory_size);
+                      (size_t)file_size, handle->device->data_memory_size);
           }
           if (write_page_file(handle, filename, MP_DATA, "Data",
                               handle->device->data_memory_size))

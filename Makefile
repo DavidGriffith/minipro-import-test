@@ -32,7 +32,7 @@ ifneq ($(and $(wildcard $(GIT_DIR)),$(shell which git)),)
         GIT_BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
         GIT_HASH = $(shell git rev-parse HEAD)
         GIT_HASH_SHORT = $(shell git rev-parse --short HEAD)
-	GIT_DATE = $(shell git show -s --format=%ci)
+        GIT_DATE = $(shell git show -s --format=%ci)
 else
         GIT_BRANCH = $(shell echo "$Format:%D$" | sed s/^.*\>\\s*//)
         GIT_HASH = "$Format:%H$"
@@ -49,9 +49,9 @@ ifeq ($(PKG_CONFIG),)
 endif
 
 ifeq ($(OS),Windows_NT)
-	USB = usb_win.o
+    USB = usb_win.o
 else
-	USB = usb_nix.o
+    USB = usb_nix.o
 endif
 
 COMMON_OBJECTS=jedec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
@@ -73,14 +73,14 @@ COMPLETIONS_DIR=$(shell $(PKG_CONFIG) --define-variable=prefix=$(PREFIX) --silen
 COMPLETIONS_INSTDIR=$(DESTDIR)$(COMPLETIONS_DIR)
 
 ifneq ($(OS),Windows_NT)
-	libusb_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0)
-	libusb_LIBS := $(shell $(PKG_CONFIG) --libs libusb-1.0)
+    libusb_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0)
+    libusb_LIBS := $(shell $(PKG_CONFIG) --libs libusb-1.0)
 
-	ifeq ($(libusb_LIBS),)
-		ERROR := $(error "libusb-1.0 not found")
-	endif
-	override CFLAGS += $(libusb_CFLAGS)
-	override LIBS += $(libusb_LIBS) $(EXTRA_LIBS)
+    ifeq ($(libusb_LIBS),)
+        ERROR := $(error "libusb-1.0 not found")
+    endif
+    override CFLAGS += $(libusb_CFLAGS)
+    override LIBS += $(libusb_LIBS) $(EXTRA_LIBS)
 else
 # Add Windows libs here
 override LIBS += -lsetupapi \

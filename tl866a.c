@@ -19,11 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32)|| defined (__MSYS__)
 #include <stdio.h>
-#else
-#include <malloc.h>
-#endif
+#include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 
