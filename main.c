@@ -170,13 +170,21 @@ void print_devices_and_exit(const char *device_name) {
 	  PAGER = "more";
   #endif
   
-  if (isatty(STDERR_FILENO) && device_name == NULL) {
+  //Detecting the mintty in windows with mingw
+  //The default isatty always return false
+  if(
+  #ifdef _WIN32
+  _fileno(stdout)
+  #else
+  isatty(STDOUT_FILENO)
+  #endif
+  && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
     char *pager_program = getenv("PAGER");
     if (!pager_program) pager_program = PAGER;
     FILE *pager = popen(pager_program, "w");
-    dup2(fileno(pager), STDERR_FILENO);
+    dup2(fileno(pager), STDOUT_FILENO);
   }
 
   device_t *device;
@@ -184,7 +192,7 @@ void print_devices_and_exit(const char *device_name) {
        device = &(device[1])) {
     if (device_name == NULL ||
         STRCASESTR(device[0].name, device_name)) {
-      fprintf(stderr, "%s\n", device->name);
+      fprintf(stdout, "%s\n", device->name);
     }
   }
   if (!count) free(handle);
@@ -1298,11 +1306,11 @@ int action_write(const char *filename, minipro_handle_t *handle) {
           if (file_size != handle->device->code_memory_size) {
             if (!cmdopts.size_error) {
               fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      (size_t)file_size, handle->device->code_memory_size);
+                      file_size, handle->device->code_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
               fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      (size_t)file_size, handle->device->code_memory_size);
+                      file_size, handle->device->code_memory_size);
           }
           if (write_page_file(handle, filename, MP_CODE, "Code",
                               handle->device->code_memory_size))
@@ -1320,11 +1328,11 @@ int action_write(const char *filename, minipro_handle_t *handle) {
           if (file_size != handle->device->data_memory_size) {
             if (!cmdopts.size_error) {
               fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      (size_t)file_size, handle->device->data_memory_size);
+                      file_size, handle->device->data_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
               fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
-                      (size_t)file_size, handle->device->data_memory_size);
+                      file_size, handle->device->data_memory_size);
           }
           if (write_page_file(handle, filename, MP_DATA, "Data",
                               handle->device->data_memory_size))

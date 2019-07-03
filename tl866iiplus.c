@@ -492,9 +492,9 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
     fprintf(stderr, " (older)");
   else if ((handle->firmware & 0xFF) < update_dat[0])
     fprintf(stderr, " (newer)");
-  fprintf(stderr, "\n");
 
-  printf("\nDo you want to continue with firmware update? y/n: ");
+  fprintf(stderr, "\n\nDo you want to continue with firmware update? y/n:");
+  fflush(stderr);
   char c = getchar();
   if (c != 'Y' && c != 'y') {
     free(update_dat);

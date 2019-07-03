@@ -311,7 +311,7 @@ static int usb_write(usb_handle handle, uint8_t *buffer, size_t size,
 static int usb_read(usb_handle handle, uint8_t *buffer, size_t size,
                     uint8_t endpoint) {
   DWORD bytes_read;
-  uint8_t temp[5];  // Temp array needed by driver
+  uint8_t temp[4];  // Temp array needed by driver
   BOOL ret;
 
   // Check the device handle first
@@ -327,7 +327,7 @@ static int usb_read(usb_handle handle, uint8_t *buffer, size_t size,
 
   // Otherwise just use the old deviceiocontrol api(TL866A)
   // For TL866A/CS the endpoint argument is not used.
-  ret = DeviceIoControl(handle->DeviceHandle, TL866A_IOCTL_READ, temp, 5,
+  ret = DeviceIoControl(handle->DeviceHandle, TL866A_IOCTL_READ, temp, 4,
                         buffer, size, &bytes_read, NULL);
   if (!ret) fprintf(stderr, "\nIO Error: USB read failed.\n");
   return (ret ? EXIT_SUCCESS : EXIT_FAILURE);
