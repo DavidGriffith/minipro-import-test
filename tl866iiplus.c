@@ -26,7 +26,7 @@
 #include "database.h"
 #include "minipro.h"
 #include "tl866iiplus.h"
-#if defined (_WIN32) || defined (__MSYS__)
+#if defined (_WIN32) || defined (__MSYS__)|| defined (__CYGWIN__)
 #include "usb_win.h"
 #else
 #include "usb_nix.h"
