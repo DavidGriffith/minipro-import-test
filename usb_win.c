@@ -241,6 +241,7 @@ static int payload_transfer(usb_handle handle, uint8_t direction,
   hEvent2 = CreateEvent(NULL, TRUE, FALSE, NULL);
   if (!hEvent2) {
     fprintf(stderr, "\nIO Error: Async transfer failed.\n");
+    CloseHandle(hEvent1);
     return EXIT_FAILURE;
   }
 

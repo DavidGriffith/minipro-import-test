@@ -19,6 +19,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -27,14 +28,14 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <libgen.h>
+
 #include "database.h"
 #include "jedec.h"
 #include "minipro.h"
 #include "version.h"
 
 #ifdef _WIN32
-#include <shlwapi.h>
+	#include <shlwapi.h>
 	#define STRCASESTR StrStrIA
 	#define PRI_SIZET  "lu"
 #else
@@ -132,18 +133,19 @@ void print_help_and_exit(char *progname) {
 }
 
 void print_devices_and_exit(const char *device_name) {
-    minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
+  minipro_handle_t *handle;
+  int count = minipro_get_devices_count(MP_TL866A) +
+              minipro_get_devices_count(MP_TL866IIPLUS);
+  if (!count) {
+    handle = malloc(sizeof(minipro_handle_t));
     if (handle == NULL) {
       fprintf(stderr, "Out of memory!\n");
       exit(EXIT_FAILURE);
     }
-  int count = minipro_get_devices_count(MP_TL866A) +
-              minipro_get_devices_count(MP_TL866IIPLUS);
-  if (!count) {
     fprintf(stderr,
             "No TL866 device found. Which database do you want to display?\n1) "
             "TL866A\n2) TL866II+\n3) Abort\n");
-	fflush(stderr);
+    fflush(stderr);
     char c = getchar();
     switch (c) {
       case '1':
@@ -153,6 +155,7 @@ void print_devices_and_exit(const char *device_name) {
         handle->version = MP_TL866IIPLUS;
         break;
       default:
+        free(handle);
         fprintf(stderr, "Aborted.\n");
         exit(EXIT_FAILURE);
     }
@@ -162,23 +165,22 @@ void print_devices_and_exit(const char *device_name) {
     minipro_print_system_info(handle);
     minipro_close(handle);
   }
-  
+
   //If less is available under windows use it, otherwise just use more.
   char *PAGER = "less";
-  #ifdef _WIN32
-  if (system("where less >nul 2>&1"))
-	  PAGER = "more";
-  #endif
-  
-  //Detecting the mintty in windows with mingw
-  //The default isatty always return false
-  if(
-  #ifdef _WIN32
-  _fileno(stdout)
-  #else
-  isatty(STDOUT_FILENO)
-  #endif
-  && device_name == NULL) {
+#ifdef _WIN32
+  if (system("where less >nul 2>&1")) PAGER = "more";
+#endif
+
+  // Detecting the mintty in windows with mingw
+  // The default isatty always return false
+  if (
+#ifdef _WIN32
+      _fileno(stdout)
+#else
+      isatty(STDOUT_FILENO)
+#endif
+      && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
     char *pager_program = getenv("PAGER");
@@ -190,8 +192,7 @@ void print_devices_and_exit(const char *device_name) {
   device_t *device;
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
-    if (device_name == NULL ||
-        STRCASESTR(device[0].name, device_name)) {
+    if (device_name == NULL || STRCASESTR(device[0].name, device_name)) {
       fprintf(stdout, "%s\n", device->name);
     }
   }
@@ -464,26 +465,23 @@ void parse_cmdline(int argc, char **argv) {
   }
 }
 
-//There's no memmem in mingw
+// There's no memmem in mingw
 #ifdef _WIN32
-void *memmem (const void *haystack, size_t haystack_len, const void *needle,
-	size_t needle_len)
-{
+void *memmem(const void *haystack, size_t haystack_len, const void *needle,
+             size_t needle_len) {
   const char *begin;
-  const char *const last_possible = (const char *) haystack + haystack_len - needle_len;
+  const char *const last_possible =
+      (const char *)haystack + haystack_len - needle_len;
 
-  if (needle_len == 0)
-    return (void *) haystack;
+  if (needle_len == 0) return (void *)haystack;
 
-  if (haystack_len < needle_len)
-    return NULL;
+  if (haystack_len < needle_len) return NULL;
 
-  for (begin = (const char *) haystack; begin <= last_possible; ++begin)
-    if (begin[0] == ((const char *) needle)[0] &&
-	!memcmp ((const void *) &begin[1],
-		 (const void *) ((const char *) needle + 1),
-		 needle_len - 1))
-      return (void *) begin;
+  for (begin = (const char *)haystack; begin <= last_possible; ++begin)
+    if (begin[0] == ((const char *)needle)[0] &&
+        !memcmp((const void *)&begin[1],
+                (const void *)((const char *)needle + 1), needle_len - 1))
+      return (void *)begin;
   return NULL;
 }
 #endif
@@ -1305,11 +1303,14 @@ int action_write(const char *filename, minipro_handle_t *handle) {
         case CODE:
           if (file_size != handle->device->code_memory_size) {
             if (!cmdopts.size_error) {
-              fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
+              fprintf(stderr,
+                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
                       file_size, handle->device->code_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
-              fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
+              fprintf(stderr,
+                      "Warning: Incorrect file size: %" PRI_SIZET
+                      " (needed %u)\n",
                       file_size, handle->device->code_memory_size);
           }
           if (write_page_file(handle, filename, MP_CODE, "Code",
@@ -1327,11 +1328,14 @@ int action_write(const char *filename, minipro_handle_t *handle) {
         case DATA:
           if (file_size != handle->device->data_memory_size) {
             if (!cmdopts.size_error) {
-              fprintf(stderr, "Incorrect file size: %"PRI_SIZET" (needed %u)\n",
+              fprintf(stderr,
+                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
                       file_size, handle->device->data_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
-              fprintf(stderr, "Warning: Incorrect file size: %"PRI_SIZET" (needed %u)\n",
+              fprintf(stderr,
+                      "Warning: Incorrect file size: %" PRI_SIZET
+                      " (needed %u)\n",
                       file_size, handle->device->data_memory_size);
           }
           if (write_page_file(handle, filename, MP_DATA, "Data",
@@ -1365,7 +1369,7 @@ int action_write(const char *filename, minipro_handle_t *handle) {
 
 int main(int argc, char **argv) {
 #ifdef _WIN32
-  system(" ");//If we are in windows start the VT100 support
+  system(" ");  // If we are in windows start the VT100 support
 #endif
   parse_cmdline(argc, argv);
   if (!cmdopts.filename && !cmdopts.idcheck_only) {
@@ -1601,11 +1605,11 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 #ifdef _WIN32
-  fprintf(stderr, "\e[?25l\n");//hide cursor
+  fprintf(stderr, "\e[?25l\n");  // hide cursor
 #endif
   int ret = cmdopts.action(cmdopts.filename, handle);
 #ifdef _WIN32
-  fprintf(stderr, "\e[?25h\n");//show cursor
+  fprintf(stderr, "\e[?25h\n");  // show cursor
 #endif
   if (minipro_end_transaction(handle)) {
     minipro_close(handle);
