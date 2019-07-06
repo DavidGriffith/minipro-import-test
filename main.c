@@ -465,43 +465,21 @@ void parse_cmdline(int argc, char **argv) {
   }
 }
 
-// There's no memmem in mingw
-#ifdef _WIN32
-void *memmem(const void *haystack, size_t haystack_len, const void *needle,
-             size_t needle_len) {
-  const char *begin;
-  const char *const last_possible =
-      (const char *)haystack + haystack_len - needle_len;
-
-  if (needle_len == 0) return (void *)haystack;
-
-  if (haystack_len < needle_len) return NULL;
-
-  for (begin = (const char *)haystack; begin <= last_possible; ++begin)
-    if (begin[0] == ((const char *)needle)[0] &&
-        !memcmp((const void *)&begin[1],
-                (const void *)((const char *)needle + 1), needle_len - 1))
-      return (void *)begin;
-  return NULL;
-}
-#endif
-
-int get_config_value(uint8_t *buffer, size_t buffer_size, const char *name,
-                     size_t name_size, uint32_t *value) {
-  uint8_t *cur, *eol, *val;
+// Search for config name in buffer.
+int get_config_value(const char *buffer, const char *name, uint32_t *value) {
+  char *cur, *eol, *val;
   for (;;) {
-    cur = memmem(buffer, buffer_size, name, name_size);  // find the line
+    cur = STRCASESTR(buffer, name);  // find the line
     if (cur == NULL) return EXIT_FAILURE;
-    eol = memmem(cur, buffer_size, (char *)"\n", 1);  // find the end of line
+    eol = STRCASESTR(cur, (char *)"\n");  // find the end of line
     if (cur == NULL) return EXIT_FAILURE;
     size_t len = eol - cur;
-    cur = memmem(cur, len, (char *)"=",
-                 1);  // find the '=' sign in the current line
+    cur =
+        STRCASESTR(cur, (char *)"=");  // find the '=' sign in the current line
     if (cur == NULL) return EXIT_FAILURE;
-    cur = memmem(cur, len, (char *)"0x",
-                 1);  // find the value in the current line
+    cur = STRCASESTR(cur, (char *)"0x");  // find the value in the current line
     if (cur == NULL) return EXIT_FAILURE;
-    uint8_t num[len];
+    char num[len];
     val = num;
     cur += 2;  // Advances the pointer to the first numeric character
     while (cur < eol) {
@@ -886,25 +864,18 @@ int verify_page_file(minipro_handle_t *handle, const char *filename,
 int read_fuses(minipro_handle_t *handle, const char *filename,
                fuse_decl_t *fuses) {
   size_t i;
-  char *config = malloc(1024);
-  if (!config) {
-    fprintf(stderr, "Out of memory\n");
-    return EXIT_FAILURE;
-  }
-
+  char config[1024];
   uint8_t buffer[64];
   struct timeval begin, end;
   memset(config, 0x00, 1024);
 
   if ((fuses->num_locks & 0x80) != 0) {
-    free(config);
     fprintf(stderr, "Can't read the lock byte for this device!\n");
     return EXIT_FAILURE;
   }
 
   FILE *pFile = fopen(filename, "wb");
   if (pFile == NULL) {
-    free(config);
     perror("Couldn't create config file!");
     return EXIT_FAILURE;
   }
@@ -918,7 +889,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     if (minipro_read_fuses(handle, MP_FUSE_CFG,
                            fuses->num_fuses * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -933,7 +903,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_uids > 0) {
     if (minipro_read_fuses(handle, MP_FUSE_USER,
                            fuses->num_uids * fuses->item_size, 0, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -949,7 +918,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     if (minipro_read_fuses(handle, MP_FUSE_LOCK,
                            fuses->num_locks * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -964,7 +932,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
 
   fputs(config, pFile);
   fclose(pFile);
-  free(config);
   gettimeofday(&end, NULL);
   fprintf(stderr, "%.2fSec  OK\n",
           (double)(end.tv_usec - begin.tv_usec) / 1000000 +
@@ -977,7 +944,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   size_t i;
   uint8_t wbuffer[64];
   uint8_t vbuffer[64];
-  uint8_t config[500];
+  char config[1024];
   struct timeval begin, end;
 
   FILE *pFile = fopen(filename, "rb");
@@ -986,6 +953,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
     return EXIT_FAILURE;
   }
 
+  memset(config, 0, sizeof(config));
   fread(config, sizeof(char), sizeof(config), pFile);
   fclose(pFile);
 
@@ -996,8 +964,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_fuses > 0) {
     for (i = 0; i < fuses->num_fuses; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->fnames[i],
-                           strlen(fuses->fnames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->fnames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->fnames[i]);
         return EXIT_FAILURE;
       }
@@ -1020,8 +987,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_uids > 0) {
     for (i = 0; i < fuses->num_uids; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->unames[i],
-                           strlen(fuses->unames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->unames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->unames[i]);
         return EXIT_FAILURE;
       }
@@ -1044,8 +1010,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_locks > 0) {
     for (i = 0; i < fuses->num_locks; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->lnames[i],
-                           strlen(fuses->lnames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->lnames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->lnames[i]);
         return EXIT_FAILURE;
       }
