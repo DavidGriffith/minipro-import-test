@@ -26,11 +26,7 @@
 #include "minipro.h"
 #include "tl866a.h"
 #include "tl866iiplus.h"
-#if defined (_WIN32) || defined (__MSYS__)|| defined (__CYGWIN__)
-#include "usb_win.h"
-#else
-#include "usb_nix.h"
-#endif
+#include "usb.h"
 
 #define TL866A_RESET 0xFF
 #define TL866IIPLUS_RESET 0x3F

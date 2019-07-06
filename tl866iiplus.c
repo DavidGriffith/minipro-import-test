@@ -26,11 +26,7 @@
 #include "database.h"
 #include "minipro.h"
 #include "tl866iiplus.h"
-#if defined (_WIN32) || defined (__MSYS__)|| defined (__CYGWIN__)
-#include "usb_win.h"
-#else
-#include "usb_nix.h"
-#endif
+#include "usb.h"
 
 #define TL866IIPLUS_BEGIN_TRANS 0x03
 #define TL866IIPLUS_END_TRANS 0x04

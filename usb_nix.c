@@ -15,11 +15,12 @@
  *
  */
 
+#include <libusb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "usb_nix.h"
+#include "usb.h"
 
 #define MP_TL866_VID 0x04d8
 #define MP_TL866_PID 0xe11c
@@ -29,14 +30,14 @@
 #define MP_USBTIMEOUT 20000
 
 // Open usb device
-libusb_device_handle *usb_open() {
+void *usb_open() {
   int ret = libusb_init(NULL);
   if (ret < 0) {
     fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(ret));
     return NULL;
   }
 
-  libusb_device_handle *usb_handle =
+  void *usb_handle =
       libusb_open_device_with_vid_pid(NULL, MP_TL866_VID, MP_TL866_PID);
   if (usb_handle == NULL) {
     // We didn't match the vid / pid of the "original" TL866 - so try the new
@@ -64,7 +65,7 @@ libusb_device_handle *usb_open() {
 }
 
 // Close usb device
-int usb_close(libusb_device_handle *usb_handle) {
+int usb_close(void *usb_handle) {
   int ret = EXIT_SUCCESS;
   ret = libusb_release_interface(usb_handle, 0);
   if (ret != 0 && ret != LIBUSB_ERROR_NO_DEVICE) {
@@ -117,8 +118,8 @@ static void payload_transfer_cb(struct libusb_transfer *transfer) {
   }
 }
 
-static int msg_transfer(libusb_device_handle *handle, uint8_t *buffer,
-                        size_t size, uint8_t direction, uint8_t endpoint,
+static int msg_transfer(void *handle, uint8_t *buffer, size_t size,
+                        uint8_t direction, uint8_t endpoint,
                         int *bytes_transferred) {
   int ret = libusb_bulk_transfer(handle, (endpoint | direction), buffer, size,
                                  bytes_transferred, MP_USBTIMEOUT);
@@ -128,7 +129,7 @@ static int msg_transfer(libusb_device_handle *handle, uint8_t *buffer,
   return ret;
 }
 
-static int payload_transfer(libusb_device_handle *handle, uint8_t direction,
+static int payload_transfer(void *handle, uint8_t direction,
                             uint8_t *ep2_buffer, size_t ep2_length,
                             uint8_t *ep3_buffer, size_t ep3_length) {
   struct libusb_transfer *ep2_urb;
@@ -197,8 +198,7 @@ static int payload_transfer(libusb_device_handle *handle, uint8_t direction,
   return EXIT_SUCCESS;
 }
 
-int write_payload(libusb_device_handle *handle, uint8_t *buffer,
-                  size_t length) {
+int write_payload(void *handle, uint8_t *buffer, size_t length) {
   uint32_t ep2_length;
   uint32_t ep3_length;
   int bytes_transferred;
@@ -228,7 +228,7 @@ int write_payload(libusb_device_handle *handle, uint8_t *buffer,
                           buffer + ep2_length, ep3_length);
 }
 
-int read_payload(libusb_device_handle *handle, uint8_t *buffer, size_t length) {
+int read_payload(void *handle, uint8_t *buffer, size_t length) {
   /*
    * If the payload length is less than 64 bytes increase the buffer to 64
    * bytes and  read it over the endpoint2 only. Submitting a buffer less than
@@ -279,7 +279,7 @@ int read_payload(libusb_device_handle *handle, uint8_t *buffer, size_t length) {
   return EXIT_SUCCESS;
 }
 
-int msg_send(libusb_device_handle *handle, uint8_t *buffer, size_t size) {
+int msg_send(void *handle, uint8_t *buffer, size_t size) {
   int bytes_transferred, ret;
   ret = msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_OUT, 0x01,
                      &bytes_transferred);
@@ -291,7 +291,7 @@ int msg_send(libusb_device_handle *handle, uint8_t *buffer, size_t size) {
   return ret;
 }
 
-int msg_recv(libusb_device_handle *handle, uint8_t *buffer, size_t size) {
+int msg_recv(void *handle, uint8_t *buffer, size_t size) {
   int bytes_transferred;
   return msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_IN, 0x01,
                       &bytes_transferred);

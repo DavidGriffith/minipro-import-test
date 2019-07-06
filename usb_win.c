@@ -15,11 +15,13 @@
  *
  */
 
-#include "usb_win.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
+#include <setupapi.h>
+#include <winusb.h>
+#include "usb.h"
 
 #define TL866A_IOCTL_READ 0x222004
 #define TL866A_IOCTL_WRITE 0x222000
@@ -28,7 +30,6 @@
 #define USB_ENDPOINT_IN 0x80
 #define MP_TL866IIPLUS 5
 #define MP_TL866A 2
-
 
 #define TL866A_GUID                                  \
   {                                                  \
@@ -43,29 +44,26 @@
     }                                                \
   }
 
-//Internaly used functions prototypes
+// Internaly used functions prototypes
 static int search_devices(uint8_t, char **);
-static int usb_write(usb_handle, uint8_t *, size_t, uint8_t);
-static int usb_read(usb_handle, uint8_t *, size_t, uint8_t);
-static int payload_transfer(usb_handle, uint8_t, uint8_t *, size_t, uint8_t *,
+static int usb_write(void *, uint8_t *, size_t, uint8_t);
+static int usb_read(void *, uint8_t *, size_t, uint8_t);
+static int payload_transfer(void *, uint8_t, uint8_t *, size_t, uint8_t *,
                             size_t);
 
-//Opaque structure used externally as handle
-struct usb_handle_s {
+// Opaque structure used externally as handle
+typedef struct usb_handle {
   HANDLE DeviceHandle;
   WINUSB_INTERFACE_HANDLE InterfaceHandle;
-};
-
-
-
+} usb_handle_t;
 
 // Open usb device
-usb_handle usb_open() {
+void *usb_open() {
   char *device_path;
 
   // Alocate memory for the usb handle structure
-  usb_handle handle = malloc(sizeof(*handle));
-  if (handle == INVALID_HANDLE_VALUE) {
+  usb_handle_t *handle = malloc(sizeof(usb_handle_t));
+  if (!handle) {
     fprintf(stderr, "Out of memory!\n");
     return NULL;
   }
@@ -120,9 +118,10 @@ usb_handle usb_open() {
 }
 
 // Close usb device
-int usb_close(usb_handle handle) {
-  if (handle->InterfaceHandle) WinUsb_Free(handle->InterfaceHandle);
-  CloseHandle(handle->DeviceHandle);
+int usb_close(void *handle) {
+  if (((usb_handle_t *)handle)->InterfaceHandle)
+    WinUsb_Free(((usb_handle_t *)handle)->InterfaceHandle);
+  CloseHandle(((usb_handle_t *)handle)->DeviceHandle);
   free(handle);
   return EXIT_SUCCESS;
 }
@@ -133,17 +132,17 @@ int minipro_get_devices_count(uint8_t version) {
 }
 
 // synchronously message send
-int msg_send(usb_handle handle, uint8_t *buffer, size_t size) {
+int msg_send(void *handle, uint8_t *buffer, size_t size) {
   return usb_write(handle, buffer, size, 0x01);
 }
 
 // synchronously message receive
-int msg_recv(usb_handle handle, uint8_t *buffer, size_t size) {
+int msg_recv(void *handle, uint8_t *buffer, size_t size) {
   return usb_read(handle, buffer, size, 0x81);
 }
 
-//Write payload asynchronously
-int write_payload(usb_handle handle, uint8_t *buffer, size_t length) {
+// Write payload asynchronously
+int write_payload(void *handle, uint8_t *buffer, size_t length) {
   uint32_t ep2_length;
   uint32_t ep3_length;
 
@@ -170,9 +169,8 @@ int write_payload(usb_handle handle, uint8_t *buffer, size_t length) {
                           buffer + ep2_length, ep3_length);
 }
 
-
-//Read payload asynchronously
-int read_payload(usb_handle handle, uint8_t *buffer, size_t length) {
+// Read payload asynchronously
+int read_payload(void *handle, uint8_t *buffer, size_t length) {
   /*
    * If the payload length is less than 64 bytes increase the buffer to 64
    * bytes and  read it over the endpoint2 only. Submitting a buffer less than
@@ -219,12 +217,10 @@ int read_payload(usb_handle handle, uint8_t *buffer, size_t length) {
   return EXIT_SUCCESS;
 }
 
-
-
 /////////////Kitchen functions
 
 // Transferr payload asynchronously
-static int payload_transfer(usb_handle handle, uint8_t direction,
+static int payload_transfer(void *handle, uint8_t direction,
                             uint8_t *ep2_buffer, size_t ep2_length,
                             uint8_t *ep3_buffer, size_t ep3_length) {
   DWORD ret1, ret2;
@@ -253,19 +249,21 @@ static int payload_transfer(usb_handle handle, uint8_t direction,
 
   // Endpoint 2 transfer
   if (direction == USB_ENDPOINT_IN)
-    WinUsb_ReadPipe(handle->InterfaceHandle, direction | 0x02, ep2_buffer,
-                    ep2_length, NULL, &overlapped1);
+    WinUsb_ReadPipe(((usb_handle_t *)handle)->InterfaceHandle, direction | 0x02,
+                    ep2_buffer, ep2_length, NULL, &overlapped1);
   else
-    WinUsb_WritePipe(handle->InterfaceHandle, direction | 0x02, ep2_buffer,
-                     ep2_length, NULL, &overlapped1);
+    WinUsb_WritePipe(((usb_handle_t *)handle)->InterfaceHandle,
+                     direction | 0x02, ep2_buffer, ep2_length, NULL,
+                     &overlapped1);
 
   // Endpoint 3 transfer
   if (direction == USB_ENDPOINT_IN)
-    WinUsb_ReadPipe(handle->InterfaceHandle, direction | 0x03, ep3_buffer,
-                    ep3_length, NULL, &overlapped2);
+    WinUsb_ReadPipe(((usb_handle_t *)handle)->InterfaceHandle, direction | 0x03,
+                    ep3_buffer, ep3_length, NULL, &overlapped2);
   else
-    WinUsb_WritePipe(handle->InterfaceHandle, direction | 0x03, ep3_buffer,
-                     ep3_length, NULL, &overlapped2);
+    WinUsb_WritePipe(((usb_handle_t *)handle)->InterfaceHandle,
+                     direction | 0x03, ep3_buffer, ep3_length, NULL,
+                     &overlapped2);
 
   // Wait for transfer completion
   ret1 = WaitForSingleObject(hEvent1, MP_USBTIMEOUT);
@@ -283,53 +281,55 @@ static int payload_transfer(usb_handle handle, uint8_t direction,
 }
 
 // USB write function.
-static int usb_write(usb_handle handle, uint8_t *buffer, size_t size,
+static int usb_write(void *handle, uint8_t *buffer, size_t size,
                      uint8_t endpoint) {
   DWORD bytes_written;
   uint8_t temp[256];  // Temp array needed by driver
   BOOL ret;
 
   // Check the device handle first
-  if (handle->DeviceHandle == INVALID_HANDLE_VALUE) return 0;
+  if (((usb_handle_t *)handle)->DeviceHandle == INVALID_HANDLE_VALUE) return 0;
 
   // If winusb handle is set then use winusb(TL866II+)
-  if (handle->InterfaceHandle) {
-    ret = WinUsb_WritePipe(handle->InterfaceHandle, endpoint, buffer, size,
-                           &bytes_written, NULL);
+  if (((usb_handle_t *)handle)->InterfaceHandle) {
+    ret = WinUsb_WritePipe(((usb_handle_t *)handle)->InterfaceHandle, endpoint,
+                           buffer, size, &bytes_written, NULL);
     if (!ret) fprintf(stderr, "\nIO Error: USB write failed.\n");
     return (ret ? EXIT_SUCCESS : EXIT_FAILURE);
   }
 
   // otherwise just use the old deviceiocontrol(TL866A)
   // For TL866A/CS the endpoint argument is not used.
-  ret = DeviceIoControl(handle->DeviceHandle, TL866A_IOCTL_WRITE, buffer, size,
-                        temp, 256, &bytes_written, NULL);
+  ret = DeviceIoControl(((usb_handle_t *)handle)->DeviceHandle,
+                        TL866A_IOCTL_WRITE, buffer, size, temp, 256,
+                        &bytes_written, NULL);
   if (!ret) fprintf(stderr, "\nIO Error: USB write failed.\n");
   return (ret ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 // USB read function.
-static int usb_read(usb_handle handle, uint8_t *buffer, size_t size,
+static int usb_read(void *handle, uint8_t *buffer, size_t size,
                     uint8_t endpoint) {
   DWORD bytes_read;
   uint32_t tmp = 0;
   BOOL ret;
 
   // Check the device handle first
-  if (handle->DeviceHandle == INVALID_HANDLE_VALUE) return 0;
+  if (((usb_handle_t *)handle)->DeviceHandle == INVALID_HANDLE_VALUE) return 0;
 
   // If winusb handle is set then use winusb(TL866II+)
-  if (handle->InterfaceHandle) {
-    ret = WinUsb_ReadPipe(handle->InterfaceHandle, endpoint, buffer, size,
-                          &bytes_read, NULL);
+  if (((usb_handle_t *)handle)->InterfaceHandle) {
+    ret = WinUsb_ReadPipe(((usb_handle_t *)handle)->InterfaceHandle, endpoint,
+                          buffer, size, &bytes_read, NULL);
     if (!ret) fprintf(stderr, "\nIO Error: USB read failed.\n");
     return (ret ? EXIT_SUCCESS : EXIT_FAILURE);
   }
 
   // Otherwise just use the old deviceiocontrol api(TL866A)
   // For TL866A/CS the endpoint argument is not used.
-  ret = DeviceIoControl(handle->DeviceHandle, TL866A_IOCTL_READ, &tmp, sizeof(tmp),
-                        buffer, size, &bytes_read, NULL);
+  ret =
+      DeviceIoControl(((usb_handle_t *)handle)->DeviceHandle, TL866A_IOCTL_READ,
+                      &tmp, sizeof(tmp), buffer, size, &bytes_read, NULL);
   if (!ret) fprintf(stderr, "\nIO Error: USB read failed.\n");
   return (ret ? EXIT_SUCCESS : EXIT_FAILURE);
 }
