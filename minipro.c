@@ -16,16 +16,12 @@
  */
 
 #include <assert.h>
-#include <libusb.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <stdio.h>
-#else
-#include <malloc.h>
-#endif
+#include <string.h>
 #include "database.h"
 #include "minipro.h"
 #include "tl866a.h"

@@ -19,6 +19,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -27,13 +28,20 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
-#ifdef __APPLE__
-#include <libgen.h>
-#endif  /* __APPLE__ */
+
 #include "database.h"
 #include "jedec.h"
 #include "minipro.h"
 #include "version.h"
+
+#ifdef _WIN32
+	#include <shlwapi.h>
+	#define STRCASESTR StrStrIA
+	#define PRI_SIZET  "lu"
+#else
+	#define STRCASESTR strcasestr
+	#define PRI_SIZET  "zu"
+#endif
 
 struct {
   int (*action)(const char *, minipro_handle_t *handle);
@@ -129,14 +137,15 @@ void print_devices_and_exit(const char *device_name) {
   int count = minipro_get_devices_count(MP_TL866A) +
               minipro_get_devices_count(MP_TL866IIPLUS);
   if (!count) {
-    fprintf(stderr,
-            "No TL866 device found. Which database do you want to display?\n1) "
-            "TL866A\n2) TL866II+\n3) Abort\n");
     handle = malloc(sizeof(minipro_handle_t));
     if (handle == NULL) {
       fprintf(stderr, "Out of memory!\n");
       exit(EXIT_FAILURE);
     }
+    fprintf(stderr,
+            "No TL866 device found. Which database do you want to display?\n1) "
+            "TL866A\n2) TL866II+\n3) Abort\n");
+    fflush(stderr);
     char c = getchar();
     switch (c) {
       case '1':
@@ -146,6 +155,7 @@ void print_devices_and_exit(const char *device_name) {
         handle->version = MP_TL866IIPLUS;
         break;
       default:
+        free(handle);
         fprintf(stderr, "Aborted.\n");
         exit(EXIT_FAILURE);
     }
@@ -155,21 +165,35 @@ void print_devices_and_exit(const char *device_name) {
     minipro_print_system_info(handle);
     minipro_close(handle);
   }
-  if (isatty(STDERR_FILENO) && device_name == NULL) {
+
+  //If less is available under windows use it, otherwise just use more.
+  char *PAGER = "less";
+#ifdef _WIN32
+  if (system("where less >nul 2>&1")) PAGER = "more";
+#endif
+
+  // Detecting the mintty in windows with mingw
+  // The default isatty always return false
+  if (
+#ifdef _WIN32
+      _fileno(stdout)
+#else
+      isatty(STDOUT_FILENO)
+#endif
+      && device_name == NULL) {
     // stdout is a terminal, opening pager
     signal(SIGINT, SIG_IGN);
     char *pager_program = getenv("PAGER");
-    if (!pager_program) pager_program = "less";
+    if (!pager_program) pager_program = PAGER;
     FILE *pager = popen(pager_program, "w");
-    dup2(fileno(pager), STDERR_FILENO);
+    dup2(fileno(pager), STDOUT_FILENO);
   }
 
   device_t *device;
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
-    if (device_name == NULL ||
-        strcasestr(device[0].name, device_name)) {
-      fprintf(stderr, "%s\n", device->name);
+    if (device_name == NULL || STRCASESTR(device[0].name, device_name)) {
+      fprintf(stdout, "%s\n", device->name);
     }
   }
   if (!count) free(handle);
@@ -441,22 +465,21 @@ void parse_cmdline(int argc, char **argv) {
   }
 }
 
-int get_config_value(uint8_t *buffer, size_t buffer_size, const char *name,
-                     size_t name_size, uint32_t *value) {
-  uint8_t *cur, *eol, *val;
+// Search for config name in buffer.
+int get_config_value(const char *buffer, const char *name, uint32_t *value) {
+  char *cur, *eol, *val;
   for (;;) {
-    cur = memmem(buffer, buffer_size, name, name_size);  // find the line
+    cur = STRCASESTR(buffer, name);  // find the line
     if (cur == NULL) return EXIT_FAILURE;
-    eol = memmem(cur, buffer_size, (char *)"\n", 1);  // find the end of line
+    eol = STRCASESTR(cur, (char *)"\n");  // find the end of line
     if (cur == NULL) return EXIT_FAILURE;
     size_t len = eol - cur;
-    cur = memmem(cur, len, (char *)"=",
-                 1);  // find the '=' sign in the current line
+    cur =
+        STRCASESTR(cur, (char *)"=");  // find the '=' sign in the current line
     if (cur == NULL) return EXIT_FAILURE;
-    cur = memmem(cur, len, (char *)"0x",
-                 1);  // find the value in the current line
+    cur = STRCASESTR(cur, (char *)"0x");  // find the value in the current line
     if (cur == NULL) return EXIT_FAILURE;
-    uint8_t num[len];
+    char num[len];
     val = num;
     cur += 2;  // Advances the pointer to the first numeric character
     while (cur < eol) {
@@ -728,7 +751,7 @@ int erase_device(minipro_handle_t *handle) {
 /* Wrappers for operating with files */
 int write_page_file(minipro_handle_t *handle, const char *filename,
                     uint8_t type, const char *name, size_t size) {
-  FILE *file = fopen(filename, "r");
+  FILE *file = fopen(filename, "rb");
   if (file == NULL) {
     perror("Couldn't open file for reading");
     return EXIT_FAILURE;
@@ -759,7 +782,7 @@ int write_page_file(minipro_handle_t *handle, const char *filename,
 
 int read_page_file(minipro_handle_t *handle, const char *filename, uint8_t type,
                    const char *name, size_t size) {
-  FILE *file = fopen(filename, "w");
+  FILE *file = fopen(filename, "wb");
   if (file == NULL) {
     perror("Couldn't open file for writing\n");
     return EXIT_FAILURE;
@@ -786,7 +809,7 @@ int read_page_file(minipro_handle_t *handle, const char *filename, uint8_t type,
 
 int verify_page_file(minipro_handle_t *handle, const char *filename,
                      uint8_t type, const char *name, size_t size) {
-  FILE *file = fopen(filename, "r");
+  FILE *file = fopen(filename, "rb");
   if (file == NULL) {
     perror("Couldn't open file for reading");
     return EXIT_FAILURE;
@@ -841,25 +864,18 @@ int verify_page_file(minipro_handle_t *handle, const char *filename,
 int read_fuses(minipro_handle_t *handle, const char *filename,
                fuse_decl_t *fuses) {
   size_t i;
-  char *config = malloc(1024);
-  if (!config) {
-    fprintf(stderr, "Out of memory\n");
-    return EXIT_FAILURE;
-  }
-
+  char config[1024];
   uint8_t buffer[64];
   struct timeval begin, end;
   memset(config, 0x00, 1024);
 
   if ((fuses->num_locks & 0x80) != 0) {
-    free(config);
     fprintf(stderr, "Can't read the lock byte for this device!\n");
     return EXIT_FAILURE;
   }
 
-  FILE *pFile = fopen(filename, "w");
+  FILE *pFile = fopen(filename, "wb");
   if (pFile == NULL) {
-    free(config);
     perror("Couldn't create config file!");
     return EXIT_FAILURE;
   }
@@ -873,7 +889,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     if (minipro_read_fuses(handle, MP_FUSE_CFG,
                            fuses->num_fuses * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -888,7 +903,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_uids > 0) {
     if (minipro_read_fuses(handle, MP_FUSE_USER,
                            fuses->num_uids * fuses->item_size, 0, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -904,7 +918,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     if (minipro_read_fuses(handle, MP_FUSE_LOCK,
                            fuses->num_locks * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
-      free(config);
       fclose(pFile);
       return EXIT_FAILURE;
     }
@@ -919,7 +932,6 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
 
   fputs(config, pFile);
   fclose(pFile);
-  free(config);
   gettimeofday(&end, NULL);
   fprintf(stderr, "%.2fSec  OK\n",
           (double)(end.tv_usec - begin.tv_usec) / 1000000 +
@@ -932,15 +944,16 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   size_t i;
   uint8_t wbuffer[64];
   uint8_t vbuffer[64];
-  uint8_t config[500];
+  char config[1024];
   struct timeval begin, end;
 
-  FILE *pFile = fopen(filename, "r");
+  FILE *pFile = fopen(filename, "rb");
   if (pFile == NULL) {
     perror("Couldn't open config file!");
     return EXIT_FAILURE;
   }
 
+  memset(config, 0, sizeof(config));
   fread(config, sizeof(char), sizeof(config), pFile);
   fclose(pFile);
 
@@ -951,8 +964,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_fuses > 0) {
     for (i = 0; i < fuses->num_fuses; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->fnames[i],
-                           strlen(fuses->fnames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->fnames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->fnames[i]);
         return EXIT_FAILURE;
       }
@@ -975,8 +987,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_uids > 0) {
     for (i = 0; i < fuses->num_uids; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->unames[i],
-                           strlen(fuses->unames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->unames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->unames[i]);
         return EXIT_FAILURE;
       }
@@ -999,8 +1010,7 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
   if (fuses->num_locks > 0) {
     for (i = 0; i < fuses->num_locks; i++) {
       uint32_t value;
-      if (get_config_value(config, sizeof(config), fuses->lnames[i],
-                           strlen(fuses->lnames[i]), &value) == -1) {
+      if (get_config_value(config, fuses->lnames[i], &value) == -1) {
         fprintf(stderr, "Could not read config %s value.\n", fuses->lnames[i]);
         return EXIT_FAILURE;
       }
@@ -1258,11 +1268,14 @@ int action_write(const char *filename, minipro_handle_t *handle) {
         case CODE:
           if (file_size != handle->device->code_memory_size) {
             if (!cmdopts.size_error) {
-              fprintf(stderr, "Incorrect file size: %zu (needed %u)\n",
+              fprintf(stderr,
+                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
                       file_size, handle->device->code_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
-              fprintf(stderr, "Warning: Incorrect file size: %zu (needed %u)\n",
+              fprintf(stderr,
+                      "Warning: Incorrect file size: %" PRI_SIZET
+                      " (needed %u)\n",
                       file_size, handle->device->code_memory_size);
           }
           if (write_page_file(handle, filename, MP_CODE, "Code",
@@ -1280,11 +1293,14 @@ int action_write(const char *filename, minipro_handle_t *handle) {
         case DATA:
           if (file_size != handle->device->data_memory_size) {
             if (!cmdopts.size_error) {
-              fprintf(stderr, "Incorrect file size: %zu (needed %u)\n",
+              fprintf(stderr,
+                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
                       file_size, handle->device->data_memory_size);
               return EXIT_FAILURE;
             } else if (cmdopts.size_nowarn == 0)
-              fprintf(stderr, "Warning: Incorrect file size: %zu (needed %u)\n",
+              fprintf(stderr,
+                      "Warning: Incorrect file size: %" PRI_SIZET
+                      " (needed %u)\n",
                       file_size, handle->device->data_memory_size);
           }
           if (write_page_file(handle, filename, MP_DATA, "Data",
@@ -1317,6 +1333,9 @@ int action_write(const char *filename, minipro_handle_t *handle) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+  system(" ");  // If we are in windows start the VT100 support
+#endif
   parse_cmdline(argc, argv);
   if (!cmdopts.filename && !cmdopts.idcheck_only) {
     print_help_and_exit(argv[0]);
@@ -1550,7 +1569,13 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Can't read the device ID for this chip!\n");
     return EXIT_FAILURE;
   }
+#ifdef _WIN32
+  fprintf(stderr, "\e[?25l\n");  // hide cursor
+#endif
   int ret = cmdopts.action(cmdopts.filename, handle);
+#ifdef _WIN32
+  fprintf(stderr, "\e[?25h\n");  // show cursor
+#endif
   if (minipro_end_transaction(handle)) {
     minipro_close(handle);
     return EXIT_FAILURE;

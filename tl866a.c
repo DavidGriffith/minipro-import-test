@@ -19,12 +19,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <stdio.h>
-#else
-#include <malloc.h>
-#endif
+#include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "database.h"
 #include "minipro.h"
@@ -833,7 +831,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
   }
 
   // Open the update.dat firmware file
-  FILE *file = fopen(firmware, "r");
+  FILE *file = fopen(firmware, "rb");
   if (file == NULL) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");
@@ -876,15 +874,15 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
     fprintf(stderr, " (older)");
   else if ((handle->firmware & 0xFF) < update_dat.header[0])
     fprintf(stderr, " (newer)");
-  fprintf(stderr, "\n");
 
   uint8_t version;
-  printf(
-      "\nWhich firmware version do you want to reflash? \n1) Device default "
+  fprintf(stderr,
+      "\n\nWhich firmware version do you want to reflash? \n1) Device default "
       "(%s)\n2) "
       "%s\n3) Exit\n",
       handle->version == MP_TL866A ? "A" : "CS",
       handle->version == MP_TL866A ? "CS" : "A");
+	  fflush(stderr);
   char c = getchar();
   switch (c) {
     case '1':
