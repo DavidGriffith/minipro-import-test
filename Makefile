@@ -137,6 +137,9 @@ uninstall:
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-uaccess.rules; fi
 	if [ -n "$(COMPLETIONS_DIR)" ]; then rm -f $(COMPLETIONS_INSTDIR)/minipro; fi
 
+deb: distclean
+	dpkg-buildpackage -b -rfakeroot -us -uc
+
 dist:
 ifneq ($(and $(wildcard $(GIT_DIR)),$(shell which git)),)
 	git archive --format=tgz --prefix $(DIST_DIR)/ HEAD -o $(DIST_DIR).tar.gz
