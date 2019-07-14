@@ -1,7 +1,7 @@
 Source: minipro
 Section: universe/electronics
 Priority: extra
-Maintainer: Valentin Dudouyt <valentin.dudouyt@gmail.com>
+Maintainer: David Griffith <dave@661.org>
 Build-Depends: debhelper (>= 8.0.0), libusb-1.0-0-dev, pkg-config
 Standards-Version: 3.9.4
 Homepage: https://gitlab.com/DavidGriffith/minipro
@@ -11,4 +11,4 @@ Vcs-Browser: https://gitlab.com/DavidGriffith/minipro
 Package: minipro
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: software for Minipro TL866XX series of programmers from autoelectric.cn.
+Description: Software for Minipro TL866XX series of programmers from autoelectric.cn.

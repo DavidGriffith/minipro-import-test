@@ -1,3 +1,10 @@
+minipro (0.4-1) UNRELEASED; urgency=medium
+
+  * Updated to support TL866II+
+  * Significant enhancements in usablity and functionality.
+
+ -- David Griffith <dave@661.org>  Sun, 14 Jul 2019 01:15:14 -0700
+
 minipro (0.1-1) unstable; urgency=low
 
   * Initial release
