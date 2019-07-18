@@ -822,6 +822,8 @@ int verify_page_file(minipro_handle_t *handle, const char *filename,
     fprintf(stderr, "Out of memory\n");
     return EXIT_FAILURE;
   }
+  
+  memset(file_data, 0xFF, size);
   if (fread(file_data, 1, size, file) != size && !cmdopts.size_error) {
     fclose(file);
     free(file_data);
