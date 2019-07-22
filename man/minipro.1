@@ -8,7 +8,9 @@ minipro \- programs various chips using the Minipro TL866XX series of programmer
 .RB [-c " code|data|config"]
 .RB [-o " option"\ ...\ ]
 .RB [-r|-w " filename"]
-.RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t] [-h]
+.RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t]
+.RB [-f " filename"]
+.RB [-h]
 
 .B miniprohex
 .RB [-p " device"]
@@ -141,6 +143,10 @@ Show version information.
 .TP
 .B \-t
 Start hardware check.
+
+.TP
+.B \-f <filename>
+Update firmware (should be update.dat).
 
 .TP
 .B \-h
