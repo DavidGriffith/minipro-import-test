@@ -3,11 +3,14 @@
 minipro \- programs various chips using the Minipro TL866XX series of programmers.
 .SH SYNOPSIS
 .B minipro
-.RB -l\ \ |
+.RB -l\ |\ -L " search"\ |\ -d " device"\ |\ -D\ |
 .RB [-p " device"]
 .RB [-c " code|data|config"]
+.RB [-o " option"\ ...\ ]
 .RB [-r|-w " filename"]
-.RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-y] [-h]
+.RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t]
+.RB [-f " filename"]
+.RB [-h]
 
 .B miniprohex
 .RB [-p " device"]
@@ -57,6 +60,34 @@ and "config". The "config" memory type is used to access fuses, see
 FUSES below.
 
 .TP
+.B \-o <option>
+
+Specify various programming options. For multiple options use -o multiple
+times. Valid options are:
+
+.RS
+.IP \(bu 4
+vpp=<value>
+
+Set the programming voltage (10, 12.5, 13.5, 14, 16, 18, 21).
+
+.IP \(bu 4
+vdd=<value>
+
+Set the VDD write voltage (3.3, 4, 4.5, 5, 5.5, 6.25).
+
+.IP \(bu 4
+vcc=<value>
+
+Set the VCC verify voltage (3.3, 4, 4.5, 5, 5.5, 6.25).
+
+.IP \(bu 4
+pulse=<value>
+
+Set the programming pulse delay (0-65535 usec).
+.RE
+
+.TP
 .B \-r <filename>
 Read from the device and write the contents to this file.
 
@@ -104,6 +135,18 @@ high Chip ID read voltages to unknown pins.
 .TP
 .B \-y
 Do NOT error on ID mismatch.
+
+.TP
+.B \-V
+Show version information.
+
+.TP
+.B \-t
+Start hardware check.
+
+.TP
+.B \-f <filename>
+Update firmware (should be update.dat).
 
 .TP
 .B \-h
