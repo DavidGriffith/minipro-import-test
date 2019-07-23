@@ -168,6 +168,7 @@ void print_devices_and_exit(const char *device_name) {
 
   //If less is available under windows use it, otherwise just use more.
   char *PAGER = "less";
+  FILE *pager = NULL;
 #ifdef _WIN32
   if (system("where less >nul 2>&1")) PAGER = "more";
 #endif
@@ -185,7 +186,7 @@ void print_devices_and_exit(const char *device_name) {
     signal(SIGINT, SIG_IGN);
     char *pager_program = getenv("PAGER");
     if (!pager_program) pager_program = PAGER;
-    FILE *pager = popen(pager_program, "w");
+    pager = popen(pager_program, "w");
     dup2(fileno(pager), STDOUT_FILENO);
   }
 
@@ -197,6 +198,12 @@ void print_devices_and_exit(const char *device_name) {
     }
   }
   if (!count) free(handle);
+
+  if (pager) {
+    close(STDOUT_FILENO);
+    pclose(pager);
+  }
+
   exit(EXIT_SUCCESS);
 }
 
