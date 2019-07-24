@@ -27,7 +27,8 @@
 #define MP_TL866II_VID 0xa466
 #define MP_TL866II_PID 0x0a53
 #define MP_TL866IIPLUS 5
-#define MP_USBTIMEOUT 20000
+#define MP_USBTIMEOUT 5000
+#define MP_USB_READ_TIMEOUT 360000
 
 // Open usb device
 void *usb_open() {
@@ -120,9 +121,9 @@ static void payload_transfer_cb(struct libusb_transfer *transfer) {
 
 static int msg_transfer(void *handle, uint8_t *buffer, size_t size,
                         uint8_t direction, uint8_t endpoint,
-                        int *bytes_transferred) {
+                        int *bytes_transferred, uint32_t timeout) {
   int ret = libusb_bulk_transfer(handle, (endpoint | direction), buffer, size,
-                                 bytes_transferred, MP_USBTIMEOUT);
+                                 bytes_transferred, timeout);
 
   if (ret != LIBUSB_SUCCESS)
     fprintf(stderr, "\nIO error: bulk_transfer: %s\n", libusb_error_name(ret));
@@ -206,7 +207,7 @@ int write_payload(void *handle, uint8_t *buffer, size_t length) {
   // If the payload length is exactly 64 bytes send it over the endpoint2 only
   if (length == 64)
     return msg_transfer(handle, buffer, length, LIBUSB_ENDPOINT_OUT, 0x02,
-                        &bytes_transferred);
+                        &bytes_transferred, MP_USBTIMEOUT);
 
   // This  is from XgPro
   uint32_t j = length % 128;
@@ -239,7 +240,7 @@ int read_payload(void *handle, uint8_t *buffer, size_t length) {
   if (length < 64) {
     uint8_t data[64];
     if (msg_transfer(handle, data, sizeof(data), LIBUSB_ENDPOINT_IN, 0x02,
-                     &bytes_transferred))
+                     &bytes_transferred, MP_USBTIMEOUT))
       return EXIT_FAILURE;
     memcpy(buffer, data, length);
     return EXIT_SUCCESS;
@@ -248,7 +249,7 @@ int read_payload(void *handle, uint8_t *buffer, size_t length) {
   // If the payload length is exactly 64 bytes read it over the endpoint2 only
   if (length == 64)
     return msg_transfer(handle, buffer, length, LIBUSB_ENDPOINT_IN, 0x02,
-                        &bytes_transferred);
+                        &bytes_transferred, MP_USBTIMEOUT);
 
   // More than 64 bytes
   uint8_t *data = malloc(length);
@@ -282,7 +283,7 @@ int read_payload(void *handle, uint8_t *buffer, size_t length) {
 int msg_send(void *handle, uint8_t *buffer, size_t size) {
   int bytes_transferred, ret;
   ret = msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_OUT, 0x01,
-                     &bytes_transferred);
+                     &bytes_transferred, MP_USBTIMEOUT);
   if (bytes_transferred != (int)size) {
     fprintf(stderr, "IO error: expected %zu bytes but %u bytes transferred\n",
             size, bytes_transferred);
@@ -294,5 +295,5 @@ int msg_send(void *handle, uint8_t *buffer, size_t size) {
 int msg_recv(void *handle, uint8_t *buffer, size_t size) {
   int bytes_transferred;
   return msg_transfer(handle, buffer, size, LIBUSB_ENDPOINT_IN, 0x01,
-                      &bytes_transferred);
+                      &bytes_transferred, MP_USB_READ_TIMEOUT);
 }
