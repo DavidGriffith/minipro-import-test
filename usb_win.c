@@ -25,7 +25,7 @@
 
 #define TL866A_IOCTL_READ 0x222004
 #define TL866A_IOCTL_WRITE 0x222000
-#define MP_USBTIMEOUT 20000
+#define MP_USBTIMEOUT 5000
 #define USB_ENDPOINT_OUT 0x00
 #define USB_ENDPOINT_IN 0x80
 #define MP_TL866IIPLUS 5
@@ -133,12 +133,12 @@ int minipro_get_devices_count(uint8_t version) {
 
 // synchronously message send
 int msg_send(void *handle, uint8_t *buffer, size_t size) {
-  return usb_write(handle, buffer, size, 0x01);
+  return usb_write(handle, buffer, size, USB_ENDPOINT_OUT | 0x01);
 }
 
 // synchronously message receive
 int msg_recv(void *handle, uint8_t *buffer, size_t size) {
-  return usb_read(handle, buffer, size, 0x81);
+  return usb_read(handle, buffer, size, USB_ENDPOINT_IN | 0x01);
 }
 
 // Write payload asynchronously
