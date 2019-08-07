@@ -266,7 +266,7 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
 int read_jedec_file(const char *filename, jedec_t *jedec) {
   uint16_t checksum;
   // Open the jed file
-  FILE *file = fopen(filename, "r");
+  FILE *file = fopen(filename, "rb");
   if (file == NULL) {
     return FILE_OPEN_ERROR;
   }
@@ -316,7 +316,7 @@ int write_jedec_file(const char *filename, jedec_t *jedec) {
   uint16_t fuse_checksum = 0, file_checksum = 0;
   int16_t c;
 
-  FILE *file = fopen(filename, "w+");
+  FILE *file = fopen(filename, "wb+");
   if (file == NULL) {
     return FILE_OPEN_ERROR;
   }

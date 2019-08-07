@@ -46,6 +46,7 @@ typedef struct gal_config {
 } gal_config_t;
 
 device_t *get_device_table(minipro_handle_t *handle);
+device_t *get_device_custom(minipro_handle_t *handle);
 device_t *get_device_by_name(minipro_handle_t *handle, const char *name);
 const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
                                uint8_t protocol);
