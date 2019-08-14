@@ -207,10 +207,21 @@ device_t infoic_devices[] = {
     {.name = NULL},
 };
 
+device_t infoic_custom[] = {
+#include "infoic_custom.h"
+    {.name = NULL},
+};
+
 device_t infoic2plus_devices[] = {
 #include "infoic2plus_devices.h"
     {.name = NULL},
 };
+
+device_t infoic2plus_custom[] = {
+#include "infoic2plus_custom.h"
+    {.name = NULL},
+};
+
 
 device_t *get_device_table(minipro_handle_t *handle) {
   if (handle->version == MP_TL866IIPLUS) {
@@ -220,8 +231,21 @@ device_t *get_device_table(minipro_handle_t *handle) {
   return &(infoic_devices[0]);
 }
 
+device_t *get_device_custom(minipro_handle_t *handle) {
+  if (handle->version == MP_TL866IIPLUS) {
+    return &(infoic2plus_custom[0]);
+  }
+
+  return &(infoic_custom[0]);
+}
+
 device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
   device_t *device;
+     
+    for (device = get_device_custom(handle); device[0].name;
+       device = &(device[1])) {
+    if (!strcasecmp(name, device->name)) return (device);
+  }
 
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
@@ -233,6 +257,14 @@ device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
 const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
                                uint8_t protocol) {
   device_t *device;
+  
+    for (device = get_device_custom(handle); device[0].name;
+       device = &(device[1])) {
+    if (device->chip_id == id && device->protocol_id == protocol &&
+        device->chip_id && device->chip_id_bytes_count)
+      return (device->name);
+  }
+  
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
     if (device->chip_id == id && device->protocol_id == protocol &&

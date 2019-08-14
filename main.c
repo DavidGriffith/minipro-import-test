@@ -132,20 +132,28 @@ void print_help_and_exit(char *progname) {
   exit(EXIT_SUCCESS);
 }
 
-void print_devices_and_exit(const char *device_name) {
-  minipro_handle_t *handle;
-  int count = minipro_get_devices_count(MP_TL866A) +
-              minipro_get_devices_count(MP_TL866IIPLUS);
-  if (!count) {
-    handle = malloc(sizeof(minipro_handle_t));
-    if (handle == NULL) {
-      fprintf(stderr, "Out of memory!\n");
-      exit(EXIT_FAILURE);
-    }
+minipro_handle_t *get_handle(const char *device_name) {
+  minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
+  if (handle == NULL) {
+    fprintf(stderr, "Out of memory!\n");
+    return NULL;
+  }
+
+  if (!(minipro_get_devices_count(MP_TL866A) +
+        minipro_get_devices_count(MP_TL866IIPLUS))) {
     fprintf(stderr,
             "No TL866 device found. Which database do you want to display?\n1) "
             "TL866A\n2) TL866II+\n3) Abort\n");
     fflush(stderr);
+
+    if (device_name != NULL) {
+      handle->device = get_device_by_name(handle, device_name);
+      if (handle->device == NULL) {
+        free(handle);
+        fprintf(stderr, "Device %s not found!\n", device_name);
+        return NULL;
+      }
+    }
     char c = getchar();
     switch (c) {
       case '1':
@@ -157,16 +165,25 @@ void print_devices_and_exit(const char *device_name) {
       default:
         free(handle);
         fprintf(stderr, "Aborted.\n");
-        exit(EXIT_FAILURE);
+        return NULL;
     }
   } else {
-    handle = minipro_open(NULL);
-    if (!handle) exit(EXIT_FAILURE);
-    minipro_print_system_info(handle);
-    minipro_close(handle);
+    minipro_handle_t *tmp = minipro_open(device_name);
+    if (!tmp) return NULL;
+    minipro_print_system_info(tmp);
+    fflush(stderr);
+    handle->device = tmp->device;
+    handle->version = tmp->version;
+    minipro_close(tmp);
   }
+  return handle;
+}
 
-  //If less is available under windows use it, otherwise just use more.
+void print_devices_and_exit(const char *device_name) {
+  minipro_handle_t *handle = get_handle(NULL);
+  if (!handle) exit(EXIT_FAILURE);
+
+  // If less is available under windows use it, otherwise just use more.
   char *PAGER = "less";
   FILE *pager = NULL;
 #ifdef _WIN32
@@ -191,29 +208,51 @@ void print_devices_and_exit(const char *device_name) {
   }
 
   device_t *device;
+  device_t *deviceo;
+  device_t *devicet;
+
+  // Show custom devices without overrides
+  for (deviceo = get_device_custom(handle); deviceo[0].name;
+
+       deviceo = &(deviceo[1])) {
+    devicet = deviceo;
+
+    for (device = get_device_table(handle); device[0].name;
+
+         device = &(device[1])) {
+      if (!strcasecmp(deviceo->name, device->name)) {
+        devicet = NULL;  // Skip if existing
+        break;
+      }
+    }
+
+    if (devicet &&
+        (device_name == NULL || STRCASESTR(devicet->name, device_name))) {
+      fprintf(stdout, "%s\n", devicet->name);
+    }
+  }
+
+  // Show devices.
   for (device = get_device_table(handle); device[0].name;
+
        device = &(device[1])) {
-    if (device_name == NULL || STRCASESTR(device[0].name, device_name)) {
+    if (device_name == NULL || STRCASESTR(device->name, device_name)) {
       fprintf(stdout, "%s\n", device->name);
     }
   }
-  if (!count) free(handle);
 
   if (pager) {
     close(STDOUT_FILENO);
     pclose(pager);
   }
 
+  free(handle);
   exit(EXIT_SUCCESS);
 }
 
 void print_device_info_and_exit(const char *device_name) {
-  minipro_handle_t *handle = minipro_open(device_name);
-  if (!handle) {
-    exit(EXIT_FAILURE);
-  }
-  minipro_print_system_info(handle);
-  minipro_close(handle);
+  minipro_handle_t *handle = get_handle(device_name);
+  if (!handle) exit(EXIT_FAILURE);
 
   fprintf(stderr, "Name: %s\n", handle->device->name);
 
@@ -233,6 +272,7 @@ void print_device_info_and_exit(const char *device_name) {
     default:
       fprintf(stderr, "Unknown memory shape: 0x%x\n",
               handle->device->opts4 & 0xFF000000);
+      free(handle);
       exit(EXIT_FAILURE);
   }
   if (handle->device->data_memory_size) {
@@ -270,6 +310,7 @@ void print_device_info_and_exit(const char *device_name) {
   fprintf(stderr, "Write buffer size: %u Bytes\n",
           handle->device->write_buffer_size);
 
+  free(handle);
   exit(EXIT_SUCCESS);
 }
 
