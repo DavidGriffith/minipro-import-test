@@ -132,7 +132,7 @@ typedef struct cmdopts_s {
   char *filename;
   char *device;
   enum { UNSPECIFIED = 0, CODE, DATA, CONFIG } page;
-  enum { READ = 0, WRITE, ERASE, VERIFY, BLANK_CHECK } action;
+  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK } action;
   uint8_t no_erase;
   uint8_t no_protect_off;
   uint8_t no_protect_on;

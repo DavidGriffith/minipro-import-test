@@ -79,6 +79,7 @@ void print_help_and_exit(char *progname) {
       "	-r <filename>	Read memory\n"
       "	-w <filename>	Write memory\n"
       "	-e 		Do NOT erase device\n"
+      "	-E 		Just erase device\n"
       "	-u 		Do NOT disable write-protect\n"
       "	-P 		Do NOT enable write-protect\n"
       "	-v		Do NOT verify after write\n"
@@ -377,7 +378,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   cmdopts->vdd = -1;
   cmdopts->pulse_delay = -1;
 
-  while ((c = getopt(argc, argv, "lL:d:euPvxyr:w:p:c:o:iIsSVhDtf:")) != -1) {
+  while ((c = getopt(argc, argv, "lL:d:eEuPvxyr:w:p:c:o:iIsSVhDtf:")) != -1) {
     switch (c) {
       case 'l':
         print_devices_and_exit(NULL);
@@ -441,6 +442,10 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         cmdopts->filename = optarg;
         break;
 
+      case 'E':
+    	  cmdopts->action = ERASE;
+    	  break;
+
       case 'i':
         cmdopts->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
         break;
@@ -461,6 +466,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
       case 'D':
         cmdopts->idcheck_only = 1;
         break;
+
 
       case 'h':
         print_help_and_exit(argv[0]);
@@ -1371,24 +1377,41 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
   system(" ");  // If we are in windows start the VT100 support
 #endif
+
   cmdopts_t cmdopts;
   parse_cmdline(argc, argv, &cmdopts);
-  if (!cmdopts.filename && !cmdopts.idcheck_only) {
-    print_help_and_exit(argv[0]);
+
+  // Check if a file name is required
+  switch (cmdopts.action) {
+    case READ:
+    case WRITE:
+    case VERIFY:
+      if (!cmdopts.filename && !cmdopts.idcheck_only) {
+        fprintf(stderr, "A file name is required for this action.\n");
+        print_help_and_exit(argv[0]);
+      }
+      break;
+    default:
+      break;
   }
-  // If -D option is enabled then you must supply a device name.
-  if ((cmdopts.action && !cmdopts.device) ||
-      (cmdopts.idcheck_only && !cmdopts.device)) {
-    fprintf(stderr, "Device required. Use -p <device> to specify a device. ");
+
+  // Check if a device name is required
+  if (!cmdopts.device) {
+    fprintf(stderr, "Device required. Use -p <device> to specify a device.\n");
     print_help_and_exit(argv[0]);
   }
 
-  // don't permit skipping the ID read in write-mode
-  if (cmdopts.action == WRITE && cmdopts.idcheck_skip) {
+  // don't permit skipping the ID read in write/erase-mode or ID only mode
+  if ((cmdopts.action == WRITE || cmdopts.action == ERASE ||
+       cmdopts.idcheck_only) &&
+      cmdopts.idcheck_skip) {
+    fprintf(stderr, "Skipping the ID check is not permitted for this action.\n");
     print_help_and_exit(argv[0]);
   }
-  // don't permit skipping the ID read in ID only mode
-  if (cmdopts.idcheck_only && cmdopts.idcheck_skip) {
+
+  //Exit if no action is supplied
+  if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only) {
+    fprintf(stderr, "No action to perform.\n");
     print_help_and_exit(argv[0]);
   }
 
@@ -1602,27 +1625,38 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
       }
     }
-  } else if (!cmdopts.filename) {
+  } else if (cmdopts.idcheck_only) {
     minipro_close(handle);
-    fprintf(stderr, "Can't read the device ID for this chip!\n");
+    fprintf(stderr, "This chip doesn't have a chip id!\n");
     return EXIT_FAILURE;
   }
 #ifdef _WIN32
   fprintf(stderr, "\e[?25l\n");  // hide cursor
 #endif
 
-  //Performing requested action
+  // Performing requested action
   int ret;
-  switch(cmdopts.action){
-  case READ:
-	  ret = action_read(handle);
-	  break;
-  case WRITE:
-	  ret = action_write(handle);
-	  break;
-  default:
-	  ret = EXIT_FAILURE;
-	  break;
+  switch (cmdopts.action) {
+    case READ:
+      ret = action_read(handle);
+      break;
+    case WRITE:
+      ret = action_write(handle);
+      break;
+    case ERASE:
+      if (!(handle->device->opts4 & MP_ERASE_MASK)) {
+        fprintf(stderr, "This chip can't be erased!\n");
+        return EXIT_FAILURE;
+      }
+      if (minipro_begin_transaction(handle)) {
+        minipro_close(handle);
+        return EXIT_FAILURE;
+      }
+      ret = erase_device(handle);
+      break;
+    default:
+      ret = EXIT_FAILURE;
+      break;
   }
 
 #ifdef _WIN32
