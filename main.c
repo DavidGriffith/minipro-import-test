@@ -80,7 +80,7 @@ void print_help_and_exit(char *progname) {
       "	-w <filename>	Write memory\n"
       "	-m <filename>	Verify memory\n"
       "	-b		Blank check. Optionally, you can use -c\n"
-	  "			to specify a memory type\n"
+      "			to specify a memory type\n"
       "	-e 		Do NOT erase device\n"
       "	-E 		Just erase device\n"
       "	-u 		Do NOT disable write-protect\n"
