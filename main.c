@@ -511,18 +511,17 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
 // Search for config name in buffer.
 int get_config_value(const char *buffer, const char *name, uint32_t *value) {
   char *cur, *eol, *val;
+  char num[128];
   for (;;) {
     cur = STRCASESTR(buffer, name);  // find the line
     if (cur == NULL) return EXIT_FAILURE;
     eol = STRCASESTR(cur, (char *)"\n");  // find the end of line
     if (cur == NULL) return EXIT_FAILURE;
-    size_t len = eol - cur;
     cur =
         STRCASESTR(cur, (char *)"=");  // find the '=' sign in the current line
     if (cur == NULL) return EXIT_FAILURE;
     cur = STRCASESTR(cur, (char *)"0x");  // find the value in the current line
     if (cur == NULL) return EXIT_FAILURE;
-    char num[len];
     val = num;
     cur += 2;  // Advances the pointer to the first numeric character
     while (cur < eol) {
@@ -792,9 +791,9 @@ int erase_device(minipro_handle_t *handle) {
 }
 
 /* Wrappers for operating with files */
-int write_page_file(minipro_handle_t *handle, const char *filename,
-                    uint8_t type, const char *name, size_t size) {
-  FILE *file = fopen(filename, "rb");
+int write_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
+                    size_t size) {
+  FILE *file = fopen(handle->cmdopts->filename, "rb");
   if (file == NULL) {
     perror("Couldn't open file for reading");
     return EXIT_FAILURE;
@@ -823,9 +822,9 @@ int write_page_file(minipro_handle_t *handle, const char *filename,
   return EXIT_SUCCESS;
 }
 
-int read_page_file(minipro_handle_t *handle, const char *filename, uint8_t type,
-                   const char *name, size_t size) {
-  FILE *file = fopen(filename, "wb");
+int read_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
+                   size_t size) {
+  FILE *file = fopen(handle->cmdopts->filename, "wb");
   if (file == NULL) {
     perror("Couldn't open file for writing\n");
     return EXIT_FAILURE;
@@ -923,9 +922,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
   return EXIT_SUCCESS;
 }
 
-int read_fuses(minipro_handle_t *handle, const char *filename,
-               fuse_decl_t *fuses) {
-
+int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
   size_t i;
   char config[1024];
   uint8_t buffer[64];
@@ -937,7 +934,7 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
     return EXIT_FAILURE;
   }
 
-  FILE *pFile = fopen(filename, "wb");
+  FILE *pFile = fopen(handle->cmdopts->filename, "wb");
   if (pFile == NULL) {
     perror("Couldn't create config file!");
     return EXIT_FAILURE;
@@ -1002,15 +999,14 @@ int read_fuses(minipro_handle_t *handle, const char *filename,
   return EXIT_SUCCESS;
 }
 
-int write_fuses(minipro_handle_t *handle, const char *filename,
-                fuse_decl_t *fuses) {
+int write_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
   size_t i;
   uint8_t wbuffer[64], vbuffer[64];
   char config[1024];
   uint32_t value;
   struct timeval begin, end;
 
-  FILE *pFile = fopen(filename, "rb");
+  FILE *pFile = fopen(handle->cmdopts->filename, "rb");
   if (pFile == NULL) {
     perror("Couldn't open config file!");
     return EXIT_FAILURE;
@@ -1100,8 +1096,8 @@ int write_fuses(minipro_handle_t *handle, const char *filename,
 int action_read(minipro_handle_t *handle) {
   jedec_t jedec;
 
-  char *data_filename = (char *)handle->cmdopts->filename;
-  char *config_filename = (char *)handle->cmdopts->filename;
+  char *data_filename = handle->cmdopts->filename;
+  char *config_filename = handle->cmdopts->filename;
 
   char default_data_filename[strlen(handle->cmdopts->filename) + 12];
   strcpy(default_data_filename, handle->cmdopts->filename);
@@ -1159,22 +1155,23 @@ int action_read(minipro_handle_t *handle) {
       }
       if (handle->cmdopts->page == CODE ||
           handle->cmdopts->page == UNSPECIFIED) {
-        if (read_page_file(handle, handle->cmdopts->filename, MP_CODE, "Code",
+        if (read_page_file(handle, MP_CODE, "Code",
                            handle->device->code_memory_size))
           return EXIT_FAILURE;
       }
       if ((handle->cmdopts->page == DATA ||
            handle->cmdopts->page == UNSPECIFIED) &&
           handle->device->data_memory_size) {
-        if (read_page_file(handle, data_filename, MP_DATA, "Data",
+        handle->cmdopts->filename = data_filename;
+        if (read_page_file(handle, MP_DATA, "Data",
                            handle->device->data_memory_size))
           return EXIT_FAILURE;
       }
       if ((handle->cmdopts->page == CONFIG ||
            handle->cmdopts->page == UNSPECIFIED) &&
           handle->device->config) {
-        if (read_fuses(handle, config_filename, handle->device->config))
-          return EXIT_FAILURE;
+        handle->cmdopts->filename = config_filename;
+        if (read_fuses(handle, handle->device->config)) return EXIT_FAILURE;
       }
 
       if (handle->cmdopts->page == CONFIG && !handle->device->config) {
@@ -1344,8 +1341,8 @@ int action_write(minipro_handle_t *handle) {
                       " (needed %u)\n",
                       file_size, handle->device->code_memory_size);
           }
-          if (write_page_file(handle, handle->cmdopts->filename, MP_CODE,
-                              "Code", handle->device->code_memory_size))
+          if (write_page_file(handle, MP_CODE, "Code",
+                              handle->device->code_memory_size))
             return EXIT_FAILURE;
           if (handle->cmdopts->no_verify == 0) {
             // We must reset the transaction for VCC verify to have effect
@@ -1369,8 +1366,8 @@ int action_write(minipro_handle_t *handle) {
                       " (needed %u)\n",
                       file_size, handle->device->data_memory_size);
           }
-          if (write_page_file(handle, handle->cmdopts->filename, MP_DATA,
-                              "Data", handle->device->data_memory_size))
+          if (write_page_file(handle, MP_DATA, "Data",
+                              handle->device->data_memory_size))
             return EXIT_FAILURE;
           if (handle->cmdopts->no_verify == 0) {
             if (minipro_end_transaction(handle)) return EXIT_FAILURE;
@@ -1382,8 +1379,7 @@ int action_write(minipro_handle_t *handle) {
           break;
         case CONFIG:
           if (handle->device->config) {
-            if (write_fuses(handle, handle->cmdopts->filename,
-                            handle->device->config))
+            if (write_fuses(handle, handle->device->config))
               return EXIT_FAILURE;
           }
           break;
