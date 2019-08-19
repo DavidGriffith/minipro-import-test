@@ -104,6 +104,7 @@ minipro_handle_t *minipro_open(const char *device_name) {
       handle->minipro_read_block = tl866a_read_block;
       handle->minipro_write_block = tl866a_write_block;
       handle->minipro_get_chip_id = tl866a_get_chip_id;
+      handle->minipro_spi_autodetect = tl866a_spi_autodetect;
       handle->minipro_read_fuses = tl866a_read_fuses;
       handle->minipro_write_fuses = tl866a_write_fuses;
       handle->minipro_erase = tl866a_erase;
@@ -122,6 +123,7 @@ minipro_handle_t *minipro_open(const char *device_name) {
       handle->minipro_begin_transaction = tl866iiplus_begin_transaction;
       handle->minipro_end_transaction = tl866iiplus_end_transaction;
       handle->minipro_get_chip_id = tl866iiplus_get_chip_id;
+      handle->minipro_spi_autodetect = tl866iiplus_spi_autodetect;
       handle->minipro_read_block = tl866iiplus_read_block;
       handle->minipro_write_block = tl866iiplus_write_block;
       handle->minipro_protect_off = tl866iiplus_protect_off;
@@ -371,6 +373,16 @@ int minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type,
     return handle->minipro_get_chip_id(handle, type, device_id);
   }
   fprintf(stderr, "%s: get_chip_id not implemented\n", handle->model);
+  return EXIT_FAILURE;
+}
+
+int minipro_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                        uint32_t *device_id) {
+  assert(handle != NULL);
+  if (handle->minipro_spi_autodetect) {
+    return handle->minipro_spi_autodetect(handle, type, device_id);
+  }
+  fprintf(stderr, "%s: spi_autodetect not implemented\n", handle->model);
   return EXIT_FAILURE;
 }
 

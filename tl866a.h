@@ -69,6 +69,8 @@ int tl866a_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                        uint8_t *buffer, size_t len);
 int tl866a_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                        uint32_t *device_id);
+int tl866a_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                          uint32_t *device_id);
 int tl866a_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                       uint8_t items_count, uint8_t *buffer);
 int tl866a_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,

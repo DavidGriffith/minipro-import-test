@@ -35,6 +35,8 @@ int tl866iiplus_get_ovc_status(minipro_handle_t *handle,
                                minipro_status_t *status, uint8_t *ovc);
 int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                             uint32_t *device_id);
+int tl866iiplus_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                               uint32_t *device_id);
 int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                            uint8_t items_count, uint8_t *buffer);
 int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
