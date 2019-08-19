@@ -46,6 +46,7 @@
 #define TL866IIPLUS_PROTECT_ON 0x19
 #define TL866IIPLUS_READ_JEDEC 0x1D
 #define TL866IIPLUS_WRITE_JEDEC 0x1E
+#define TL866IIPLUS_AUTODETECT 0x37
 #define TL866IIPLUS_UNLOCK_TSOP48 0x38
 #define TL866IIPLUS_REQUEST_STATUS 0x39
 
@@ -220,6 +221,18 @@ int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                    // max. 4 bytes.
   *device_id = (msg[1] ? load_int(&(msg[2]), msg[1], format)
                        : 0);  // Check for positive length.
+  return EXIT_SUCCESS;
+}
+
+int tl866iiplus_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                               uint32_t *device_id) {
+  uint8_t msg[64];
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_AUTODETECT;
+  msg[8] = type;
+  if (msg_send(handle->usb_handle, msg, 10)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, 16)) return EXIT_FAILURE;
+  *device_id = load_int(&(msg[2]), 3, MP_BIG_ENDIAN);
   return EXIT_SUCCESS;
 }
 

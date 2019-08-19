@@ -175,6 +175,7 @@ typedef struct minipro_handle {
   int (*minipro_write_block)(struct minipro_handle *, uint8_t, uint32_t,
                              uint8_t *, size_t);
   int (*minipro_get_chip_id)(struct minipro_handle *, uint8_t *, uint32_t *);
+  int (*minipro_spi_autodetect)(struct minipro_handle *, uint8_t, uint32_t *);
   int (*minipro_read_fuses)(struct minipro_handle *, uint8_t, size_t, uint8_t,
                             uint8_t *);
   int (*minipro_write_fuses)(struct minipro_handle *, uint8_t, size_t, uint8_t,
@@ -236,6 +237,8 @@ int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                         uint8_t *bufffer, size_t len);
 int minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                         uint32_t *device_id);
+int minipro_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                           uint32_t *device_id);
 int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
                        uint8_t items_count, uint8_t *buffer);
 int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,

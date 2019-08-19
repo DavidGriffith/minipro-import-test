@@ -81,6 +81,8 @@ void print_help_and_exit(char *progname) {
       "	-m <filename>	Verify memory\n"
       "	-b		Blank check. Optionally, you can use -c\n"
       "			to specify a memory type\n"
+      "	-a <type>	Autodetect SPI 25xx devices\n"
+      "			Possible values: 8, 16\n"
       "	-e 		Do NOT erase device\n"
       "	-E 		Just erase device\n"
       "	-u 		Do NOT disable write-protect\n"
@@ -373,6 +375,65 @@ void firmware_update_and_exit(const char *firmware) {
   exit(ret);
 }
 
+//Autodetect 25xx SPI devices
+void spi_autodetect_and_exit(uint8_t package_type) {
+  minipro_handle_t *handle = minipro_open(NULL);
+  if (!handle) {
+    exit(EXIT_FAILURE);
+  }
+  minipro_print_system_info(handle);
+  if (handle->status == MP_STATUS_BOOTLOADER)
+    fprintf(stderr, "in bootloader mode!\n");
+  uint32_t chip_id, n = 0;
+  if (minipro_spi_autodetect(handle, package_type >> 4, &chip_id))
+    exit(EXIT_FAILURE);
+
+  device_t *device;
+  device_t *deviceo;
+  device_t *devicet;
+
+  fprintf(stderr, "Autodetecting device (ID:0x%04X)\n", chip_id);
+
+  // Show custom devices without overrides
+  for (deviceo = get_device_custom(handle); deviceo[0].name;
+
+       deviceo = &(deviceo[1])) {
+    devicet = deviceo;
+
+    for (device = get_device_table(handle); device[0].name;
+
+         device = &(device[1])) {
+      if (!strcasecmp(deviceo->name, device->name)) {
+        devicet = NULL;  // Skip if existing
+        break;
+      }
+    }
+
+    if (devicet && devicet->chip_id_bytes_count &&
+        devicet->chip_id == chip_id &&
+        PINS_COUNT(devicet->package_details) == package_type) {
+      fprintf(stdout, "%s\n", devicet->name);
+      n++;
+    }
+  }
+
+  // Show devices.
+  for (device = get_device_table(handle); device[0].name;
+
+       device = &(device[1])) {
+    if (device->chip_id_bytes_count && device->chip_id == chip_id &&
+        PINS_COUNT(device->package_details) == package_type) {
+      fprintf(stdout, "%s\n", device->name);
+      n++;
+    }
+  }
+
+  fprintf(stderr, "%u device(s) found.\n", n);
+
+  minipro_close(handle);
+  exit(EXIT_SUCCESS);
+}
+
 void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   char c;
   memset(cmdopts, 0, sizeof(cmdopts_t));
@@ -381,7 +442,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   cmdopts->vdd = -1;
   cmdopts->pulse_delay = -1;
 
-  while ((c = getopt(argc, argv, "lL:d:eEbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
+  while ((c = getopt(argc, argv, "lL:d:ea:EbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
     switch (c) {
       case 'l':
         print_devices_and_exit(NULL);
@@ -457,6 +518,20 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
       case 'b':
     	  cmdopts->action = BLANK_CHECK;
     	  break;
+
+      case 'a': {
+        uint8_t package_type;
+        if (!strcasecmp(optarg, "8"))
+          package_type = 8;
+        else if (!strcasecmp(optarg, "16"))
+          package_type = 16;
+        else {
+          fprintf(stderr, "Invalid argument.\n");
+          print_help_and_exit(argv[0]);
+        }
+        spi_autodetect_and_exit(package_type);
+        break;
+      }
 
       case 'i':
         cmdopts->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;

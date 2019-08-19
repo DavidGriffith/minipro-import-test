@@ -47,6 +47,7 @@
 #define TL866A_READ_LOCK 0x41
 #define TL866A_PROTECT_OFF 0x44
 #define TL866A_PROTECT_ON 0x45
+#define TL866A_AUTODETECT 0xFC
 #define TL866A_BOOTLOADER_WRITE 0xAA
 #define TL866A_BOOTLOADER_ERASE 0xCC
 #define TL866A_UNLOCK_TSOP48 0xFD
@@ -356,7 +357,7 @@ int tl866a_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
 /* Model-specific ID, e.g. AVR Device ID (not longer than 4 bytes) */
 int tl866a_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                        uint32_t *device_id) {
-  ;
+
   uint8_t msg[64], format;
   msg_init(handle, TL866A_GET_CHIP_ID, msg, sizeof(msg));
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
@@ -368,6 +369,18 @@ int tl866a_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                    // max. 4 bytes.
   *device_id = (msg[1] ? load_int(&(msg[2]), msg[1], format)
                        : 0);  // Check for positive length.
+  return EXIT_SUCCESS;
+}
+
+int tl866a_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                          uint32_t *device_id) {
+  uint8_t msg[64];
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866A_AUTODETECT;
+  msg[7] = type;
+  if (msg_send(handle->usb_handle, msg, 10)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, 16)) return EXIT_FAILURE;
+  *device_id = load_int(&(msg[2]), 3, MP_BIG_ENDIAN);
   return EXIT_SUCCESS;
 }
 
