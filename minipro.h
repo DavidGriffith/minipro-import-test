@@ -128,6 +128,27 @@ typedef struct minipro_status {
   uint32_t c2;
 } minipro_status_t;
 
+typedef struct cmdopts_s {
+  char *filename;
+  char *device;
+  enum { UNSPECIFIED = 0, CODE, DATA, CONFIG } page;
+  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK } action;
+  uint8_t no_erase;
+  uint8_t no_protect_off;
+  uint8_t no_protect_on;
+  uint8_t size_error;
+  uint8_t size_nowarn;
+  uint8_t no_verify;
+  uint8_t icsp;
+  uint8_t idcheck_skip;
+  uint8_t idcheck_continue;
+  uint8_t idcheck_only;
+  int vpp;
+  int vdd;
+  int vcc;
+  int pulse_delay;
+} cmdopts_t;
+
 typedef struct minipro_handle {
   char *model;
   char firmware_str[16];
@@ -141,6 +162,7 @@ typedef struct minipro_handle {
   uint8_t icsp;
 
   void *usb_handle;
+  cmdopts_t *cmdopts;
 
   int (*minipro_begin_transaction)(struct minipro_handle *);
   int (*minipro_end_transaction)(struct minipro_handle *);
@@ -153,6 +175,7 @@ typedef struct minipro_handle {
   int (*minipro_write_block)(struct minipro_handle *, uint8_t, uint32_t,
                              uint8_t *, size_t);
   int (*minipro_get_chip_id)(struct minipro_handle *, uint8_t *, uint32_t *);
+  int (*minipro_spi_autodetect)(struct minipro_handle *, uint8_t, uint32_t *);
   int (*minipro_read_fuses)(struct minipro_handle *, uint8_t, size_t, uint8_t,
                             uint8_t *);
   int (*minipro_write_fuses)(struct minipro_handle *, uint8_t, size_t, uint8_t,
@@ -214,6 +237,8 @@ int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                         uint8_t *bufffer, size_t len);
 int minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                         uint32_t *device_id);
+int minipro_spi_autodetect(minipro_handle_t *handle, uint8_t type,
+                           uint32_t *device_id);
 int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
                        uint8_t items_count, uint8_t *buffer);
 int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
