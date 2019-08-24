@@ -54,6 +54,13 @@
 #define TL866IIPLUS_BOOTLOADER_ERASE 0x3C
 #define TL866IIPLUS_SWITCH 0x3D
 
+// Hardware Bit Banging
+#define TL866IIPLUS_SET_OUT 0x31
+#define TL866IIPLUS_SET_PULLUPS 0x32
+#define TL866IIPLUS_SET_DIR 0x34
+#define TL866IIPLUS_READ_PINS 0x35
+#define TL866IIPLUS_SET_DIV 0x36
+
 #define TL866IIPLUS_BTLDR_MAGIC 0xA578B986
 
 static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
@@ -680,4 +687,101 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
 
   fprintf(stderr, "Reflash... OK\n");
   return EXIT_SUCCESS;
+}
+
+int tl866iiplus_pin_test(minipro_handle_t *handle) {
+  // Get the chip pin mask for testing
+  pin_map_t *map = get_pin_map(handle->device->opts8 & 0xFF);
+  if (!map) return EXIT_FAILURE;
+
+  // Set all pins to input
+  uint8_t msg[48], pins[40];
+
+  // Set the desired output pins
+  msg[0] = TL866IIPLUS_SET_DIR;
+  memset(&msg[8], 0x01, 40);
+  if (map->zero_c) {
+    for (uint32_t i = 0; i < (map->zero_c & 0x03); i++) {
+      msg[map->zero_t[i] + 8] = 0;
+    }
+  }
+  // Set the ZIF socket pins direction
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Set internal port
+  msg[0] = TL866IIPLUS_SET_DIV;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Set ZIF socket pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[28], 0x00, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Put the right side of the ZIF socket (pin 21-40) to the logic one
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x00, 20);
+  memset(&msg[28], 0x01, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Read ZIF socket pins and save the right side pins status
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(pins, &msg[8], 20);
+
+  // Set ZIF socket pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[8], 0x00, 20);
+  memset(&msg[28], 0x01, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Put the left side of the ZIF socket (pin 1-20) to the logic one
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x01, 20);
+  memset(&msg[28], 0x00, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Read ZIF socket pins and save the left side pins status
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(&pins[20], &msg[28], 20);
+
+  // Reset internal port
+  msg[0] = TL866IIPLUS_SET_DIV;
+  memset(&msg[8], 0x00, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset ZIF socket pins direction
+  msg[0] = TL866IIPLUS_SET_DIR;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset ZIF socket outputs
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x00, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // End of transaction
+  msg[0] = TL866IIPLUS_END_TRANS;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Now check for bad pin contact
+  int ret = EXIT_SUCCESS;
+  for (uint32_t i = 0; i < 40; i++) {
+    if (map->mask[i]) {
+      if (!pins[i]) {
+        fprintf(stderr, "Bad contact on pin:%u\n", i + 1);
+        ret = EXIT_FAILURE;
+      }
+    }
+  }
+  if (!ret) fprintf(stderr, "Pin test passed.\n");
+  return ret;
 }
