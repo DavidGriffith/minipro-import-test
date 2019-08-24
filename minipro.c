@@ -135,7 +135,7 @@ minipro_handle_t *minipro_open(const char *device_name) {
       handle->minipro_write_fuses = tl866iiplus_write_fuses;
       handle->minipro_get_ovc_status = tl866iiplus_get_ovc_status;
       handle->minipro_unlock_tsop48 = tl866iiplus_unlock_tsop48;
-      handle->minipro_hardware_check = NULL;
+      handle->minipro_hardware_check = tl866iiplus_hardware_check;
       handle->minipro_read_jedec_row = tl866iiplus_read_jedec_row;
       handle->minipro_write_jedec_row = tl866iiplus_write_jedec_row;
       handle->minipro_firmware_update = tl866iiplus_firmware_update;
