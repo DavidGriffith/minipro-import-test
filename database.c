@@ -223,6 +223,23 @@ device_t infoic2plus_custom[] = {
 };
 
 
+#define PIN_MAP_COUNT 117
+pin_map_t pin_map_table[] = {
+#include "pin_map.h"
+};
+
+uint32_t get_pin_count(device_t *device){
+	if(device->package_details == 0xff000000)
+		return 32;
+	return PIN_COUNT(device->package_details);
+}
+
+pin_map_t *get_pin_map(uint8_t index){
+	if(index >= PIN_MAP_COUNT)
+		return NULL;
+	return &pin_map_table[index];
+}
+
 device_t *get_device_table(minipro_handle_t *handle) {
   if (handle->version == MP_TL866IIPLUS) {
     return &(infoic2plus_devices[0]);
@@ -241,7 +258,7 @@ device_t *get_device_custom(minipro_handle_t *handle) {
 
 device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
   device_t *device;
-     
+
     for (device = get_device_custom(handle); device[0].name;
        device = &(device[1])) {
     if (!strcasecmp(name, device->name)) return (device);
@@ -257,14 +274,14 @@ device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
 const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
                                uint8_t protocol) {
   device_t *device;
-  
+
     for (device = get_device_custom(handle); device[0].name;
        device = &(device[1])) {
     if (device->chip_id == id && device->protocol_id == protocol &&
         device->chip_id && device->chip_id_bytes_count)
       return (device->name);
   }
-  
+
   for (device = get_device_table(handle); device[0].name;
        device = &(device[1])) {
     if (device->chip_id == id && device->protocol_id == protocol &&

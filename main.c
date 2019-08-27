@@ -83,6 +83,7 @@ void print_help_and_exit(char *progname) {
       "			to specify a memory type\n"
       "	-a <type>	Autodetect SPI 25xx devices\n"
       "			Possible values: 8, 16\n"
+      "	-z		Check for bad pin contact\n"
       "	-e 		Do NOT erase device\n"
       "	-E 		Just erase device\n"
       "	-u 		Do NOT disable write-protect\n"
@@ -128,15 +129,6 @@ minipro_handle_t *get_handle(const char *device_name) {
             "No TL866 device found. Which database do you want to display?\n1) "
             "TL866A\n2) TL866II+\n3) Abort\n");
     fflush(stderr);
-
-    if (device_name != NULL) {
-      handle->device = get_device_by_name(handle, device_name);
-      if (handle->device == NULL) {
-        free(handle);
-        fprintf(stderr, "Device %s not found!\n", device_name);
-        return NULL;
-      }
-    }
     char c = getchar();
     switch (c) {
       case '1':
@@ -149,6 +141,15 @@ minipro_handle_t *get_handle(const char *device_name) {
         free(handle);
         fprintf(stderr, "Aborted.\n");
         return NULL;
+    }
+
+    if (device_name != NULL) {
+      handle->device = get_device_by_name(handle, device_name);
+      if (handle->device == NULL) {
+        free(handle);
+        fprintf(stderr, "Device %s not found!\n", device_name);
+        return NULL;
+      }
     }
   } else {
     minipro_handle_t *tmp = minipro_open(device_name);
@@ -274,7 +275,7 @@ void print_device_info_and_exit(const char *device_name) {
   if (package_details[0]) {
     fprintf(stderr, "Adapter%03d.JPG\n", package_details[0]);
   } else if (package_details[3]) {
-    fprintf(stderr, "DIP%d\n", package_details[3] & 0x7F);
+    fprintf(stderr, "DIP%d\n", get_pin_count(handle->device));
   } else {
     fprintf(stderr, "ICSP only\n");
   }
@@ -375,16 +376,33 @@ void firmware_update_and_exit(const char *firmware) {
   exit(ret);
 }
 
-//Autodetect 25xx SPI devices
-void spi_autodetect_and_exit(uint8_t package_type) {
+// Autodetect 25xx SPI devices
+void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
   minipro_handle_t *handle = minipro_open(NULL);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
   minipro_print_system_info(handle);
-  if (handle->status == MP_STATUS_BOOTLOADER)
+  if (handle->status == MP_STATUS_BOOTLOADER) {
     fprintf(stderr, "in bootloader mode!\n");
+    exit(EXIT_FAILURE);
+  }
   uint32_t chip_id, n = 0;
+
+  if (cmdopts->pincheck) {
+    if (handle->version == MP_TL866IIPLUS) {
+      device_t device;
+      device.opts8 = (package_type == 8 ? 0x01 : 0x03);
+      handle->device = &device;
+      if (minipro_pin_test(handle)) {
+        minipro_end_transaction(handle);
+        minipro_close(handle);
+        exit(EXIT_FAILURE);
+      }
+    } else
+      fprintf(stderr, "Pin test is not supported.\n");
+  }
+
   if (minipro_spi_autodetect(handle, package_type >> 4, &chip_id))
     exit(EXIT_FAILURE);
 
@@ -410,9 +428,8 @@ void spi_autodetect_and_exit(uint8_t package_type) {
     }
 
     if (devicet && devicet->chip_id_bytes_count &&
-        devicet->chip_id == chip_id &&
-        PINS_COUNT(devicet->package_details) == package_type) {
-      fprintf(stdout, "%s\n", devicet->name);
+        devicet->chip_id == chip_id && get_pin_count(devicet) == package_type) {
+      fprintf(stderr, "%s\n", devicet->name);
       n++;
     }
   }
@@ -422,8 +439,8 @@ void spi_autodetect_and_exit(uint8_t package_type) {
 
        device = &(device[1])) {
     if (device->chip_id_bytes_count && device->chip_id == chip_id &&
-        PINS_COUNT(device->package_details) == package_type) {
-      fprintf(stdout, "%s\n", device->name);
+        get_pin_count(device) == package_type) {
+      fprintf(stderr, "%s\n", device->name);
       n++;
     }
   }
@@ -436,13 +453,14 @@ void spi_autodetect_and_exit(uint8_t package_type) {
 
 void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   char c;
+  uint8_t package_type = 0;
   memset(cmdopts, 0, sizeof(cmdopts_t));
   cmdopts->vpp = -1;
   cmdopts->vcc = -1;
   cmdopts->vdd = -1;
   cmdopts->pulse_delay = -1;
 
-  while ((c = getopt(argc, argv, "lL:d:ea:EbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
+  while ((c = getopt(argc, argv, "lL:d:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
     switch (c) {
       case 'l':
         print_devices_and_exit(NULL);
@@ -479,6 +497,10 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
 
       case 'y':
         cmdopts->idcheck_continue = 1;  // 1= do not stop on id mismatch
+        break;
+
+      case 'z':
+        cmdopts->pincheck = 1;  // 1= Check for bad pin contact
         break;
 
       case 'p':
@@ -519,8 +541,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
     	  cmdopts->action = BLANK_CHECK;
     	  break;
 
-      case 'a': {
-        uint8_t package_type;
+      case 'a':
         if (!strcasecmp(optarg, "8"))
           package_type = 8;
         else if (!strcasecmp(optarg, "16"))
@@ -529,9 +550,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
           fprintf(stderr, "Invalid argument.\n");
           print_help_and_exit(argv[0]);
         }
-        spi_autodetect_and_exit(package_type);
         break;
-      }
 
       case 'i':
         cmdopts->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
@@ -581,6 +600,8 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         break;
     }
   }
+
+  if (package_type) spi_autodetect_and_exit(package_type, cmdopts);
 }
 
 // Search for config name in buffer.
@@ -1208,7 +1229,7 @@ int action_read(minipro_handle_t *handle) {
       memset(jedec.fuses, 0, jedec.QF);
       jedec.F = 0;
       jedec.G = 0;
-      jedec.QP = PINS_COUNT(handle->device->package_details);
+      jedec.QP = get_pin_count(handle->device);
       jedec.device_name = handle->device->name;
 
       if (read_jedec(handle, &jedec)) {
@@ -1823,8 +1844,9 @@ int main(int argc, char **argv) {
     print_help_and_exit(argv[0]);
   }
 
-  //Exit if no action is supplied
-  if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only) {
+  // Exit if no action is supplied
+  if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only &&
+      !cmdopts.pincheck) {
     fprintf(stderr, "No action to perform.\n");
     print_help_and_exit(argv[0]);
   }
@@ -1840,6 +1862,19 @@ int main(int argc, char **argv) {
   if (handle->status == MP_STATUS_BOOTLOADER) {
     fprintf(stderr, "in bootloader mode!\nExiting...\n");
     return EXIT_FAILURE;
+  }
+
+  if (cmdopts.pincheck) {
+    if (handle->version == MP_TL866IIPLUS) {
+      if (minipro_pin_test(handle)) {
+        minipro_end_transaction(handle);
+        minipro_close(handle);
+        return EXIT_FAILURE;
+      }
+    } else
+      fprintf(stderr, "Pin test is not supported.\n");
+    if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only)
+      return EXIT_SUCCESS;
   }
 
   switch (handle->device->protocol_id) {
@@ -2044,9 +2079,6 @@ int main(int argc, char **argv) {
     fprintf(stderr, "This chip doesn't have a chip id!\n");
     return EXIT_FAILURE;
   }
-#ifdef _WIN32
-  fprintf(stderr, "\e[?25l\n");  // hide cursor
-#endif
 
   // Performing requested action
   int ret;
@@ -2077,9 +2109,6 @@ int main(int argc, char **argv) {
       break;
   }
 
-#ifdef _WIN32
-  fprintf(stderr, "\e[?25h\n");  // show cursor
-#endif
   if (minipro_end_transaction(handle)) {
     minipro_close(handle);
     return EXIT_FAILURE;

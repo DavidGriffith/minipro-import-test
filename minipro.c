@@ -33,6 +33,7 @@
 
 #define CRC32_POLYNOMIAL 0xEDB88320
 
+
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness) {
   uint32_t idx;
   size_t i;
@@ -113,6 +114,7 @@ minipro_handle_t *minipro_open(const char *device_name) {
       handle->minipro_read_jedec_row = tl866a_read_jedec_row;
       handle->minipro_write_jedec_row = tl866a_write_jedec_row;
       handle->minipro_firmware_update = tl866a_firmware_update;
+      handle->minipro_pin_test = NULL;
       break;
     case MP_TL866IIPLUS:
       handle->status = info.firmware_version_minor == 0 ? MP_STATUS_BOOTLOADER
@@ -133,10 +135,11 @@ minipro_handle_t *minipro_open(const char *device_name) {
       handle->minipro_write_fuses = tl866iiplus_write_fuses;
       handle->minipro_get_ovc_status = tl866iiplus_get_ovc_status;
       handle->minipro_unlock_tsop48 = tl866iiplus_unlock_tsop48;
-      handle->minipro_hardware_check = NULL;
+      handle->minipro_hardware_check = tl866iiplus_hardware_check;
       handle->minipro_read_jedec_row = tl866iiplus_read_jedec_row;
       handle->minipro_write_jedec_row = tl866iiplus_write_jedec_row;
       handle->minipro_firmware_update = tl866iiplus_firmware_update;
+      handle->minipro_pin_test = tl866iiplus_pin_test;
       break;
     default:
       minipro_close(handle);
@@ -465,4 +468,15 @@ int minipro_firmware_update(minipro_handle_t *handle, const char *firmware) {
     fprintf(stderr, "%s: firmware update not implemented\n", handle->model);
   }
   return EXIT_FAILURE;
+}
+
+// Pin contact test
+int minipro_pin_test(minipro_handle_t *handle) {
+	  assert(handle != NULL);
+	  if (handle->minipro_pin_test) {
+	    return handle->minipro_pin_test(handle);
+	  } else {
+	    fprintf(stderr, "%s: pin test not implemented\n", handle->model);
+	  }
+	  return EXIT_FAILURE;
 }

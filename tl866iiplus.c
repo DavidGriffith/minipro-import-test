@@ -54,8 +54,155 @@
 #define TL866IIPLUS_BOOTLOADER_ERASE 0x3C
 #define TL866IIPLUS_SWITCH 0x3D
 
+// Hardware Bit Banging
+#define TL866IIPLUS_SET_VCC_VOLTAGE 0x1B
+#define TL866IIPLUS_SET_VPP_VOLTAGE 0x1C
+#define TL866IIPLUS_RESET_PIN_DRIVERS 0x2D
+#define TL866IIPLUS_SET_VCC_PIN 0x2E
+#define TL866IIPLUS_SET_VPP_PIN 0x2F
+#define TL866IIPLUS_SET_GND_PIN 0x30
+#define TL866IIPLUS_SET_OUT 0x31
+#define TL866IIPLUS_SET_PULLUPS 0x32
+#define TL866IIPLUS_SET_DIR 0x34
+#define TL866IIPLUS_READ_PINS 0x35
+#define TL866IIPLUS_SET_DIV 0x36
+
 #define TL866IIPLUS_BTLDR_MAGIC 0xA578B986
 
+typedef struct zif_pins_s {
+  uint8_t pin;
+  uint8_t byte;
+  uint8_t mask;
+} zif_pins_t;
+
+// clang-format off
+// 21 VPP pins.
+static zif_pins_t vpp_pins[] =
+{
+	{ .pin = 1, .byte = 10, .mask = 0x01 },
+	{ .pin = 2, .byte = 11, .mask = 0x01 },
+	{ .pin = 3, .byte = 12, .mask = 0x01 },
+	{ .pin = 4, .byte = 13, .mask = 0x01 },
+	{ .pin = 5, .byte = 14, .mask = 0x01 },
+	{ .pin = 6, .byte = 8, .mask = 0x01 },
+	{ .pin = 7, .byte = 8, .mask = 0x02 },
+	{ .pin = 8, .byte = 8, .mask = 0x04 },
+	{ .pin = 9, .byte = 8, .mask = 0x08 },
+	{ .pin = 10, .byte = 8, .mask = 0x10 },
+	{ .pin = 30, .byte = 8, .mask = 0x20 },
+	{ .pin = 31, .byte = 8, .mask = 0x40 },
+	{ .pin = 32, .byte = 8, .mask = 0x80 },
+	{ .pin = 33, .byte = 9, .mask = 0x01 },
+	{ .pin = 34, .byte = 9, .mask = 0x02 },
+	{ .pin = 35, .byte = 9, .mask = 0x04 },
+	{ .pin = 36, .byte = 9, .mask = 0x08 },
+	{ .pin = 37, .byte = 9, .mask = 0x10 },
+	{ .pin = 38, .byte = 9, .mask = 0x20 },
+	{ .pin = 39, .byte = 9, .mask = 0x40 },
+	{ .pin = 40, .byte = 9, .mask = 0x80 }
+};
+
+// 32 VCC Pins.
+static zif_pins_t vcc_pins[] =
+{
+	{ .pin = 1, .byte = 8, .mask = 0x01 },
+	{ .pin = 2, .byte = 8, .mask = 0x02 },
+	{ .pin = 3, .byte = 8, .mask = 0x04 },
+	{ .pin = 4, .byte = 8, .mask = 0x08 },
+	{ .pin = 5, .byte = 8, .mask = 0x10 },
+	{ .pin = 6, .byte = 8, .mask = 0x20 },
+	{ .pin = 7, .byte = 8, .mask = 0x40 },
+	{ .pin = 8, .byte = 8, .mask = 0x80 },
+	{ .pin = 9, .byte = 9, .mask = 0x01 },
+	{ .pin = 10, .byte = 9, .mask = 0x02 },
+	{ .pin = 11, .byte = 9, .mask = 0x04 },
+	{ .pin = 12, .byte = 9, .mask = 0x08 },
+	{ .pin = 13, .byte = 9, .mask = 0x10 },
+	{ .pin = 14, .byte = 9, .mask = 0x20 },
+	{ .pin = 15, .byte = 9, .mask = 0x40 },
+	{ .pin = 16, .byte = 9, .mask = 0x80 },
+	{ .pin = 25, .byte = 10, .mask = 0x01 },
+	{ .pin = 26, .byte = 10, .mask = 0x02 },
+	{ .pin = 27, .byte = 10, .mask = 0x04 },
+	{ .pin = 28, .byte = 10, .mask = 0x08 },
+	{ .pin = 29, .byte = 10, .mask = 0x10 },
+	{ .pin = 30, .byte = 10, .mask = 0x20 },
+	{ .pin = 31, .byte = 10, .mask = 0x40 },
+	{ .pin = 32, .byte = 10, .mask = 0x80 },
+	{ .pin = 33, .byte = 11, .mask = 0x01 },
+	{ .pin = 34, .byte = 11, .mask = 0x02 },
+	{ .pin = 35, .byte = 11, .mask = 0x04 },
+	{ .pin = 36, .byte = 11, .mask = 0x08 },
+	{ .pin = 37, .byte = 11, .mask = 0x10 },
+	{ .pin = 38, .byte = 11, .mask = 0x20 },
+	{ .pin = 39, .byte = 11, .mask = 0x40 },
+	{ .pin = 40, .byte = 11, .mask = 0x80 }
+};
+
+// 34 GND Pins.
+static zif_pins_t gnd_pins[] =
+{
+	{ .pin = 1, .byte = 8, .mask = 0x01 },
+	{ .pin = 2, .byte = 8, .mask = 0x02 },
+	{ .pin = 3, .byte = 8, .mask = 0x04 },
+	{ .pin = 4, .byte = 8, .mask = 0x08 },
+	{ .pin = 5, .byte = 8, .mask = 0x10 },
+	{ .pin = 6, .byte = 8, .mask = 0x20 },
+	{ .pin = 7, .byte = 8, .mask = 0x40 },
+	{ .pin = 8, .byte = 8, .mask = 0x80 },
+	{ .pin = 9, .byte = 9, .mask = 0x01 },
+	{ .pin = 10, .byte = 9, .mask = 0x02 },
+	{ .pin = 11, .byte = 9, .mask = 0x04 },
+	{ .pin = 12, .byte = 9, .mask = 0x08 },
+	{ .pin = 13, .byte = 9, .mask = 0x10 },
+	{ .pin = 14, .byte = 9, .mask = 0x20 },
+	{ .pin = 15, .byte = 9, .mask = 0x40 },
+	{ .pin = 16, .byte = 9, .mask = 0x80 },
+	{ .pin = 20, .byte = 12, .mask = 0x01 },
+	{ .pin = 21, .byte = 13, .mask = 0x01 },
+	{ .pin = 25, .byte = 10, .mask = 0x01 },
+	{ .pin = 26, .byte = 10, .mask = 0x02 },
+	{ .pin = 27, .byte = 10, .mask = 0x04 },
+	{ .pin = 28, .byte = 10, .mask = 0x08 },
+	{ .pin = 29, .byte = 10, .mask = 0x10 },
+	{ .pin = 30, .byte = 10, .mask = 0x20 },
+	{ .pin = 31, .byte = 10, .mask = 0x40 },
+	{ .pin = 32, .byte = 10, .mask = 0x80 },
+	{ .pin = 33, .byte = 11, .mask = 0x01 },
+	{ .pin = 34, .byte = 11, .mask = 0x02 },
+	{ .pin = 35, .byte = 11, .mask = 0x04 },
+	{ .pin = 36, .byte = 11, .mask = 0x08 },
+	{ .pin = 37, .byte = 11, .mask = 0x10 },
+	{ .pin = 38, .byte = 11, .mask = 0x20 },
+	{ .pin = 39, .byte = 11, .mask = 0x40 },
+	{ .pin = 40, .byte = 11, .mask = 0x80 },
+};
+
+enum VPP_PINS
+{
+    VPP1,	VPP2,	VPP3,	VPP4,	VPP5,	VPP6,	VPP7,
+    VPP8,	VPP9,	VPP10,	VPP30,	VPP31,	VPP32,	VPP33,
+    VPP34,	VPP35,	VPP36,	VPP37,	VPP38,	VPP39,	VPP40,
+};
+
+enum VCC_PINS
+{
+    VCC1,	VCC2,	VCC3,	VCC4,	VCC5,	VCC6,	VCC7,	VCC8,
+    VCC9,	VCC10,	VCC11,	VCC12,	VCC13,	VCC14,	VCC15,	VCC16,
+    VCC25,	VCC326,	VCC27,	VCC28,	VCC29,	VCC30,	VCC31,	VCC32,
+    VCC33,	VCC34,	VCC35,	VCC36,	VCC37,	VCC38,	VCC39,	VCC40
+};
+
+enum GND_PINS
+{
+    GND1,	GND2,	GND3,	GND4,	GND5,	GND6,	GND7,	GND8,
+    GND9,	GND10,	GND11,	GND12,	GND13,	GND14,	GND15,	GND16,
+    GND20,	GND21,	GND25,	GND26,	GND27,	GND28,	GND29,	GND30,
+    GND31,	GND32,	GND33,	GND34,	GND35,	GND36,	GND37,	GND38,
+    GND39,	GND40
+};
+
+// clang-format on
 static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
                      size_t length) {
   assert(length >= 8);
@@ -679,5 +826,350 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   }
 
   fprintf(stderr, "Reflash... OK\n");
+  return EXIT_SUCCESS;
+}
+
+int tl866iiplus_pin_test(minipro_handle_t *handle) {
+  uint8_t msg[48], pins[40];
+
+  // Get the chip pin mask for testing
+  pin_map_t *map = get_pin_map(handle->device->opts8 & 0xFF);
+  if (!map) return EXIT_FAILURE;
+
+  // Set the desired output pins
+  msg[0] = TL866IIPLUS_SET_DIR;
+  memset(&msg[8], 0x01, 40);
+  if (map->zero_c) {
+    for (uint32_t i = 0; i < (map->zero_c & 0x03); i++) {
+      msg[map->zero_t[i] + 8] = 0;
+    }
+  }
+  // Set the ZIF socket pins direction
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Set internal port
+  msg[0] = TL866IIPLUS_SET_DIV;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Set ZIF socket pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[28], 0x00, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Put the right side of the ZIF socket (pin 21-40) to the logic one
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x00, 20);
+  memset(&msg[28], 0x01, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Read ZIF socket pins and save the right side pins status
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(pins, &msg[8], 20);
+
+  // Set ZIF socket pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[8], 0x00, 20);
+  memset(&msg[28], 0x01, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Put the left side of the ZIF socket (pin 1-20) to the logic one
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x01, 20);
+  memset(&msg[28], 0x00, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Read ZIF socket pins and save the left side pins status
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(&pins[20], &msg[28], 20);
+
+  // Reset internal port
+  msg[0] = TL866IIPLUS_SET_DIV;
+  memset(&msg[8], 0x00, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset ZIF socket pins direction
+  msg[0] = TL866IIPLUS_SET_DIR;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset pull-ups
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[8], 0x01, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Reset ZIF socket outputs
+  msg[0] = TL866IIPLUS_SET_OUT;
+  memset(&msg[8], 0x00, 40);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // End of transaction
+  msg[0] = TL866IIPLUS_END_TRANS;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Now check for bad pin contact
+  int ret = EXIT_SUCCESS;
+  for (uint32_t i = 0; i < 40; i++) {
+    if (map->mask[i]) {
+      if (!pins[i]) {
+        fprintf(stderr, "Bad contact on pin:%u\n", i + 1);
+        ret = EXIT_FAILURE;
+      }
+    }
+  }
+  if (!ret) fprintf(stderr, "Pin test passed.\n");
+  return ret;
+}
+
+static int init_zif(minipro_handle_t *handle, uint8_t pullup) {
+  uint8_t msg[48];
+  // Reset pin drivers state
+  msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    return EXIT_FAILURE;
+  }
+
+  // Set all zif pins to input
+  memset(&msg[8], 0x01, 40);
+  msg[0] = TL866IIPLUS_SET_DIR;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+
+  // Set pull-up resistors (0=enable, 1=disable)
+  memset(&msg[8], pullup, 40);
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+// TL866II+ hardware check
+int tl866iiplus_hardware_check(minipro_handle_t *handle) {
+  uint8_t msg[48], read_buffer[48];
+  uint8_t i, errors = 0;
+
+  memset(msg, 0, sizeof(msg));
+
+  // Testing 21 VPP pin drivers
+
+  // Init ZIF socket, no pull-up resistors
+  if (init_zif(handle, 1)) return EXIT_FAILURE;
+
+  for (i = 0; i < 21; i++) {
+    memset(&msg[8], 0, 40);
+    msg[0] = TL866IIPLUS_SET_VPP_PIN;
+    msg[vpp_pins[i].byte] = vpp_pins[i].mask;  // set the vpp pin
+
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+      minipro_close(handle);
+      return EXIT_FAILURE;
+    }
+    usleep(5000);
+    msg[0] = TL866IIPLUS_READ_PINS;
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      return EXIT_FAILURE;
+    }
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer)))
+      return EXIT_FAILURE;
+    if (read_buffer[1]) {
+      msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+      if (msg_send(handle->usb_handle, msg, 8)) {
+        return EXIT_FAILURE;
+      }
+      fprintf(stderr,
+              "Overcurrent protection detected while testing VPP pin driver "
+              "%u!\007\n",
+              vpp_pins[i].pin);
+      return EXIT_FAILURE;
+    }
+    if (!read_buffer[7 + vpp_pins[i].pin]) errors++;
+    fprintf(stderr, "VPP driver pin %u is %s\n", vpp_pins[i].pin,
+            read_buffer[7 + vpp_pins[i].pin] ? "OK" : "Bad");
+  }
+  fprintf(stderr, "\n");
+
+  // Testing 32 VCC pin drivers
+
+  // Init ZIF socket, no pull-up resistors
+  if (init_zif(handle, 1)) return EXIT_FAILURE;
+
+  for (i = 0; i < 32; i++) {
+    memset(&msg[8], 0, 40);
+    msg[0] = TL866IIPLUS_SET_VCC_PIN;
+    msg[vcc_pins[i].byte] = vcc_pins[i].mask;  // set the vcc pin
+
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+      minipro_close(handle);
+      return EXIT_FAILURE;
+    }
+    usleep(5000);
+    msg[0] = TL866IIPLUS_READ_PINS;
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      return EXIT_FAILURE;
+    }
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer)))
+      return EXIT_FAILURE;
+    if (read_buffer[1]) {
+      msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+      if (msg_send(handle->usb_handle, msg, 8)) {
+        return EXIT_FAILURE;
+      }
+      fprintf(stderr,
+              "Overcurrent protection detected while testing VCC pin driver "
+              "%u!\007\n",
+              vcc_pins[i].pin);
+      return EXIT_FAILURE;
+    }
+    if (!read_buffer[7 + vcc_pins[i].pin]) errors++;
+    fprintf(stderr, "VCC driver pin %u is %s\n", vcc_pins[i].pin,
+            read_buffer[7 + vcc_pins[i].pin] ? "OK" : "Bad");
+  }
+  fprintf(stderr, "\n");
+
+  // Testing 34 GND pin drivers
+
+  // Init ZIF socket, active pull-up resistors
+  if (init_zif(handle, 0)) return EXIT_FAILURE;
+
+  for (i = 0; i < 34; i++) {
+    memset(&msg[8], 0, 40);
+    msg[0] = TL866IIPLUS_SET_GND_PIN;
+    msg[gnd_pins[i].byte] = gnd_pins[i].mask;  // set the vcc pin
+
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+      minipro_close(handle);
+      return EXIT_FAILURE;
+    }
+    usleep(5000);
+    msg[0] = TL866IIPLUS_READ_PINS;
+    if (msg_send(handle->usb_handle, msg, 8)) {
+      return EXIT_FAILURE;
+    }
+    if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer)))
+      return EXIT_FAILURE;
+    if (read_buffer[1]) {
+      msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+      if (msg_send(handle->usb_handle, msg, 8)) {
+        return EXIT_FAILURE;
+      }
+      fprintf(stderr,
+              "Overcurrent protection detected while testing GND pin driver "
+              "%u!\007\n",
+              gnd_pins[i].pin);
+      return EXIT_FAILURE;
+    }
+    if (read_buffer[7 + gnd_pins[i].pin]) errors++;
+    fprintf(stderr, "GND driver pin %u is %s\n", gnd_pins[i].pin,
+            read_buffer[7 + gnd_pins[i].pin] ? "Bad" : "OK");
+  }
+  fprintf(stderr, "\n\n");
+
+  // Testing VPP overcurrent protection
+
+  // Init ZIF socket, no pull-up resistors
+  if (init_zif(handle, 1)) return EXIT_FAILURE;
+
+  // Set VPP on pin1
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_VPP_PIN;
+  msg[vpp_pins[VPP1].byte] = vpp_pins[VPP1].mask;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  // Set GND also on pin1
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_GND_PIN;
+  msg[gnd_pins[GND1].byte] = gnd_pins[GND1].mask;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  // Reset pins
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_GND_PIN;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+
+  msg[0] =
+      TL866IIPLUS_READ_PINS;  // Read back the OVC status (should be active)
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    return EXIT_FAILURE;
+  }
+  if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+    return EXIT_FAILURE;
+  }
+  if (read_buffer[1]) {
+    fprintf(stderr, "VPP overcurrent protection is OK.\n");
+  } else {
+    fprintf(stderr, "VPP overcurrent protection failed!\007\n");
+    errors++;
+  }
+
+  // Testing VCC overcurrent protection
+
+  // Init ZIF socket, no pull-up resistors
+  if (init_zif(handle, 1)) return EXIT_FAILURE;
+
+  // Set VCC voltage to 4.5V
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_VCC_VOLTAGE;
+  msg[8] = 0x01;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+
+  // Set VCC on pin1
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_VCC_PIN;
+  msg[vcc_pins[VCC1].byte] = vcc_pins[VCC1].mask;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  // Set GND also on pin1
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_GND_PIN;
+  msg[gnd_pins[GND1].byte] = gnd_pins[GND1].mask;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  // Reset pins
+  memset(&msg[8], 0, 40);
+  msg[0] = TL866IIPLUS_SET_GND_PIN;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+
+  msg[0] =
+      TL866IIPLUS_READ_PINS;  // Read back the OVC status (should be active)
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    return EXIT_FAILURE;
+  }
+  if (msg_recv(handle->usb_handle, read_buffer, sizeof(read_buffer))) {
+    return EXIT_FAILURE;
+  }
+  if (read_buffer[1]) {
+    fprintf(stderr, "VCC overcurrent protection is OK.\n");
+  } else {
+    fprintf(stderr, "VCC overcurrent protection failed!\007\n");
+    errors++;
+  }
+
+  if (errors)
+    fprintf(stderr, "\nHardware test completed with %u error(s).\007\n",
+            errors);
+  else
+    fprintf(stderr, "\nHardware test completed successfully!\n");
+
+  // Reset pin drivers
+  msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+  if (msg_send(handle->usb_handle, msg, 8)) {
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }

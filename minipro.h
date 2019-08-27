@@ -95,7 +95,7 @@
 #define PLD_PROTOCOL2_22V10 0x2C
 
 // Helper macros
-#define PINS_COUNT(x) (((x)&PIN_COUNT_MASK) >> 24)
+#define PIN_COUNT(x) (((x)&PIN_COUNT_MASK) >> 24)
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 
 typedef struct device {
@@ -143,6 +143,7 @@ typedef struct cmdopts_s {
   uint8_t idcheck_skip;
   uint8_t idcheck_continue;
   uint8_t idcheck_only;
+  uint8_t pincheck;
   int vpp;
   int vdd;
   int vcc;
@@ -188,6 +189,7 @@ typedef struct minipro_handle {
   int (*minipro_read_jedec_row)(struct minipro_handle *, uint8_t *, uint8_t,
                                 size_t);
   int (*minipro_firmware_update)(struct minipro_handle *, const char *);
+  int (*minipro_pin_test)(struct minipro_handle *);
 } minipro_handle_t;
 
 typedef struct minipro_report_info {
@@ -251,5 +253,6 @@ int minipro_erase(minipro_handle_t *handle);
 int minipro_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int minipro_hardware_check(minipro_handle_t *handle);
 int minipro_firmware_update(minipro_handle_t *handle, const char *firmware);
+int minipro_pin_test(minipro_handle_t *handle);
 
 #endif
