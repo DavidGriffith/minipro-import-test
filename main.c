@@ -46,13 +46,26 @@
 #define VPP_VOLTAGE 0
 #define VCC_VOLTAGE 1
 
+const char *get_voltage(minipro_handle_t*, uint8_t, uint8_t);
+
 struct voltage_s {
   const char *name;
   uint8_t value;
-} vpp_voltages[] = {{"10", 0x04}, {"12.5", 0x00}, {"13.5", 0x03}, {"14", 0x05},
-                    {"16", 0x01}, {"18", 0x06},   {"21", 0x02},   {NULL, 0x00}},
-  vcc_voltages[] = {{"3.3", 0x02}, {"4", 0x01},    {"4.5", 0x05}, {"5", 0x00},
-                    {"5.5", 0x04}, {"6.25", 0x03}, {NULL, 0x00}};
+} tl866a_vpp_voltages[] = {{"10", 0x04}, {"12.5", 0x00}, {"13.5", 0x03},
+                           {"14", 0x05}, {"16", 0x01},   {"17", 0x07},
+                           {"18", 0x06}, {"21", 0x02},   {NULL, 0x00}},
+  tl866a_vcc_voltages[] = {{"3.3", 0x02}, {"4", 0x01},   {"4.5", 0x05},
+                           {"5", 0x00},   {"5.5", 0x04}, {"6.5", 0x03},
+                           {NULL, 0x00}},
+  tl866ii_vpp_voltages[] = {{"9", 0x01},    {"9.5", 0x02},  {"10", 0x03},
+                            {"11", 0x04},   {"11.5", 0x05}, {"12", 0x00},
+                            {"12.5", 0x06}, {"13", 0x07},   {"13.5", 0x08},
+                            {"14", 0x09},   {"14.5", 0x0a}, {"15.5", 0x0b},
+                            {"16", 0x0c},   {"16.5", 0x0d}, {"17", 0x0e},
+                            {"18", 0x0f},   {NULL, 0x00}},
+  tl866ii_vcc_voltages[] = {{"3.3", 0x01}, {"4", 0x02},   {"4.5", 0x03},
+                            {"5", 0x00},   {"5.5", 0x04}, {"6.5", 0x05},
+                            {NULL, 0x00}};
 
 
 void print_version_and_exit() {
@@ -95,11 +108,12 @@ void print_help_and_exit(char *progname) {
       "	-o <option>	Specify various programming options\n"
       "			For multiple options use -o for each option\n"
       "			Programming voltage <vpp=value>\n"
-      "			(10, 12.5, 13.5, 14, 16, 18, 21)\n"
+      "			*=TL866II+ only  **=TL866A/CS only\n"
+      "			(*9,*9.5, 10, *11, *11.5, *12, 12.5, *13, 13.5)\n"
+      "			(14, *14,5, 15.5, 16, *16.5, 17, 18, **21)\n"
       "			VDD write voltage <vdd=value>\n"
-      "			(3.3, 4, 4.5, 5, 5.5, 6.25)\n"
       "			VCC verify voltage <vcc=value>\n"
-      "			(3.3, 4, 4.5, 5, 5.5, 6.25)\n"
+      "			(3.3, 4, 4.5, 5, 5.5, 6.5)\n"
       "			Programming pulse delay <pulse=value> (0-65535 usec)\n"
       "	-i		Use ICSP\n"
       "	-I		Use ICSP (without enabling Vcc)\n"
@@ -153,7 +167,10 @@ minipro_handle_t *get_handle(const char *device_name) {
     }
   } else {
     minipro_handle_t *tmp = minipro_open(device_name);
-    if (!tmp) return NULL;
+    if (!tmp) {
+      free(handle);
+      return NULL;
+    }
     minipro_print_system_info(tmp);
     fflush(stderr);
     handle->device = tmp->device;
@@ -294,25 +311,66 @@ void print_device_info_and_exit(const char *device_name) {
   fprintf(stderr, "Write buffer size: %u Bytes\n",
           handle->device->write_buffer_size);
 
+  uint32_t *target =
+      (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
+                                         : (uint32_t *)&handle->device->opts1);
+
+  // Printing device programming info
+  if (handle->device->opts7 == MP_VOLTAGES1 ||
+      handle->device->opts7 == MP_VOLTAGES2) {
+    // Print VPP
+    fprintf(stderr,
+            "*******************************\nVPP programming voltage: %sV\n",
+            get_voltage(handle, (uint8_t)((*target >> 4) & 0x0f), VPP_VOLTAGE));
+    if (handle->device->opts7 == MP_VOLTAGES1) {
+      // Print VDD
+      fprintf(stderr, "VDD write voltage: %sV\n",
+              get_voltage(handle, (uint8_t)(*target >> 12), VCC_VOLTAGE));
+
+      // Print VCC
+      fprintf(
+          stderr, "VCC verify voltage: %sV\n",
+          get_voltage(handle, (uint8_t)((*target >> 8) & 0x0f), VCC_VOLTAGE));
+
+      // Print pulse delay
+      fprintf(stderr, "Pulse delay: %uus\n", handle->device->opts3);
+    }
+  }
+
   free(handle);
   exit(EXIT_SUCCESS);
 }
 
-void get_voltage(uint8_t value, char **name, uint8_t type) {
-  struct voltage_s *voltage = type == VPP_VOLTAGE ? vpp_voltages : vcc_voltages;
+// Get a voltage string from an integer
+const char *get_voltage(minipro_handle_t *handle, uint8_t value, uint8_t type) {
+  struct voltage_s *vpp_voltages =
+      (handle->version == MP_TL866IIPLUS ? tl866ii_vpp_voltages
+                                         : tl866a_vpp_voltages);
+  struct voltage_s *vcc_voltages =
+      (handle->version == MP_TL866IIPLUS ? tl866ii_vcc_voltages
+                                         : tl866a_vcc_voltages);
+  struct voltage_s *voltage =
+      (type == VPP_VOLTAGE ? vpp_voltages : vcc_voltages);
   while (voltage->name != NULL) {
     if (voltage->value == value) {
-      *name = (char *)voltage->name;
-      return;
+      return voltage->name;
     }
     voltage++;
   }
-  *name = "unknown";
-  return;
+  return "-";
 }
 
-int set_voltage(char *value, int *target, uint8_t type) {
-  struct voltage_s *voltage = type == VPP_VOLTAGE ? vpp_voltages : vcc_voltages;
+// Get an integer from a string voltage name
+int set_voltage(minipro_handle_t *handle, char *value, int *target,
+                uint8_t type) {
+  struct voltage_s *vpp_voltages =
+      (handle->version == MP_TL866IIPLUS ? tl866ii_vpp_voltages
+                                         : tl866a_vpp_voltages);
+  struct voltage_s *vcc_voltages =
+      (handle->version == MP_TL866IIPLUS ? tl866ii_vcc_voltages
+                                         : tl866a_vcc_voltages);
+  struct voltage_s *voltage =
+      (type == VPP_VOLTAGE ? vpp_voltages : vcc_voltages);
   while (voltage->name != NULL) {
     if (!strcasecmp(voltage->name, value)) {
       *target = voltage->value;
@@ -323,26 +381,80 @@ int set_voltage(char *value, int *target, uint8_t type) {
   return EXIT_FAILURE;
 }
 
-int parse_options(cmdopts_t *cmdopts) {
-  char option[64], value[64];
+// Parse and set programming options for both TL866A/CS and TL866II+
+int parse_options(minipro_handle_t *handle, int argc, char **argv) {
   uint32_t v;
-  char *p_end;
-  if (sscanf(optarg, "%[^=]=%[^=]", option, value) != 2) return EXIT_FAILURE;
-  if (!strcasecmp(option, "pulse")) {
-    // Parse the numeric value
-    errno = 0;
-    v = strtoul(value, &p_end, 10);
-    if ((p_end == value) || errno) return EXIT_FAILURE;
-    if (v > 0xffff) return EXIT_FAILURE;
-    cmdopts->pulse_delay = (uint16_t)v;
-  } else if (!strcasecmp(option, "vpp")) {
-    if (set_voltage(value, &cmdopts->vpp, VPP_VOLTAGE)) return EXIT_FAILURE;
-  } else if (!strcasecmp(option, "vdd")) {
-    if (set_voltage(value, &cmdopts->vdd, VCC_VOLTAGE)) return EXIT_FAILURE;
-  } else if (!strcasecmp(option, "vcc")) {
-    if (set_voltage(value, &cmdopts->vcc, VCC_VOLTAGE)) return EXIT_FAILURE;
-  } else
-    return EXIT_FAILURE;
+  char c, *p_end, option[64], value[64];
+  int vpp = -1, vcc = -1, vdd = -1, pulse_delay = -1;
+
+  // Parse options first
+  optind = 1;
+  opterr = 0;
+  while ((c = getopt(argc, argv, "o:")) != -1) {
+    switch (c) {
+      case 'o':
+        if (sscanf(optarg, "%[^=]=%[^=]", option, value) != 2)
+          return EXIT_FAILURE;
+        if (!strcasecmp(option, "pulse")) {
+          // Parse the numeric value
+          errno = 0;
+          v = strtoul(value, &p_end, 10);
+          if ((p_end == value) || errno) return EXIT_FAILURE;
+          if (v > 0xffff) return EXIT_FAILURE;
+          pulse_delay = (uint16_t)v;
+        } else if (!strcasecmp(option, "vpp")) {
+          if (set_voltage(handle, value, &vpp, VPP_VOLTAGE))
+            return EXIT_FAILURE;
+        } else if (!strcasecmp(option, "vdd")) {
+          if (set_voltage(handle, value, &vdd, VCC_VOLTAGE))
+            return EXIT_FAILURE;
+        } else if (!strcasecmp(option, "vcc")) {
+          if (set_voltage(handle, value, &vcc, VCC_VOLTAGE))
+            return EXIT_FAILURE;
+        } else
+          return EXIT_FAILURE;
+        break;
+    }
+  }
+
+  uint32_t *target =
+      (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
+                                         : (uint32_t *)&handle->device->opts1);
+
+  // Set the programming options
+  if ((handle->device->opts7 == MP_VOLTAGES1 ||
+       handle->device->opts7 == MP_VOLTAGES2) &&
+      handle->cmdopts->action == WRITE) {
+    // Insert VPP voltage
+    if (vpp != -1) *target = (*target & 0xffffff0f) | (vpp << 4);
+
+    // Print VPP
+    fprintf(stderr, "\nVPP=%sV, ",
+            get_voltage(handle, (uint8_t)((*target >> 4) & 0x0f), VPP_VOLTAGE));
+
+    if (handle->device->opts7 == MP_VOLTAGES1) {
+      // Insert VDD voltage
+      if (vdd != -1) *target = (*target & 0xffff0fff) | (vdd << 12);
+
+      // Print VDD
+      fprintf(stderr, "VDD=%sV, ",
+              get_voltage(handle, (uint8_t)(*target >> 12), VCC_VOLTAGE));
+
+      // Insert VCC voltage
+      if (vcc != -1) *target = (*target & 0xfffff0ff) | (vcc << 8);
+
+      // Print VCC
+      fprintf(
+          stderr, "VCC=%sV, ",
+          get_voltage(handle, (uint8_t)((*target >> 8) & 0x0f), VCC_VOLTAGE));
+
+      // Insert pulse delay
+      if (pulse_delay != -1) handle->device->opts3 = pulse_delay;
+
+      // Print pulse delay
+      fprintf(stderr, "Pulse=%uus\n", handle->device->opts3);
+    }
+  }
   return EXIT_SUCCESS;
 }
 
@@ -455,10 +567,6 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   char c;
   uint8_t package_type = 0;
   memset(cmdopts, 0, sizeof(cmdopts_t));
-  cmdopts->vpp = -1;
-  cmdopts->vcc = -1;
-  cmdopts->vdd = -1;
-  cmdopts->pulse_delay = -1;
 
   while ((c = getopt(argc, argv, "lL:d:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
     switch (c) {
@@ -505,7 +613,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
 
       case 'p':
         if (!strcasecmp(optarg, "help")) print_devices_and_exit(NULL);
-        cmdopts->device = strdup(optarg);
+        cmdopts->device = optarg;
         break;
 
       case 'c':
@@ -586,11 +694,12 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         hardware_check_and_exit();
         break;
 
+      /*
+       * Only check if the syntax is correct here.
+       * The actual parsing of each 'o' option is done after the programmer
+       * version is known.
+       */
       case 'o':
-        if (parse_options(cmdopts)) {
-          fprintf(stderr, "Invalid option '%s'\n", optarg);
-          exit(EXIT_FAILURE);
-        }
         break;
       case 'f':
         firmware_update_and_exit(optarg);
@@ -1851,17 +1960,26 @@ int main(int argc, char **argv) {
     print_help_and_exit(argv[0]);
   }
 
+
   minipro_handle_t *handle = minipro_open(cmdopts.device);
   if (!handle) {
     return EXIT_FAILURE;
   }
 
-  handle->cmdopts = &cmdopts;
-
+  // Exit if bootloader is active
   minipro_print_system_info(handle);
   if (handle->status == MP_STATUS_BOOTLOADER) {
     fprintf(stderr, "in bootloader mode!\nExiting...\n");
+    minipro_close(handle);
     return EXIT_FAILURE;
+  }
+
+  //Parse programming options
+  handle->cmdopts = &cmdopts;
+  if (parse_options(handle, argc, argv)) {
+    fprintf(stderr, "Invalid option '%s'\n", optarg);
+    minipro_close(handle);
+    exit(EXIT_FAILURE);
   }
 
   if (cmdopts.pincheck) {
@@ -1893,52 +2011,6 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
       }
       break;
-  }
-
-  if (handle->version == MP_TL866IIPLUS && cmdopts.action == WRITE &&
-      (cmdopts.vcc != -1 || cmdopts.vdd != -1 || cmdopts.vpp != -1 ||
-       cmdopts.pulse_delay != -1))
-    fprintf(stderr, "The -o option is not yet implemented for TL866II+\n");
-
-  // Check if the device has programming options
-  char *voltage_name;
-  if ((handle->device->opts7 == MP_VOLTAGES1 ||
-       handle->device->opts7 == MP_VOLTAGES2) &&
-      cmdopts.action == WRITE) {
-    // Insert VPP voltage
-    if (cmdopts.vpp != -1)
-      handle->device->opts1 =
-          (handle->device->opts1 & 0xff0f) | (cmdopts.vpp << 4);
-
-    if (handle->device->opts7 == MP_VOLTAGES1) {
-      // Insert VDD voltage
-      if (cmdopts.vdd != -1)
-        handle->device->opts1 =
-            (handle->device->opts1 & 0x0fff) | (cmdopts.vdd << 12);
-
-      // Insert VCC voltage
-      if (cmdopts.vcc != -1)
-        handle->device->opts1 =
-            (handle->device->opts1 & 0xf0ff) | (cmdopts.vcc << 8);
-
-      // Insert pulse delay
-      if (cmdopts.pulse_delay != -1)
-        handle->device->opts3 = cmdopts.pulse_delay;
-
-      get_voltage((uint8_t)handle->device->opts1 >> 4, &voltage_name,
-                  VPP_VOLTAGE);
-      fprintf(stderr, "\nVPP=%sV, ", voltage_name);
-      get_voltage(handle->device->opts1 >> 12, &voltage_name, VCC_VOLTAGE);
-      fprintf(stderr, "VDD=%sV, ", voltage_name);
-      get_voltage((handle->device->opts1 >> 8) & 0x0f, &voltage_name,
-                  VCC_VOLTAGE);
-      fprintf(stderr, "VCC=%sV, ", voltage_name);
-      fprintf(stderr, "Pulse=%uus\n", handle->device->opts3);
-    } else {
-      get_voltage((uint8_t)handle->device->opts1 >> 4, &voltage_name,
-                  VPP_VOLTAGE);
-      fprintf(stderr, "\nVPP=%sV\n", voltage_name);
-    }
   }
 
   // Unlocking the TSOP48 adapter (if applicable)
