@@ -1983,7 +1983,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmdopts.pincheck) {
-    if (handle->version == MP_TL866IIPLUS) {
+    if (handle->version == MP_TL866IIPLUS && !cmdopts.icsp) {
       if (minipro_pin_test(handle)) {
         minipro_end_transaction(handle);
         minipro_close(handle);
