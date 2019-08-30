@@ -2041,6 +2041,7 @@ int main(int argc, char **argv) {
           fprintf(stderr, "Fake TSOP adapter found!\n");
           break;
       }
+      minipro_end_transaction(handle);
       break;
   }
 

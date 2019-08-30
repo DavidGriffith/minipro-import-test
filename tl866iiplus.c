@@ -1042,7 +1042,7 @@ int tl866iiplus_hardware_check(minipro_handle_t *handle) {
   for (i = 0; i < 34; i++) {
     memset(&msg[8], 0, 40);
     msg[0] = TL866IIPLUS_SET_GND_PIN;
-    msg[gnd_pins[i].byte] = gnd_pins[i].mask;  // set the vcc pin
+    msg[gnd_pins[i].byte] = gnd_pins[i].mask;  // set the gnd pin
 
     if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
       minipro_close(handle);
