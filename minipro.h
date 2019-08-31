@@ -144,10 +144,6 @@ typedef struct cmdopts_s {
   uint8_t idcheck_continue;
   uint8_t idcheck_only;
   uint8_t pincheck;
-  int vpp;
-  int vdd;
-  int vcc;
-  int pulse_delay;
 } cmdopts_t;
 
 typedef struct minipro_handle {

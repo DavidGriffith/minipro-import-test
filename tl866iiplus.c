@@ -61,11 +61,11 @@
 #define TL866IIPLUS_SET_VCC_PIN 0x2E
 #define TL866IIPLUS_SET_VPP_PIN 0x2F
 #define TL866IIPLUS_SET_GND_PIN 0x30
-#define TL866IIPLUS_SET_OUT 0x31
+#define TL866IIPLUS_SET_PULLDOWNS 0x31
 #define TL866IIPLUS_SET_PULLUPS 0x32
 #define TL866IIPLUS_SET_DIR 0x34
 #define TL866IIPLUS_READ_PINS 0x35
-#define TL866IIPLUS_SET_DIV 0x36
+#define TL866IIPLUS_SET_OUT 0x36
 
 #define TL866IIPLUS_BTLDR_MAGIC 0xA578B986
 
@@ -218,25 +218,24 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
 
 int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
-  msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
-  format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
-  format_int(&(msg[44]), handle->device->read_buffer_size, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[16]), handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
-  format_int(&(msg[14]), handle->device->data_memory2_size, 2,
-             MP_LITTLE_ENDIAN);
-  format_int(&(msg[12]), handle->device->opts3, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[10]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[8]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[5]), handle->device->opts1, 2, MP_LITTLE_ENDIAN);
 
-  //This is work in progress.
-  msg[4] = (uint8_t)handle->device->opts5;
+  // Init message.
+  msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
+
+  // 16Bit = 4bit Vdd + 4bit Vcc + 4 bit Vpp + 0
+  format_int(&(msg[4]), handle->device->opts5, 2, MP_LITTLE_ENDIAN);
   msg[6] = (uint8_t)handle->device->opts7;
   msg[7] = (uint8_t)handle->device->opts8;
+  format_int(&(msg[8]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
+  format_int(&(msg[10]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
+  format_int(&(msg[12]), handle->device->opts3, 2,
+             MP_LITTLE_ENDIAN);  // Pulse delay
+  format_int(&(msg[14]), handle->device->data_memory2_size, 2,
+             MP_LITTLE_ENDIAN);
+  format_int(&(msg[16]), handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
   msg[20] = (uint8_t)(handle->device->opts5 >> 16);
 
   if ((handle->device->opts5 & 0xf0) == 0xf0) {
-    msg[21] = 0;
     msg[22] = (uint8_t)handle->device->opts5;
   } else {
     msg[21] = (uint8_t)handle->device->opts5 & 0x0f;
@@ -244,6 +243,9 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   }
   if (handle->device->opts5 & 0x80000000)
     msg[22] = (handle->device->opts5 >> 16) & 0x0f;
+
+  format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
+  format_int(&(msg[44]), handle->device->read_buffer_size, 2, MP_LITTLE_ENDIAN);
 
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
@@ -496,7 +498,7 @@ int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
 //////////////////////////////////////////////////////////////////////////////////
 
 This is the UpdateII.dat file structure.
-It has a variabile size. There are small data blocks of 272 bytes each followed by the last data block which always has 2064 bytes.
+It has a variable size. There are small data blocks of 272 bytes each followed by the last data block which always has 2064 bytes.
 |============|===========|============|==============|=============|=============|===================|======================|
 |File version| File CRC  | XOR Table  | Blocks count | Block 0     | Block 1     | Block N           | Last block           |
 |============|===========|============|==============|=============|=============|===================|======================|
@@ -847,48 +849,48 @@ int tl866iiplus_pin_test(minipro_handle_t *handle) {
   // Set the ZIF socket pins direction
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
-  // Set internal port
-  msg[0] = TL866IIPLUS_SET_DIV;
+  // Set output pins to logic one
+  msg[0] = TL866IIPLUS_SET_OUT;
   memset(&msg[8], 0x01, 40);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
-  // Set ZIF socket pull-ups
+  // Enable right side ZIF socket pull-up resistors
   msg[0] = TL866IIPLUS_SET_PULLUPS;
   memset(&msg[28], 0x00, 20);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
-  // Put the right side of the ZIF socket (pin 21-40) to the logic one
-  msg[0] = TL866IIPLUS_SET_OUT;
+  // Enable left side ZIF socket pull-down resistors
+  msg[0] = TL866IIPLUS_SET_PULLDOWNS;
   memset(&msg[8], 0x00, 20);
   memset(&msg[28], 0x01, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-
-  // Read ZIF socket pins and save the right side pins status
-  msg[0] = TL866IIPLUS_READ_PINS;
-  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
-  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-  memcpy(pins, &msg[8], 20);
-
-  // Set ZIF socket pull-ups
-  msg[0] = TL866IIPLUS_SET_PULLUPS;
-  memset(&msg[8], 0x00, 20);
-  memset(&msg[28], 0x01, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-
-  // Put the left side of the ZIF socket (pin 1-20) to the logic one
-  msg[0] = TL866IIPLUS_SET_OUT;
-  memset(&msg[8], 0x01, 20);
-  memset(&msg[28], 0x00, 20);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
   // Read ZIF socket pins and save the left side pins status
   msg[0] = TL866IIPLUS_READ_PINS;
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(pins, &msg[8], 20);
+
+  // Enable left side ZIF socket pull-up resistors
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  memset(&msg[8], 0x00, 20);
+  memset(&msg[28], 0x01, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Enable right side ZIF socket pull-down resistors
+  msg[0] = TL866IIPLUS_SET_PULLDOWNS;
+  memset(&msg[8], 0x01, 20);
+  memset(&msg[28], 0x00, 20);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  // Read ZIF socket pins and save the right side pins status
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   memcpy(&pins[20], &msg[28], 20);
 
-  // Reset internal port
-  msg[0] = TL866IIPLUS_SET_DIV;
+  // Set output pins to logic zero
+  msg[0] = TL866IIPLUS_SET_OUT;
   memset(&msg[8], 0x00, 40);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
@@ -902,8 +904,8 @@ int tl866iiplus_pin_test(minipro_handle_t *handle) {
   memset(&msg[8], 0x01, 40);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
-  // Reset ZIF socket outputs
-  msg[0] = TL866IIPLUS_SET_OUT;
+  // Reset pull-downs
+  msg[0] = TL866IIPLUS_SET_PULLDOWNS;
   memset(&msg[8], 0x00, 40);
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
@@ -1040,7 +1042,7 @@ int tl866iiplus_hardware_check(minipro_handle_t *handle) {
   for (i = 0; i < 34; i++) {
     memset(&msg[8], 0, 40);
     msg[0] = TL866IIPLUS_SET_GND_PIN;
-    msg[gnd_pins[i].byte] = gnd_pins[i].mask;  // set the vcc pin
+    msg[gnd_pins[i].byte] = gnd_pins[i].mask;  // set the gnd pin
 
     if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
       minipro_close(handle);
