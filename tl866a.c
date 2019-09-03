@@ -236,7 +236,7 @@ int tl866a_begin_transaction(minipro_handle_t *handle) {
   format_int(&(msg[12]), handle->device->code_memory_size, 3, MP_LITTLE_ENDIAN);
 
   if (msg_send(handle->usb_handle, msg, 48)) return EXIT_FAILURE;
-  if (minipro_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
+  if (tl866a_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
   if (ovc) {
     fprintf(stderr, "Overcurrent protection!\007\n");
     return EXIT_FAILURE;
