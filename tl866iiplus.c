@@ -218,6 +218,7 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
 
 int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
+  uint8_t ovc;
 
   // Init message.
   msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
@@ -247,7 +248,13 @@ int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
   format_int(&(msg[44]), handle->device->read_buffer_size, 2, MP_LITTLE_ENDIAN);
 
-  return msg_send(handle->usb_handle, msg, sizeof(msg));
+  if(msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (tl866iiplus_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
+   if (ovc) {
+     fprintf(stderr, "Overcurrent protection!\007\n");
+     return EXIT_FAILURE;
+   }
+   return EXIT_SUCCESS;
 }
 
 int tl866iiplus_end_transaction(minipro_handle_t *handle) {
