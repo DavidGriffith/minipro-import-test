@@ -31,13 +31,15 @@
 
 #include "database.h"
 #include "jedec.h"
+#include "ihex.h"
+#include "srec.h"
 #include "minipro.h"
 #include "version.h"
 
 #ifdef _WIN32
 	#include <shlwapi.h>
 	#define STRCASESTR StrStrIA
-	#define PRI_SIZET  "lu"
+	#define PRI_SIZET  "Iu"
 #else
 	#define STRCASESTR strcasestr
 	#define PRI_SIZET  "zu"
@@ -45,6 +47,9 @@
 
 #define VPP_VOLTAGE 0
 #define VCC_VOLTAGE 1
+
+#define READ_BUFFER_SIZE 65536
+
 
 const char *get_voltage(minipro_handle_t*, uint8_t, uint8_t);
 
@@ -92,6 +97,8 @@ void print_help_and_exit(char *progname) {
       "	-r <filename>	Read memory\n"
       "	-w <filename>	Write memory\n"
       "	-m <filename>	Verify memory\n"
+      "	-f <format>	Specify file format\n"
+      "			Possible values: ihex, srec\n"
       "	-b		Blank check. Optionally, you can use -c\n"
       "			to specify a memory type\n"
       "	-a <type>	Autodetect SPI 25xx devices\n"
@@ -124,7 +131,7 @@ void print_help_and_exit(char *progname) {
       "	-y		Do NOT error on ID mismatch\n"
       "	-V		Show version information\n"
       "	-t		Start hardware check\n"
-      "	-f <filename>	Update firmware (should be update.dat)\n"
+      "	-F <filename>	Update firmware (should be update.dat)\n"
       "	-h		Show help (this text)\n";
   fprintf(stderr, usage, VERSION, basename(progname));
   exit(EXIT_SUCCESS);
@@ -429,7 +436,7 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
     if (vpp != -1) *target = (*target & 0xffffff0f) | (vpp << 4);
 
     // Print VPP
-    fprintf(stderr, "\nVPP=%sV, ",
+    fprintf(stderr, "\nVPP=%sV",
             get_voltage(handle, (uint8_t)((*target >> 4) & 0x0f), VPP_VOLTAGE));
 
     if (handle->device->opts7 == MP_VOLTAGES1) {
@@ -437,7 +444,7 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
       if (vdd != -1) *target = (*target & 0xffff0fff) | (vdd << 12);
 
       // Print VDD
-      fprintf(stderr, "VDD=%sV, ",
+      fprintf(stderr, ", VDD=%sV, ",
               get_voltage(handle, (uint8_t)(*target >> 12), VCC_VOLTAGE));
 
       // Insert VCC voltage
@@ -568,7 +575,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   uint8_t package_type = 0;
   memset(cmdopts, 0, sizeof(cmdopts_t));
 
-  while ((c = getopt(argc, argv, "lL:d:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:")) != -1) {
+  while ((c = getopt(argc, argv, "lL:d:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:F:")) != -1) {
     switch (c) {
       case 'l':
         print_devices_and_exit(NULL);
@@ -622,6 +629,15 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         if (!strcasecmp(optarg, "config")) cmdopts->page = CONFIG;
         if (!cmdopts->page) {
           fprintf(stderr, "Unknown memory type\n");
+          exit(EXIT_FAILURE);
+        }
+        break;
+
+      case 'f':
+        if (!strcasecmp(optarg, "ihex")) cmdopts->format = IHEX;
+        if (!strcasecmp(optarg, "srec")) cmdopts->format = SREC;
+        if (!cmdopts->format) {
+          fprintf(stderr, "Unknown file format\n");
           exit(EXIT_FAILURE);
         }
         break;
@@ -701,7 +717,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
        */
       case 'o':
         break;
-      case 'f':
+      case 'F':
         firmware_update_and_exit(optarg);
         break;
       default:
@@ -771,8 +787,9 @@ int compare_memory(uint8_t *s1, uint8_t *s2, size_t size, uint8_t *c1,
 
 /* RAM-centric IO operations */
 int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
-                  const char *name, size_t size) {
+                  size_t size) {
   char status_msg[64];
+  char *name = type == MP_CODE ? "Code" : "Data";
   sprintf(status_msg, "Reading %s...  ", name);
 
   size_t blocks_count = size / handle->device->read_buffer_size;
@@ -811,8 +828,9 @@ int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
 }
 
 int write_page_ram(minipro_handle_t *handle, uint8_t *buffer, uint8_t type,
-                   const char *name, size_t size) {
+                   size_t size) {
   char status_msg[64];
+  char *name = type == MP_CODE ? "Code" : "Data";
   sprintf(status_msg, "Writing  %s...  ", name);
 
   size_t blocks_count = size / handle->device->write_buffer_size;
@@ -995,45 +1013,283 @@ int erase_device(minipro_handle_t *handle) {
   return EXIT_SUCCESS;
 }
 
-/* Wrappers for operating with files */
-int write_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
-                    size_t size) {
-  FILE *file = fopen(handle->cmdopts->filename, "rb");
-  if (file == NULL) {
-    perror("Couldn't open file for reading");
-    return EXIT_FAILURE;
+//Helper function to check for pld devices
+int is_pld(uint8_t protocol_id) {
+  switch (protocol_id) {
+    case PLD_PROTOCOL_16V8:
+    case PLD_PROTOCOL_20V8:
+    case PLD_PROTOCOL_22V10:
+    case PLD_PROTOCOL2_16V8:
+    case PLD_PROTOCOL2_20V8:
+    case PLD_PROTOCOL2_22V10:
+      return 1;
+  }
+  return 0;
+}
+
+// Opens a physical file or a pipe if the pipe character is specified
+int open_file(minipro_handle_t *handle, uint8_t *data, size_t *file_size) {
+  FILE *file;
+  struct stat st;
+
+  // Check if we are dealing with a pipe.
+  if (handle->cmdopts->is_pipe) {
+    file = stdin;
+    st.st_size = 0;
+  } else {
+    file = fopen(handle->cmdopts->filename, "rb");
+    int ret = stat(handle->cmdopts->filename, &st);
+    if (!file || ret) {
+      fprintf(stderr, "Could not open file %s for reading.\n",
+              handle->cmdopts->filename);
+      perror("");
+      if (file) fclose(file);
+      return EXIT_FAILURE;
+    }
   }
 
-  uint8_t *buffer = malloc(size);
+  // Allocate a zero initialized buffer.
+  // If the file size is unknown (pipe) a default size will be used.
+  uint8_t *buffer = calloc(st.st_size ? st.st_size : READ_BUFFER_SIZE, 1);
   if (!buffer) {
     fclose(file);
     fprintf(stderr, "Out of memory!\n");
     return EXIT_FAILURE;
   }
 
-  memset(buffer, 0xFF, size);
-  if (fread(buffer, 1, size, file) != size && !handle->cmdopts->size_error) {
-    free(buffer);
-    fclose(file);
-    fprintf(stderr, "Read error\n");
-    return EXIT_FAILURE;
-  }
+  // Try to read the whole file.
+  // If we are reading from stdin  data will be read in small chunks of 64K
+  // each untill EOF.
+  size_t br = 0;
+  size_t sz = READ_BUFFER_SIZE;
+  if (!st.st_size) {
+    size_t ch;
+    uint8_t *tmp;
+    while (br < UINT32_MAX) {
+      ch = fread(buffer + br, 1, READ_BUFFER_SIZE, file);
+      br += ch;
+      if (ch != READ_BUFFER_SIZE) break;
+      sz += READ_BUFFER_SIZE;
+      tmp = realloc(buffer, sz);
+      if (!tmp) {
+        free(buffer);
+        fclose(file);
+        fprintf(stderr, "Out of memory!\n");
+        return EXIT_FAILURE;
+      }
+      buffer = tmp;
+    }
+  } else
+    br = fread(buffer, 1, st.st_size, file);
+
   fclose(file);
-  if (write_page_ram(handle, buffer, type, name, size)) {
+  if(!br){
+	  fprintf(stderr, "No data to read.\n");
+	  free(buffer);
+	  return EXIT_FAILURE;
+  }
+
+  // If we are dealing with a jed file just return the data.
+  if (is_pld(handle->device->protocol_id)) {
+    memcpy(data, buffer, br);
+    free(buffer);
+    *file_size = br;
+    return EXIT_SUCCESS;
+  }
+
+  size_t chip_size = *file_size;
+  *file_size = br;
+
+  // Probe for an Intel hex file
+  size_t hex_size = chip_size;
+  int ret = read_hex_file(buffer, data, &hex_size);
+  switch (ret) {
+    case NOT_IHEX:
+      break;
+    case EXIT_FAILURE:
+      free(buffer);
+      return EXIT_FAILURE;
+      break;
+    case INTEL_HEX_FORMAT:
+      *file_size = hex_size;
+      fprintf(stderr, "Found Intel hex file.\n");
+      free(buffer);
+      return EXIT_SUCCESS;
+  }
+
+  // Probe for a Motorola srec file
+  hex_size = chip_size;
+  ret = read_srec_file(buffer, data, &hex_size);
+  switch (ret) {
+    case NOT_SREC:
+      break;
+    case EXIT_FAILURE:
+      free(buffer);
+      return EXIT_FAILURE;
+      break;
+    case SREC_FORMAT:
+      *file_size = hex_size;
+      fprintf(stderr, "Found Motorola S-Record file.\n");
+      free(buffer);
+      return EXIT_SUCCESS;
+  }
+
+  if (handle->cmdopts->format == IHEX) {
+    fprintf(stderr, "This is not an Intel hex file.\n");
     free(buffer);
     return EXIT_FAILURE;
   }
+  if (handle->cmdopts->format == SREC) {
+    fprintf(stderr, "This is not an S-Record file.\n");
+    free(buffer);
+    return EXIT_FAILURE;
+  }
+  // This must be a binary file
+  memcpy(data, buffer, chip_size);
   free(buffer);
   return EXIT_SUCCESS;
 }
 
-int read_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
-                   size_t size) {
-  FILE *file = fopen(handle->cmdopts->filename, "wb");
-  if (file == NULL) {
-    perror("Couldn't open file for writing\n");
+// Open a JED file
+int open_jed_file(minipro_handle_t *handle, jedec_t *jedec) {
+  char *buffer = calloc(READ_BUFFER_SIZE, 1);
+  if (!buffer) {
+    fprintf(stderr, "Out of memory!\n");
     return EXIT_FAILURE;
   }
+
+  size_t file_size = handle->device->code_memory_size;
+  if (open_file(handle, (uint8_t*)buffer, &file_size)) {
+    free(buffer);
+    return EXIT_FAILURE;
+  }
+  if (read_jedec_file(buffer, file_size, jedec)) return EXIT_FAILURE;
+  if (jedec->fuses == NULL) {
+    fprintf(stderr, "This file has no fuses (L) declaration!\n");
+    free(buffer);
+    return EXIT_FAILURE;
+  }
+
+  if (handle->device->code_memory_size != jedec->QF)
+    fprintf(stderr, "Warning! JED file doesn't match the selected device!\n");
+
+  fprintf(stderr,
+          "\nDeclared fuse checksum: 0x%04X Calculated: 0x%04X ... %s\n",
+          jedec->C, jedec->fuse_checksum,
+          jedec->fuse_checksum == jedec->C ? "OK" : "Mismatch!");
+
+  fprintf(stderr, "Declared file checksum: 0x%04X Calculated: 0x%04X ... %s\n",
+          jedec->decl_file_checksum, jedec->calc_file_checksum,
+          jedec->decl_file_checksum == jedec->calc_file_checksum ? "OK"
+                                                                 : "Mismatch!");
+
+  fprintf(stderr, "JED file parsed OK\n\n");
+  free(buffer);
+  return EXIT_SUCCESS;
+}
+
+FILE *get_file(minipro_handle_t *handle) {
+  FILE *file;
+  if (handle->cmdopts->is_pipe)
+    file = stdout;
+  else {
+    file = fopen(handle->cmdopts->filename, "wb");
+    if (file == NULL) {
+      fprintf(stderr, "Could not open file %s for writing.\n",
+              handle->cmdopts->filename);
+      perror("");
+      return NULL;
+    }
+  }
+  return file;
+}
+
+/* Wrappers for operating with files */
+int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
+  // Allocate the buffer and clear it with default value
+  uint8_t *file_data = malloc(size);
+  if (!file_data) {
+    fprintf(stderr, "Out of memory!\n");
+    return EXIT_FAILURE;
+  }
+
+  memset(file_data, 0xFF, size);
+  size_t file_size = size;
+  if (open_file(handle, file_data, &file_size)) return EXIT_FAILURE;
+  if (file_size != size) {
+    if (!handle->cmdopts->size_error) {
+      fprintf(stderr,
+              "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ")\n",
+              file_size, size);
+      free(file_data);
+      return EXIT_FAILURE;
+    } else if (handle->cmdopts->size_nowarn == 0)
+      fprintf(stderr,
+              "Warning: Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET
+              ")\n",
+              file_size, size);
+  }
+
+  // Perform an erase first
+  if (erase_device(handle)) return EXIT_FAILURE;
+  // We must reset the transaction after the erase
+  if (minipro_end_transaction(handle)) return EXIT_FAILURE;
+  if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+
+  if (handle->cmdopts->no_protect_off == 0 &&
+      (handle->device->opts4 & MP_PROTECT_MASK)) {
+    if(minipro_protect_off(handle)){
+    	free(file_data);
+    	return EXIT_FAILURE;
+    }
+    fprintf(stderr, "Protect off...OK\n");
+  }
+
+  if (write_page_ram(handle, file_data, type, size)) {
+    free(file_data);
+    return EXIT_FAILURE;
+  }
+
+  // Verify if data was written ok
+  if (handle->cmdopts->no_verify == 0) {
+    // We must reset the transaction for VCC verify to have effect
+    if (minipro_end_transaction(handle)) return EXIT_FAILURE;
+    if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+
+    uint8_t *chip_data = malloc(size + 128);
+    if (!chip_data) {
+      fprintf(stderr, "Out of memory\n");
+      free(file_data);
+      return EXIT_FAILURE;
+    }
+    if (read_page_ram(handle, chip_data, type, size)) {
+      free(file_data);
+      free(chip_data);
+      return EXIT_FAILURE;
+    }
+
+    uint8_t c1, c2;
+    int idx = compare_memory(file_data, chip_data, size, &c1, &c2);
+    free(chip_data);
+
+    if (idx != -1) {
+      fprintf(
+          stderr,
+          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+          idx, c1, c2);
+      return EXIT_FAILURE;
+    } else {
+      fprintf(stderr, "Verification OK\n");
+    }
+  }
+
+  free(file_data);
+  return EXIT_SUCCESS;
+}
+
+int read_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
+  FILE *file = get_file(handle);
+  if (!file) return EXIT_FAILURE;
 
   uint8_t *buffer = malloc(size + 128);
   if (!buffer) {
@@ -1043,44 +1299,64 @@ int read_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
   }
 
   memset(buffer, 0xFF, size);
-  if (read_page_ram(handle, buffer, type, name, size)) {
+  if (read_page_ram(handle, buffer, type, size)) {
     fclose(file);
     free(buffer);
     return EXIT_FAILURE;
   }
-  fwrite(buffer, 1, size, file);
+
+  switch (handle->cmdopts->format) {
+    case IHEX:
+      if (write_hex_file(file, buffer, size)) {
+        fclose(file);
+        return EXIT_FAILURE;
+      }
+      break;
+    case SREC:
+      if (write_srec_file(file, buffer, size)) {
+        fclose(file);
+        return EXIT_FAILURE;
+      }
+      break;
+    default:
+      fwrite(buffer, 1, size, file);
+  }
+
   fclose(file);
   free(buffer);
   return EXIT_SUCCESS;
 }
 
-int verify_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
-                     size_t size) {
+int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   uint8_t *file_data;
-  if (handle->cmdopts->filename) {
-    FILE *file = fopen(handle->cmdopts->filename, "rb");
-    if (file == NULL) {
-      perror("Couldn't open file for reading");
-      return EXIT_FAILURE;
-    }
 
-    /* Loading file */
+  char *name = type == MP_CODE ? "Code" : "Data";
+  if (handle->cmdopts->filename) {
+    // Allocate the buffer and clear it with default value
     file_data = malloc(size);
     if (!file_data) {
-      fclose(file);
-      fprintf(stderr, "Out of memory\n");
+      fprintf(stderr, "Out of memory!\n");
       return EXIT_FAILURE;
     }
 
     memset(file_data, 0xFF, size);
-    if (fread(file_data, 1, size, file) != size &&
-        !handle->cmdopts->size_error) {
-      fclose(file);
-      free(file_data);
-      fprintf(stderr, "File read error!\n");
-      return EXIT_FAILURE;
+    size_t file_size = size;
+    if (open_file(handle, file_data, &file_size)) return EXIT_FAILURE;
+
+    if (file_size != size) {
+      if (!handle->cmdopts->size_error) {
+        fprintf(stderr,
+                "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ")\n",
+                file_size, size);
+        free(file_data);
+        return EXIT_FAILURE;
+      } else if (handle->cmdopts->size_nowarn == 0)
+        fprintf(stderr,
+                "Warning: Incorrect file size: %" PRI_SIZET
+                " (needed %" PRI_SIZET ")\n",
+                file_size, size);
     }
-    fclose(file);
+
   }
   // Blank check
   else {
@@ -1095,7 +1371,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, const char *name,
     free(file_data);
     return EXIT_FAILURE;
   }
-  if (read_page_ram(handle, chip_data, type, name, size)) {
+  if (read_page_ram(handle, chip_data, type, size)) {
     free(file_data);
     free(chip_data);
     return EXIT_FAILURE;
@@ -1139,22 +1415,27 @@ int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
     return EXIT_FAILURE;
   }
 
-  FILE *pFile = fopen(handle->cmdopts->filename, "wb");
-  if (pFile == NULL) {
-    perror("Couldn't create config file!");
-    return EXIT_FAILURE;
-  }
+  FILE *file = get_file(handle);
+  if (!file) return EXIT_FAILURE;
 
   fprintf(stderr, "Reading fuses... ");
   fflush(stderr);
   gettimeofday(&begin, NULL);
 
   fuses->num_locks &= 0x7f;
+  // Atmel microcontrollers workaround
+  uint8_t items;
+  if (!fuses->word) {
+    items = fuses->num_fuses;
+    fuses->word = 1;
+  } else
+    items = fuses->item_size / fuses->word;
+
   if (fuses->num_fuses > 0) {
     if (minipro_read_fuses(handle, MP_FUSE_CFG,
-                           fuses->num_fuses * fuses->item_size,
-                           fuses->item_size / fuses->word, buffer)) {
-      fclose(pFile);
+                           fuses->num_fuses * fuses->item_size, items,
+                           buffer)) {
+      fclose(file);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_fuses; i++) {
@@ -1168,7 +1449,7 @@ int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
   if (fuses->num_uids > 0) {
     if (minipro_read_fuses(handle, MP_FUSE_USER,
                            fuses->num_uids * fuses->item_size, 0, buffer)) {
-      fclose(pFile);
+      fclose(file);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_uids; i++) {
@@ -1183,7 +1464,7 @@ int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
     if (minipro_read_fuses(handle, MP_FUSE_LOCK,
                            fuses->num_locks * fuses->item_size,
                            fuses->item_size / fuses->word, buffer)) {
-      fclose(pFile);
+      fclose(file);
       return EXIT_FAILURE;
     }
     for (i = 0; i < fuses->num_locks; i++) {
@@ -1194,13 +1475,13 @@ int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
               fuses->lnames[i], value);
     }
   }
-
-  fputs(config, pFile);
-  fclose(pFile);
   gettimeofday(&end, NULL);
   fprintf(stderr, "%.2fSec  OK\n",
           (double)(end.tv_usec - begin.tv_usec) / 1000000 +
               (double)(end.tv_sec - begin.tv_sec));
+
+  fputs(config, file);
+  fclose(file);
   return EXIT_SUCCESS;
 }
 
@@ -1211,18 +1492,20 @@ int write_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
   uint32_t value;
   struct timeval begin, end;
 
-  FILE *pFile = fopen(handle->cmdopts->filename, "rb");
-  if (pFile == NULL) {
-    perror("Couldn't open config file!");
-    return EXIT_FAILURE;
-  }
-
   memset(config, 0, sizeof(config));
-  fread(config, sizeof(char), sizeof(config), pFile);
-  fclose(pFile);
+  size_t file_size = sizeof(config);
+  if (open_file(handle, (uint8_t *)config, &file_size)) return EXIT_FAILURE;
 
   fprintf(stderr, "Writing fuses... ");
   fflush(stderr);
+
+  // Atmel microcontrollers workaround
+  uint8_t items;
+  if (!fuses->word) {
+    items = fuses->num_fuses;
+    fuses->word = 1;
+  } else
+    items = fuses->item_size / fuses->word;
 
   gettimeofday(&begin, NULL);
   if (fuses->num_fuses > 0) {
@@ -1235,12 +1518,11 @@ int write_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
                  MP_LITTLE_ENDIAN);
     }
     if (minipro_write_fuses(handle, MP_FUSE_CFG,
-                            fuses->num_fuses * fuses->item_size,
-                            fuses->item_size / fuses->word, wbuffer))
+                            fuses->num_fuses * fuses->item_size, items,
+                            wbuffer))
       return EXIT_FAILURE;
     if (minipro_read_fuses(handle, MP_FUSE_CFG,
-                           fuses->num_fuses * fuses->item_size,
-                           fuses->item_size / fuses->word, vbuffer))
+                           fuses->num_fuses * fuses->item_size, items, vbuffer))
       return EXIT_FAILURE;
     if (memcmp(wbuffer, vbuffer, fuses->num_fuses * fuses->item_size)) {
       fprintf(stderr, "\nFuses verify error!\n");
@@ -1303,374 +1585,132 @@ int action_read(minipro_handle_t *handle) {
 
   char *data_filename = handle->cmdopts->filename;
   char *config_filename = handle->cmdopts->filename;
+  char *dot;
 
   char default_data_filename[strlen(handle->cmdopts->filename) + 12];
   strcpy(default_data_filename, handle->cmdopts->filename);
-  char *dot = strrchr(default_data_filename, '.');
-  strcpy(dot ? dot : default_data_filename + strlen(handle->cmdopts->filename),
-         ".eeprom.bin");
+  if (!handle->cmdopts->is_pipe) {
+    dot = strrchr(default_data_filename, '.');
+    char *ext;
+    switch (handle->cmdopts->format) {
+      case IHEX:
+        ext = ".eeprom.hex";
+        break;
+      case SREC:
+        ext = ".eeprom.srec";
+        break;
+      default:
+        ext = ".eeprom.bin";
+    }
+    strcpy(
+        dot ? dot : default_data_filename + strlen(handle->cmdopts->filename),
+        ext);
+  }
 
   char default_config_filename[strlen(handle->cmdopts->filename) + 12];
   strcpy(default_config_filename, handle->cmdopts->filename);
-  dot = strrchr(default_config_filename, '.');
-  strcpy(
-      dot ? dot : default_config_filename + strlen(handle->cmdopts->filename),
-      ".fuses.conf");
+  if (!handle->cmdopts->is_pipe) {
+    dot = strrchr(default_config_filename, '.');
+    strcpy(
+        dot ? dot : default_config_filename + strlen(handle->cmdopts->filename),
+        ".fuses.conf");
+  }
 
   if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-  switch (handle->device->protocol_id) {
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      jedec.QF = handle->device->code_memory_size;
-      if (!jedec.QF) {
-        fprintf(stderr, "Unknown fuse size!\n");
-        return EXIT_FAILURE;
-      }
-      jedec.fuses = malloc(jedec.QF);
-      if (!jedec.fuses) {
-        fprintf(stderr, "Out of memory\n");
-        return EXIT_FAILURE;
-      }
-      memset(jedec.fuses, 0, jedec.QF);
-      jedec.F = 0;
-      jedec.G = 0;
-      jedec.QP = get_pin_count(handle->device);
-      jedec.device_name = handle->device->name;
+  if (is_pld(handle->device->protocol_id)) {
+    jedec.QF = handle->device->code_memory_size;
+    if (!jedec.QF) {
+      fprintf(stderr, "Unknown fuse size!\n");
+      return EXIT_FAILURE;
+    }
+    jedec.fuses = malloc(jedec.QF);
+    if (!jedec.fuses) {
+      fprintf(stderr, "Out of memory\n");
+      return EXIT_FAILURE;
+    }
+    memset(jedec.fuses, 0, jedec.QF);
+    jedec.F = 0;
+    jedec.G = 0;
+    jedec.QP = get_pin_count(handle->device);
+    jedec.device_name = handle->device->name;
 
-      if (read_jedec(handle, &jedec)) {
-        free(jedec.fuses);
-        return EXIT_FAILURE;
-      }
-      switch (write_jedec_file(handle->cmdopts->filename, &jedec)) {
-        case FILE_OPEN_ERROR:
-          free(jedec.fuses);
-          perror("File open error");
-          return EXIT_FAILURE;
-      }
+    if (read_jedec(handle, &jedec)) {
       free(jedec.fuses);
-      break;
-    default:
-      if (handle->cmdopts->page == UNSPECIFIED) {
-        data_filename = default_data_filename;
-        config_filename = default_config_filename;
-      }
-      if (handle->cmdopts->page == CODE ||
-          handle->cmdopts->page == UNSPECIFIED) {
-        if (read_page_file(handle, MP_CODE, "Code",
-                           handle->device->code_memory_size))
-          return EXIT_FAILURE;
-      }
-      if ((handle->cmdopts->page == DATA ||
-           handle->cmdopts->page == UNSPECIFIED) &&
-          handle->device->data_memory_size) {
-        handle->cmdopts->filename = data_filename;
-        if (read_page_file(handle, MP_DATA, "Data",
-                           handle->device->data_memory_size))
-          return EXIT_FAILURE;
-      }
-      if ((handle->cmdopts->page == CONFIG ||
-           handle->cmdopts->page == UNSPECIFIED) &&
-          handle->device->config) {
-        handle->cmdopts->filename = config_filename;
-        if (read_fuses(handle, handle->device->config)) return EXIT_FAILURE;
-      }
-
-      if (handle->cmdopts->page == CONFIG && !handle->device->config) {
-        fprintf(stderr, "Missing fuse type in database...\n");
+      return EXIT_FAILURE;
+    }
+    FILE *file = get_file(handle);
+    if (!file) return EXIT_FAILURE;
+    if (write_jedec_file(file, &jedec)) {
+      free(jedec.fuses);
+      fclose(file);
+      return EXIT_FAILURE;
+    }
+    free(jedec.fuses);
+    fclose(file);
+  } else {
+    // No GAL device
+    if (handle->cmdopts->page == UNSPECIFIED) {
+      data_filename = default_data_filename;
+      config_filename = default_config_filename;
+    }
+    if (handle->cmdopts->page == CODE || handle->cmdopts->page == UNSPECIFIED) {
+      if (read_page_file(handle, MP_CODE, handle->device->code_memory_size))
         return EXIT_FAILURE;
-      }
+    }
+    if ((handle->cmdopts->page == DATA ||
+         (handle->cmdopts->page == UNSPECIFIED && !handle->cmdopts->is_pipe)) &&
+        handle->device->data_memory_size) {
+      handle->cmdopts->filename = data_filename;
+      if (read_page_file(handle, MP_DATA, handle->device->data_memory_size))
+        return EXIT_FAILURE;
+    }
+    if ((handle->cmdopts->page == CONFIG ||
+         (handle->cmdopts->page == UNSPECIFIED && !handle->cmdopts->is_pipe)) &&
+        handle->device->config) {
+      handle->cmdopts->filename = config_filename;
+      if (read_fuses(handle, handle->device->config)) return EXIT_FAILURE;
+    }
+
+    if (handle->cmdopts->page == DATA && !handle->device->data_memory_size) {
+      fprintf(stderr, "No data section found.\n");
+      return EXIT_FAILURE;
+    }
+
+    if (handle->cmdopts->page == CONFIG && !handle->device->config) {
+      fprintf(stderr, "No config section found.\n");
+      return EXIT_FAILURE;
+    }
   }
   return EXIT_SUCCESS;
 }
 
 int action_write(minipro_handle_t *handle) {
-  struct stat st;
-  off_t file_size;
   jedec_t wjedec, rjedec;
   struct timeval begin, end;
 
-  switch (handle->device->protocol_id) {
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      switch (read_jedec_file(handle->cmdopts->filename, &wjedec)) {
-        case NO_ERROR:
-          if (wjedec.fuses == NULL) {
-            fprintf(stderr, "This file has no fuses (L) declaration!\n");
-            return EXIT_FAILURE;
-          }
+  if (is_pld(handle->device->protocol_id)) {
+    if (open_jed_file(handle, &wjedec)) return EXIT_FAILURE;
 
-          if (handle->device->code_memory_size != wjedec.QF)
-            fprintf(stderr,
-                    "Warning! JED file doesn't match the selected device!\n");
+    if (handle->cmdopts->no_protect_on == 0)
+      fprintf(stderr, "Use -P to skip write protect\n\n");
 
-          fprintf(
-              stderr,
-              "\nDeclared fuse checksum: 0x%04X Calculated: 0x%04X ... %s\n",
-              wjedec.C, wjedec.fuse_checksum,
-              wjedec.fuse_checksum == wjedec.C ? "OK" : "Mismatch!");
-
-          fprintf(stderr,
-                  "Declared file checksum: 0x%04X Calculated: 0x%04X ... %s\n",
-                  wjedec.decl_file_checksum, wjedec.calc_file_checksum,
-                  wjedec.decl_file_checksum == wjedec.calc_file_checksum
-                      ? "OK"
-                      : "Mismatch!");
-
-          fprintf(stderr, "JED file parsed OK\n\n");
-          if (handle->cmdopts->no_protect_on == 0)
-            fprintf(stderr, "Use -P to skip write protect\n\n");
-          break;
-        case FILE_OPEN_ERROR:
-          perror("File open error");
-          return EXIT_FAILURE;
-        case SIZE_ERROR:
-          fprintf(stderr, "File size error!\n");
-          return EXIT_FAILURE;
-        case FILE_READ_ERROR:
-          fprintf(stderr, "File read error!\n");
-          return EXIT_FAILURE;
-        case BAD_FORMAT:
-          fprintf(stderr, "JED file format error!\n");
-          return EXIT_FAILURE;
-        case MEMORY_ERROR:
-          fprintf(stderr, "Out of memory!\n");
-          return EXIT_FAILURE;
-      }
-      if (minipro_begin_transaction(handle)) {
-        free(wjedec.fuses);
-        return EXIT_FAILURE;
-      }
-      if (erase_device(handle)) {
-        free(wjedec.fuses);
-        return EXIT_FAILURE;
-      }
-      if (write_jedec(handle, &wjedec)) {
-        free(wjedec.fuses);
-        return EXIT_FAILURE;
-      }
-      if (minipro_end_transaction(handle)) {
-        free(wjedec.fuses);
-        return EXIT_FAILURE;
-      }
-      if (handle->cmdopts->no_verify == 0) {
-        rjedec.QF = wjedec.QF;
-        rjedec.F = wjedec.F;
-        rjedec.fuses = malloc(rjedec.QF);
-        if (!rjedec.fuses) {
-          free(wjedec.fuses);
-          return EXIT_FAILURE;
-        }
-        // compare fuses
-        if (minipro_begin_transaction(handle)) {
-          free(wjedec.fuses);
-          free(rjedec.fuses);
-          return EXIT_FAILURE;
-        }
-        if (read_jedec(handle, &rjedec)) {
-          free(wjedec.fuses);
-          free(rjedec.fuses);
-          return EXIT_FAILURE;
-        }
-        if (minipro_end_transaction(handle)) {
-          free(wjedec.fuses);
-          free(rjedec.fuses);
-          return EXIT_FAILURE;
-        }
-        uint8_t c1, c2;
-        int address =
-            compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
-
-        if (address != -1) {
-          fprintf(stderr,
-                  "Verification failed at address 0x%04X: File=0x%02X, "
-                  "Device=0x%02X\n",
-                  address, c1, c2);
-          free(rjedec.fuses);
-          return EXIT_FAILURE;
-        } else {
-          fprintf(stderr, "Verification OK\n");
-        }
-        free(rjedec.fuses);
-      }
+    if (minipro_begin_transaction(handle)) {
       free(wjedec.fuses);
-
-      if (handle->cmdopts->no_protect_on == 0) {
-        fprintf(stderr, "Writing lock bit... ");
-        fflush(stderr);
-        gettimeofday(&begin, NULL);
-        if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-        if (minipro_write_fuses(handle, MP_FUSE_LOCK, 0, 0, NULL))
-          return EXIT_FAILURE;
-        if (minipro_end_transaction(handle)) return EXIT_FAILURE;
-        gettimeofday(&end, NULL);
-        fprintf(stderr, "%.2fSec OK\n",
-                (double)(end.tv_usec - begin.tv_usec) / 1000000 +
-                    (double)(end.tv_sec - begin.tv_sec));
-      }
-      return EXIT_SUCCESS;
-    default:
-      if (stat(handle->cmdopts->filename, &st)) {
-        perror("File open error");
-        return EXIT_FAILURE;
-      }
-      file_size = st.st_size;
-      if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-      if (erase_device(handle)) return EXIT_FAILURE;
-      if (handle->cmdopts->no_protect_off == 0 &&
-          (handle->device->opts4 & MP_PROTECT_MASK)) {
-        fprintf(stderr, "Protect off...");
-        fflush(stderr);
-        minipro_protect_off(handle);
-        fprintf(stderr, "OK\n");
-      }
-      switch (handle->cmdopts->page) {
-        case UNSPECIFIED:
-        case CODE:
-          if (file_size != handle->device->code_memory_size) {
-            if (!handle->cmdopts->size_error) {
-              fprintf(stderr,
-                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
-                      file_size, handle->device->code_memory_size);
-              return EXIT_FAILURE;
-            } else if (handle->cmdopts->size_nowarn == 0)
-              fprintf(stderr,
-                      "Warning: Incorrect file size: %" PRI_SIZET
-                      " (needed %u)\n",
-                      file_size, handle->device->code_memory_size);
-          }
-          if (write_page_file(handle, MP_CODE, "Code",
-                              handle->device->code_memory_size))
-            return EXIT_FAILURE;
-          if (handle->cmdopts->no_verify == 0) {
-            // We must reset the transaction for VCC verify to have effect
-            if (minipro_end_transaction(handle)) return EXIT_FAILURE;
-            if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-            if (verify_page_file(handle, MP_CODE, "Code",
-                                 handle->device->code_memory_size))
-              return EXIT_FAILURE;
-          }
-          break;
-        case DATA:
-          if (file_size != handle->device->data_memory_size) {
-            if (!handle->cmdopts->size_error) {
-              fprintf(stderr,
-                      "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
-                      file_size, handle->device->data_memory_size);
-              return EXIT_FAILURE;
-            } else if (handle->cmdopts->size_nowarn == 0)
-              fprintf(stderr,
-                      "Warning: Incorrect file size: %" PRI_SIZET
-                      " (needed %u)\n",
-                      file_size, handle->device->data_memory_size);
-          }
-          if (write_page_file(handle, MP_DATA, "Data",
-                              handle->device->data_memory_size))
-            return EXIT_FAILURE;
-          if (handle->cmdopts->no_verify == 0) {
-            if (minipro_end_transaction(handle)) return EXIT_FAILURE;
-            if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-            if (verify_page_file(handle, MP_DATA, "Data",
-                                 handle->device->data_memory_size))
-              return EXIT_FAILURE;
-          }
-          break;
-        case CONFIG:
-          if (handle->device->config) {
-            if (write_fuses(handle, handle->device->config))
-              return EXIT_FAILURE;
-          }
-          break;
-      }
-      if (handle->cmdopts->no_protect_on == 0 &&
-          (handle->device->opts4 & MP_PROTECT_MASK)) {
-        fprintf(stderr, "Protect on...");
-        fflush(stderr);
-        if (minipro_protect_on(handle)) return EXIT_FAILURE;
-        fprintf(stderr, "OK\n");
-      }
-  }
-  return EXIT_SUCCESS;
-}
-
-int action_verify(minipro_handle_t *handle) {
-  struct stat st;
-  off_t file_size;
-  jedec_t wjedec, rjedec;
-  int ret = EXIT_SUCCESS;
-
-  switch (handle->device->protocol_id) {
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      if (handle->cmdopts->filename) {
-        switch (read_jedec_file(handle->cmdopts->filename, &wjedec)) {
-          case NO_ERROR:
-            if (wjedec.fuses == NULL) {
-              fprintf(stderr, "This file has no fuses (L) declaration!\n");
-              return EXIT_FAILURE;
-            }
-
-            if (handle->device->code_memory_size != wjedec.QF)
-              fprintf(stderr,
-                      "Warning! JED file doesn't match the selected device!\n");
-
-            fprintf(
-                stderr,
-                "\nDeclared fuse checksum: 0x%04X Calculated: 0x%04X ... %s\n",
-                wjedec.C, wjedec.fuse_checksum,
-                wjedec.fuse_checksum == wjedec.C ? "OK" : "Mismatch!");
-
-            fprintf(
-                stderr,
-                "Declared file checksum: 0x%04X Calculated: 0x%04X ... %s\n",
-                wjedec.decl_file_checksum, wjedec.calc_file_checksum,
-                wjedec.decl_file_checksum == wjedec.calc_file_checksum
-                    ? "OK"
-                    : "Mismatch!");
-
-            fprintf(stderr, "JED file parsed OK\n\n");
-            break;
-          case FILE_OPEN_ERROR:
-            perror("File open error");
-            return EXIT_FAILURE;
-          case SIZE_ERROR:
-            fprintf(stderr, "File size error!\n");
-            return EXIT_FAILURE;
-          case FILE_READ_ERROR:
-            fprintf(stderr, "File read error!\n");
-            return EXIT_FAILURE;
-          case BAD_FORMAT:
-            fprintf(stderr, "JED file format error!\n");
-            return EXIT_FAILURE;
-          case MEMORY_ERROR:
-            fprintf(stderr, "Out of memory!\n");
-            return EXIT_FAILURE;
-        }
-      }
-      // Blank
-      else {
-        wjedec.QF = handle->device->code_memory_size;
-        wjedec.F = 0x01;
-        wjedec.fuses = malloc(wjedec.QF);
-        memset(wjedec.fuses, 0x01, wjedec.QF);
-      }
-
-      if (minipro_begin_transaction(handle)) {
-        free(wjedec.fuses);
-        return EXIT_FAILURE;
-      }
-
+      return EXIT_FAILURE;
+    }
+    if (erase_device(handle)) {
+      free(wjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    if (write_jedec(handle, &wjedec)) {
+      free(wjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    if (minipro_end_transaction(handle)) {
+      free(wjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    if (handle->cmdopts->no_verify == 0) {
       rjedec.QF = wjedec.QF;
       rjedec.F = wjedec.F;
       rjedec.fuses = malloc(rjedec.QF);
@@ -1699,493 +1739,539 @@ int action_verify(minipro_handle_t *handle) {
           compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
 
       if (address != -1) {
-        if (handle->cmdopts->filename) {
-          fprintf(stderr,
-                  "Verification failed at address 0x%04X: File=0x%02X, "
-                  "Device=0x%02X\n",
-                  address, c1, c2);
-        } else {
-          fprintf(stderr, "This device is not blank.\n");
-        }
+        fprintf(stderr,
+                "Verification failed at address 0x%04X: File=0x%02X, "
+                "Device=0x%02X\n",
+                address, c1, c2);
         free(rjedec.fuses);
         return EXIT_FAILURE;
       } else {
-        if (handle->cmdopts->filename) {
-          fprintf(stderr, "Verification OK\n");
-        } else {
-          fprintf(stderr, "This device is blank.\n");
-        }
+        fprintf(stderr, "Verification OK\n");
       }
       free(rjedec.fuses);
-      free(wjedec.fuses);
-      break;
+    }
+    free(wjedec.fuses);
 
+    if (handle->cmdopts->no_protect_on == 0) {
+      fprintf(stderr, "Writing lock bit... ");
+      fflush(stderr);
+      gettimeofday(&begin, NULL);
+      if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+      if (minipro_write_fuses(handle, MP_FUSE_LOCK, 0, 0, NULL))
+        return EXIT_FAILURE;
+      if (minipro_end_transaction(handle)) return EXIT_FAILURE;
+      gettimeofday(&end, NULL);
+      fprintf(stderr, "%.2fSec OK\n",
+              (double)(end.tv_usec - begin.tv_usec) / 1000000 +
+                  (double)(end.tv_sec - begin.tv_sec));
+    }
+    return EXIT_SUCCESS;
+  } else {
     // No GAL devices
-    default:
-
-      if (handle->cmdopts->filename) {
-        if (stat(handle->cmdopts->filename, &st)) {
-          perror("File open error");
+    if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+    switch (handle->cmdopts->page) {
+      case UNSPECIFIED:
+      case CODE:
+        if (write_page_file(handle, MP_CODE, handle->device->code_memory_size))
+          return EXIT_FAILURE;
+        break;
+      case DATA:
+        if (handle->cmdopts->page == DATA &&
+            !handle->device->data_memory_size) {
+          fprintf(stderr, "No data section found.\n");
           return EXIT_FAILURE;
         }
-        file_size = st.st_size;
-      }
-
-      // Verifying code memory section. If filename is null then a blank check
-      // is performed
-      if (handle->cmdopts->page == UNSPECIFIED ||
-          handle->cmdopts->page == CODE) {
-        if (!handle->cmdopts->filename) {
-          file_size = handle->device->code_memory_size;
-        }
-        if (file_size != handle->device->code_memory_size) {
-          if (!handle->cmdopts->size_error) {
-            fprintf(stderr, "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
-                    file_size, handle->device->code_memory_size);
-            return EXIT_FAILURE;
-          } else if (handle->cmdopts->size_nowarn == 0)
-            fprintf(stderr,
-                    "Warning: Incorrect file size: %" PRI_SIZET
-                    " (needed %u)\n",
-                    file_size, handle->device->code_memory_size);
-        }
-        if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-        if (verify_page_file(handle, MP_CODE, "Code",
-                             handle->device->code_memory_size))
-          ret = EXIT_FAILURE;
-      }
-
-      if (!handle->device->data_memory_size && handle->cmdopts->page == DATA) {
-        fprintf(stderr, "No data memory.\n");
-        return EXIT_FAILURE;
-      }
-
-      if (!handle->device->config && handle->cmdopts->page == CONFIG) {
-        fprintf(stderr, "No config bytes.\n");
-        return EXIT_FAILURE;
-      }
-
-      // Verifying data memory section. If filename is null then a blank check
-      // is performed
-      if (handle->device->data_memory_size &&
-          (handle->cmdopts->page == DATA ||
-           (handle->cmdopts->page == UNSPECIFIED &&
-            !handle->cmdopts->filename))) {
-        if (!handle->cmdopts->filename) {
-          file_size = handle->device->data_memory_size;
-        }
-        if (file_size != handle->device->data_memory_size) {
-          if (!handle->cmdopts->size_error) {
-            fprintf(stderr, "Incorrect file size: %" PRI_SIZET " (needed %u)\n",
-                    file_size, handle->device->data_memory_size);
-            return EXIT_FAILURE;
-          } else if (handle->cmdopts->size_nowarn == 0)
-            fprintf(stderr,
-                    "Warning: Incorrect file size: %" PRI_SIZET
-                    " (needed %u)\n",
-                    file_size, handle->device->data_memory_size);
-        }
-        if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-        if (verify_page_file(handle, MP_DATA, "Data",
-                             handle->device->data_memory_size))
-          ret = EXIT_FAILURE;
-      }
-
-      // Verifying configuration bytes.
-      if (handle->device->config && handle->cmdopts->page == CONFIG &&
-          !handle->cmdopts->filename) {
-        fprintf(stderr, "Configuration bytes can't be blank checked.\n");
-      }
-
-      if (handle->cmdopts->filename && handle->device->config &&
-          handle->cmdopts->page == CONFIG) {
-        uint8_t wbuffer[64], vbuffer[64];
-        uint32_t value;
-        size_t i;
-        char config[1024];
-
-        FILE *pFile = fopen(handle->cmdopts->filename, "rb");
-        if (pFile == NULL) {
-          perror("Couldn't open config file!");
+        if (write_page_file(handle, MP_DATA, handle->device->data_memory_size))
+          return EXIT_FAILURE;
+        break;
+      case CONFIG:
+        if (handle->cmdopts->page == CONFIG && !handle->device->config) {
+          fprintf(stderr, "No config section found.\n");
           return EXIT_FAILURE;
         }
-
-        memset(config, 0, sizeof(config));
-        fread(config, sizeof(char), sizeof(config), pFile);
-        fclose(pFile);
-
-        if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
-
-        if (((fuse_decl_t *)handle->device->config)->num_fuses > 0) {
-          for (i = 0; i < ((fuse_decl_t *)handle->device->config)->num_fuses;
-               i++) {
-            if (get_config_value(
-                    config, ((fuse_decl_t *)handle->device->config)->fnames[i],
-                    &value) == EXIT_FAILURE) {
-              fprintf(stderr, "Could not read config %s value.\n",
-                      ((fuse_decl_t *)handle->device->config)->fnames[i]);
-              return EXIT_FAILURE;
-            }
-            format_int(
-                &(wbuffer[i * ((fuse_decl_t *)handle->device->config)->word]),
-                value, ((fuse_decl_t *)handle->device->config)->word,
-                MP_LITTLE_ENDIAN);
-          }
-          if (minipro_read_fuses(
-                  handle, MP_FUSE_CFG,
-                  ((fuse_decl_t *)handle->device->config)->num_fuses *
-                      ((fuse_decl_t *)handle->device->config)->item_size,
-                  ((fuse_decl_t *)handle->device->config)->item_size /
-                      ((fuse_decl_t *)handle->device->config)->word,
-                  vbuffer))
-            return EXIT_FAILURE;
-          if (memcmp(wbuffer, vbuffer,
-                     ((fuse_decl_t *)handle->device->config)->num_fuses *
-                         ((fuse_decl_t *)handle->device->config)->item_size)) {
-            fprintf(stderr, "Fuse bits verification error!\n");
-            ret = EXIT_FAILURE;
-          } else
-            fprintf(stderr, "Fuse bits verification OK.\n");
+        if (handle->device->config) {
+          if (write_fuses(handle, handle->device->config)) return EXIT_FAILURE;
         }
-
-        if (((fuse_decl_t *)handle->device->config)->num_uids > 0) {
-          for (i = 0; i < ((fuse_decl_t *)handle->device->config)->num_uids;
-               i++) {
-            if (get_config_value(
-                    config, ((fuse_decl_t *)handle->device->config)->unames[i],
-                    &value) == EXIT_FAILURE) {
-              fprintf(stderr, "Could not read config %s value.\n",
-                      ((fuse_decl_t *)handle->device->config)->unames[i]);
-              return EXIT_FAILURE;
-            }
-            format_int(
-                &(wbuffer[i * ((fuse_decl_t *)handle->device->config)->word]),
-                value, ((fuse_decl_t *)handle->device->config)->word,
-                MP_LITTLE_ENDIAN);
-          }
-          if (minipro_read_fuses(
-                  handle, MP_FUSE_USER,
-                  ((fuse_decl_t *)handle->device->config)->num_uids *
-                      ((fuse_decl_t *)handle->device->config)->item_size,
-                  ((fuse_decl_t *)handle->device->config)->item_size /
-                      ((fuse_decl_t *)handle->device->config)->word,
-                  vbuffer))
-            return EXIT_FAILURE;
-          if (memcmp(wbuffer, vbuffer,
-                     ((fuse_decl_t *)handle->device->config)->num_uids *
-                         ((fuse_decl_t *)handle->device->config)->item_size)) {
-            fprintf(stderr, "User ID verification error!\n");
-            ret = EXIT_FAILURE;
-          } else
-            fprintf(stderr, "User ID verification OK.\n");
-        }
-
-        if (((fuse_decl_t *)handle->device->config)->num_locks > 0) {
-          for (i = 0; i < ((fuse_decl_t *)handle->device->config)->num_locks;
-               i++) {
-            if (get_config_value(
-                    config, ((fuse_decl_t *)handle->device->config)->lnames[i],
-                    &value) == EXIT_FAILURE) {
-              fprintf(stderr, "Could not read config %s value.\n",
-                      ((fuse_decl_t *)handle->device->config)->lnames[i]);
-              return EXIT_FAILURE;
-            }
-            format_int(
-                &(wbuffer[i * ((fuse_decl_t *)handle->device->config)->word]),
-                value, ((fuse_decl_t *)handle->device->config)->word,
-                MP_LITTLE_ENDIAN);
-          }
-          if (minipro_read_fuses(
-                  handle, MP_FUSE_LOCK,
-                  ((fuse_decl_t *)handle->device->config)->num_locks *
-                      ((fuse_decl_t *)handle->device->config)->item_size,
-                  ((fuse_decl_t *)handle->device->config)->item_size /
-                      ((fuse_decl_t *)handle->device->config)->word,
-                  vbuffer))
-            return EXIT_FAILURE;
-          if (memcmp(wbuffer, vbuffer,
-                     ((fuse_decl_t *)handle->device->config)->num_locks *
-                         ((fuse_decl_t *)handle->device->config)->item_size)) {
-            fprintf(stderr, "Lock bits verification error!\n");
-            ret = EXIT_FAILURE;
-          } else
-            fprintf(stderr, "Lock bits verification OK.\n");
-        }
-      }
+        break;
+    }
+    if (handle->cmdopts->no_protect_on == 0 &&
+        (handle->device->opts4 & MP_PROTECT_MASK)) {
+      fprintf(stderr, "Protect on...");
+      fflush(stderr);
+      if (minipro_protect_on(handle)) return EXIT_FAILURE;
+      fprintf(stderr, "OK\n");
+    }
   }
-  return ret;
+  return EXIT_SUCCESS;
 }
 
-int main(int argc, char **argv) {
+int action_verify(minipro_handle_t *handle) {
+  jedec_t wjedec, rjedec;
+  int ret = EXIT_SUCCESS;
 
-#ifdef _WIN32
-  system(" ");  // If we are in windows start the VT100 support
-#endif
+  if (is_pld(handle->device->protocol_id)) {
+    if (handle->cmdopts->filename) {
+      if (open_jed_file(handle, &wjedec)) return EXIT_FAILURE;
+    }
+    // Blank check
+    else {
+      wjedec.QF = handle->device->code_memory_size;
+      wjedec.F = 0x01;
+      wjedec.fuses = malloc(wjedec.QF);
+      memset(wjedec.fuses, 0x01, wjedec.QF);
+    }
 
-  cmdopts_t cmdopts;
-  parse_cmdline(argc, argv, &cmdopts);
-
-  // Check if a file name is required
-  switch (cmdopts.action) {
-    case READ:
-    case WRITE:
-    case VERIFY:
-      if (!cmdopts.filename && !cmdopts.idcheck_only) {
-        fprintf(stderr, "A file name is required for this action.\n");
-        print_help_and_exit(argv[0]);
-      }
-      break;
-    default:
-      break;
-  }
-
-  // Check if a device name is required
-  if (!cmdopts.device) {
-    fprintf(stderr, "Device required. Use -p <device> to specify a device.\n");
-    print_help_and_exit(argv[0]);
-  }
-
-  // don't permit skipping the ID read in write/erase-mode or ID only mode
-  if ((cmdopts.action == WRITE || cmdopts.action == ERASE ||
-       cmdopts.idcheck_only) &&
-      cmdopts.idcheck_skip) {
-    fprintf(stderr, "Skipping the ID check is not permitted for this action.\n");
-    print_help_and_exit(argv[0]);
-  }
-
-  // Exit if no action is supplied
-  if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only &&
-      !cmdopts.pincheck) {
-    fprintf(stderr, "No action to perform.\n");
-    print_help_and_exit(argv[0]);
-  }
-
-
-  minipro_handle_t *handle = minipro_open(cmdopts.device);
-  if (!handle) {
-    return EXIT_FAILURE;
-  }
-
-  // Exit if bootloader is active
-  minipro_print_system_info(handle);
-  if (handle->status == MP_STATUS_BOOTLOADER) {
-    fprintf(stderr, "in bootloader mode!\nExiting...\n");
-    minipro_close(handle);
-    return EXIT_FAILURE;
-  }
-
-  //Parse programming options
-  handle->cmdopts = &cmdopts;
-  if (parse_options(handle, argc, argv)) {
-    fprintf(stderr, "Invalid option '%s'\n", optarg);
-    minipro_close(handle);
-    exit(EXIT_FAILURE);
-  }
-
-  if (cmdopts.pincheck) {
-    if (handle->version == MP_TL866IIPLUS && !cmdopts.icsp) {
-      if (minipro_pin_test(handle)) {
-        minipro_end_transaction(handle);
-        minipro_close(handle);
-        return EXIT_FAILURE;
-      }
-    } else
-      fprintf(stderr, "Pin test is not supported.\n");
-    if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only)
-      return EXIT_SUCCESS;
-  }
-
-  switch (handle->device->protocol_id) {
-    // Check for GAL/PLD
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      break;
-    default:
-      if (!handle->device->read_buffer_size || !handle->device->protocol_id) {
-        minipro_close(handle);
-        fprintf(stderr, "Unsupported device!\n");
-        return EXIT_FAILURE;
-      }
-      break;
-  }
-
-  // Unlocking the TSOP48 adapter (if applicable)
-  uint8_t status;
-  switch (handle->device->package_details & ADAPTER_MASK) {
-    case TSOP48_ADAPTER:
-    case SOP44_ADAPTER:
-    case SOP56_ADAPTER:
-      if (minipro_unlock_tsop48(handle, &status)) {
-        minipro_close(handle);
-        return EXIT_FAILURE;
-      }
-      switch (status) {
-        case MP_TSOP48_TYPE_V3:
-          fprintf(stderr, "Found TSOP adapter V3\n");
-          break;
-        case MP_TSOP48_TYPE_NONE:
-          minipro_end_transaction(handle);  // We need this to turn off the
-                                            // power on the ZIF socket.
-          minipro_close(handle);
-          fprintf(stderr, "TSOP adapter not found!\n");
-          return EXIT_FAILURE;
-        case MP_TSOP48_TYPE_V0:
-          fprintf(stderr, "Found TSOP adapter V0\n");
-          break;
-        case MP_TSOP48_TYPE_FAKE1:
-        case MP_TSOP48_TYPE_FAKE2:
-          fprintf(stderr, "Fake TSOP adapter found!\n");
-          break;
-      }
-      minipro_end_transaction(handle);
-      break;
-  }
-
-  // Activate ICSP if the chip can only be programmed via ICSP.
-  handle->icsp = 0;
-  if ((handle->device->package_details & ICSP_MASK) &&
-      ((handle->device->package_details & PIN_COUNT_MASK) == 0)) {
-    handle->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
-  } else if (handle->device->package_details & ICSP_MASK)
-    handle->icsp = cmdopts.icsp;
-  if (handle->icsp) fprintf(stderr, "Activating ICSP...\n");
-
-  uint8_t id_type;
-  // Verifying Chip ID (if applicable)
-  if (cmdopts.idcheck_skip) {
-    fprintf(stderr, "WARNING: skipping Chip ID test\n");
-  } else if ((handle->device->chip_id_bytes_count && handle->device->chip_id) &&
-             (handle->device->opts4 & MP_ID_MASK)) {
     if (minipro_begin_transaction(handle)) {
-      minipro_close(handle);
+      free(wjedec.fuses);
       return EXIT_FAILURE;
     }
-    uint32_t chip_id;
-    if (minipro_get_chip_id(handle, &id_type, &chip_id)) {
-      minipro_close(handle);
+
+    rjedec.QF = wjedec.QF;
+    rjedec.F = wjedec.F;
+    rjedec.fuses = malloc(rjedec.QF);
+    if (!rjedec.fuses) {
+      free(wjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    // compare fuses
+    if (minipro_begin_transaction(handle)) {
+      free(wjedec.fuses);
+      free(rjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    if (read_jedec(handle, &rjedec)) {
+      free(wjedec.fuses);
+      free(rjedec.fuses);
       return EXIT_FAILURE;
     }
     if (minipro_end_transaction(handle)) {
+      free(wjedec.fuses);
+      free(rjedec.fuses);
+      return EXIT_FAILURE;
+    }
+    uint8_t c1, c2;
+    int address =
+        compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+
+    if (address != -1) {
+      if (handle->cmdopts->filename) {
+        fprintf(stderr,
+                "Verification failed at address 0x%04X: File=0x%02X, "
+                "Device=0x%02X\n",
+                address, c1, c2);
+      } else {
+        fprintf(stderr, "This device is not blank.\n");
+      }
+      free(rjedec.fuses);
+      return EXIT_FAILURE;
+    } else {
+      if (handle->cmdopts->filename) {
+        fprintf(stderr, "Verification OK\n");
+      } else {
+        fprintf(stderr, "This device is blank.\n");
+      }
+    }
+    free(rjedec.fuses);
+    free(wjedec.fuses);
+  } else {
+    // No GAL devices
+
+    // Verifying code memory section. If filename is null then a blank check
+    // is performed
+    if (handle->cmdopts->page == UNSPECIFIED || handle->cmdopts->page == CODE) {
+      if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+      if (verify_page_file(handle, MP_CODE, handle->device->code_memory_size))
+        ret = EXIT_FAILURE;
+    }
+
+    if (!handle->device->data_memory_size && handle->cmdopts->page == DATA) {
+      fprintf(stderr, "No data section found.\n");
+      return EXIT_FAILURE;
+    }
+
+    if (!handle->device->config && handle->cmdopts->page == CONFIG) {
+      fprintf(stderr, "No config section found.\n");
+      return EXIT_FAILURE;
+    }
+
+    // Verifying data memory section. If filename is null then a blank check
+    // is performed
+    if (handle->device->data_memory_size &&
+        (handle->cmdopts->page == DATA ||
+         (handle->cmdopts->page == UNSPECIFIED &&
+          !handle->cmdopts->filename))) {
+      if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+      if (verify_page_file(handle, MP_DATA, handle->device->data_memory_size))
+        ret = EXIT_FAILURE;
+    }
+
+    // Verifying configuration bytes.
+    if (handle->device->config && handle->cmdopts->page == CONFIG &&
+        !handle->cmdopts->filename) {
+      fprintf(stderr, "Configuration bytes can't be blank checked.\n");
+    }
+
+    if (handle->cmdopts->filename && handle->device->config &&
+        handle->cmdopts->page == CONFIG) {
+      uint8_t wbuffer[64], vbuffer[64];
+      uint32_t value;
+      size_t i;
+      char config[1024];
+
+      memset(config, 0, sizeof(config));
+      size_t file_size = sizeof(config);
+      if (open_file(handle, (uint8_t *)config, &file_size)) return EXIT_FAILURE;
+
+      if (minipro_begin_transaction(handle)) return EXIT_FAILURE;
+
+      fuse_decl_t *fuses = ((fuse_decl_t *)handle->device->config);
+      // Atmel microcontrollers workaround
+      uint8_t items;
+      if (!fuses->word) {
+        items = fuses->num_fuses;
+        fuses->word = 1;
+      } else
+        items = fuses->item_size / fuses->word;
+
+      if (fuses->num_fuses > 0) {
+        for (i = 0; i < fuses->num_fuses; i++) {
+          if (get_config_value(config, fuses->fnames[i], &value) ==
+              EXIT_FAILURE) {
+            fprintf(stderr, "Could not read config %s value.\n",
+                    fuses->fnames[i]);
+            return EXIT_FAILURE;
+          }
+          format_int(&(wbuffer[i * fuses->word]), value, fuses->word,
+                     MP_LITTLE_ENDIAN);
+        }
+        if (minipro_read_fuses(handle, MP_FUSE_CFG,
+                               fuses->num_fuses * fuses->item_size, items,
+                               vbuffer))
+          return EXIT_FAILURE;
+        if (memcmp(wbuffer, vbuffer, fuses->num_fuses * fuses->item_size)) {
+          fprintf(stderr, "Fuse bits verification error!\n");
+          ret = EXIT_FAILURE;
+        } else
+          fprintf(stderr, "Fuse bits verification OK.\n");
+      }
+
+      if (fuses->num_uids > 0) {
+        for (i = 0; i < fuses->num_uids; i++) {
+          if (get_config_value(config, fuses->unames[i], &value) ==
+              EXIT_FAILURE) {
+            fprintf(stderr, "Could not read config %s value.\n",
+                    fuses->unames[i]);
+            return EXIT_FAILURE;
+          }
+          format_int(&(wbuffer[i * fuses->word]), value, fuses->word,
+                     MP_LITTLE_ENDIAN);
+        }
+        if (minipro_read_fuses(handle, MP_FUSE_USER,
+                               fuses->num_uids * fuses->item_size,
+                               fuses->item_size / fuses->word, vbuffer))
+          return EXIT_FAILURE;
+        if (memcmp(wbuffer, vbuffer, fuses->num_uids * fuses->item_size)) {
+          fprintf(stderr, "User ID verification error!\n");
+          ret = EXIT_FAILURE;
+        } else
+          fprintf(stderr, "User ID verification OK.\n");
+      }
+
+      if (fuses->num_locks > 0) {
+        for (i = 0; i < fuses->num_locks; i++) {
+          if (get_config_value(config, fuses->lnames[i], &value) ==
+              EXIT_FAILURE) {
+            fprintf(stderr, "Could not read config %s value.\n",
+                    fuses->lnames[i]);
+            return EXIT_FAILURE;
+          }
+          format_int(&(wbuffer[i * fuses->word]), value, fuses->word,
+                     MP_LITTLE_ENDIAN);
+        }
+        if (minipro_read_fuses(handle, MP_FUSE_LOCK,
+                               fuses->num_locks * fuses->item_size,
+                               fuses->item_size / fuses->word, vbuffer))
+          return EXIT_FAILURE;
+        if (memcmp(wbuffer, vbuffer, fuses->num_locks * fuses->item_size)) {
+          fprintf(stderr, "Lock bits verification error!\n");
+          ret = EXIT_FAILURE;
+        } else
+          fprintf(stderr, "Lock bits verification OK.\n");
+      }
+    }
+  }
+  return ret;
+  }
+
+  int main(int argc, char **argv) {
+#ifdef _WIN32
+    system(" ");  // If we are in windows start the VT100 support
+#endif
+
+    cmdopts_t cmdopts;
+    parse_cmdline(argc, argv, &cmdopts);
+
+    // Check if a file name is required
+    switch (cmdopts.action) {
+      case READ:
+      case WRITE:
+      case VERIFY:
+        if (!cmdopts.filename && !cmdopts.idcheck_only) {
+          fprintf(stderr, "A file name is required for this action.\n");
+          print_help_and_exit(argv[0]);
+        }
+        break;
+      default:
+        break;
+    }
+
+    // Check if a device name is required
+    if (!cmdopts.device) {
+      fprintf(stderr,
+              "Device required. Use -p <device> to specify a device.\n");
+      print_help_and_exit(argv[0]);
+    }
+
+    // don't permit skipping the ID read in write/erase-mode or ID only mode
+    if ((cmdopts.action == WRITE || cmdopts.action == ERASE ||
+         cmdopts.idcheck_only) &&
+        cmdopts.idcheck_skip) {
+      fprintf(stderr,
+              "Skipping the ID check is not permitted for this action.\n");
+      print_help_and_exit(argv[0]);
+    }
+
+    // Exit if no action is supplied
+    if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only &&
+        !cmdopts.pincheck) {
+      fprintf(stderr, "No action to perform.\n");
+      print_help_and_exit(argv[0]);
+    }
+
+    // Set the pipe flag
+    if (cmdopts.filename)
+    	cmdopts.is_pipe = (!strcmp(cmdopts.filename, "-"));
+
+    minipro_handle_t *handle = minipro_open(cmdopts.device);
+    if (!handle) {
+      return EXIT_FAILURE;
+    }
+
+    // Exit if bootloader is active
+    minipro_print_system_info(handle);
+    if (handle->status == MP_STATUS_BOOTLOADER) {
+      fprintf(stderr, "in bootloader mode!\nExiting...\n");
       minipro_close(handle);
       return EXIT_FAILURE;
     }
-    uint32_t chip_id_temp = chip_id;
-    uint8_t shift = 0;
-    /* The id_type will tell us the Chip ID type. There are 5 types */
-    uint32_t ok = 0;
-    switch (id_type) {
-      case MP_ID_TYPE1:  // 1-3 bytes ID
-      case MP_ID_TYPE2:  // 4 bytes ID
-      case MP_ID_TYPE5:  // 3 bytes ID, this ID type is returning from 25 SPI
-                         // series.
-        ok = (chip_id == handle->device->chip_id);
-        if (ok) {
-          fprintf(stderr, "Chip ID OK: 0x%04X\n", chip_id);
-        }
-        break;
-      case MP_ID_TYPE3:  // Microchip controllers with 5 bit revision number.
-        ok = (handle->device->chip_id >> 5 ==
-              (chip_id >> 5));  // Throw the chip revision (last 5 bits).
-        if (ok) {
-          fprintf(stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> 5,
-                  chip_id & 0x1F);
-        }
-        chip_id >>= 5;
-        chip_id_temp = chip_id << 5;
-        shift = 5;
-        break;
-      case MP_ID_TYPE4:  // Microchip controllers with 4-5 bit revision number.
-        ok = (handle->device->chip_id >>
-                  ((fuse_decl_t *)handle->device->config)->rev_mask ==
-              (chip_id >> ((fuse_decl_t *)handle->device->config)
-                              ->rev_mask));  // Throw the chip revision (last
-                                             // rev_mask bits).
-        if (ok) {
-          fprintf(
-              stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id,
-              chip_id &
-                  ~(0xFF >> ((fuse_decl_t *)handle->device->config)->rev_mask));
-        }
-        chip_id >>= ((fuse_decl_t *)handle->device->config)->rev_mask;
-        chip_id_temp = chip_id
-                       << ((fuse_decl_t *)handle->device->config)->rev_mask;
-        shift = ((fuse_decl_t *)handle->device->config)->rev_mask;
-        break;
-    }
 
-    if (cmdopts.idcheck_only && ok) {
+    // Parse programming options
+    handle->cmdopts = &cmdopts;
+    if (parse_options(handle, argc, argv)) {
+      fprintf(stderr, "Invalid option '%s'\n", optarg);
       minipro_close(handle);
-      return EXIT_SUCCESS;
+      exit(EXIT_FAILURE);
     }
 
-    if (!ok) {
-      const char *name =
-          get_device_from_id(handle, chip_id_temp, handle->device->protocol_id);
-      if (cmdopts.idcheck_only) {
-        fprintf(stderr, "Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
-                handle->device->chip_id >> shift, chip_id_temp >> shift,
-                name ? name : "unknown");
-        minipro_close(handle);
-        return EXIT_FAILURE;
-      }
-      if (cmdopts.idcheck_continue) {
-        fprintf(stderr,
-                "WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
-                handle->device->chip_id >> shift, chip_id_temp >> shift,
-                name ? name : "unknown");
-      } else {
-        fprintf(stderr,
-                "Invalid Chip ID: expected 0x%04X, got 0x%04X (%s)\n(use '-y' "
-                "to continue anyway at your own risk)\n",
-                handle->device->chip_id >> shift, chip_id_temp,
-                name ? name : "unknown");
-        minipro_close(handle);
-        return EXIT_FAILURE;
-      }
+    if (cmdopts.pincheck) {
+      if (handle->version == MP_TL866IIPLUS && !cmdopts.icsp) {
+        if (minipro_pin_test(handle)) {
+          minipro_end_transaction(handle);
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+      } else
+        fprintf(stderr, "Pin test is not supported.\n");
+      if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only)
+        return EXIT_SUCCESS;
     }
-  } else if (cmdopts.idcheck_only) {
-    minipro_close(handle);
-    fprintf(stderr, "This chip doesn't have a chip id!\n");
-    return EXIT_FAILURE;
-  }
 
-  // Performing requested action
-  int ret;
-  switch (cmdopts.action) {
-    case READ:
-      ret = action_read(handle);
-      break;
-    case WRITE:
-      ret = action_write(handle);
-      break;
-    case VERIFY:
-    case BLANK_CHECK:
-    	ret = action_verify(handle);
-    	break;
-    case ERASE:
-      if (!(handle->device->opts4 & MP_ERASE_MASK)) {
-        fprintf(stderr, "This chip can't be erased!\n");
-        return EXIT_FAILURE;
-      }
+    // Check for GAL/PLD
+    if (!is_pld(handle->device->protocol_id) &&
+        (!handle->device->read_buffer_size || !handle->device->protocol_id)) {
+      minipro_close(handle);
+      fprintf(stderr, "Unsupported device!\n");
+      return EXIT_FAILURE;
+    }
+
+    // Unlocking the TSOP48 adapter (if applicable)
+    uint8_t status;
+    switch (handle->device->package_details & ADAPTER_MASK) {
+      case TSOP48_ADAPTER:
+      case SOP44_ADAPTER:
+      case SOP56_ADAPTER:
+        if (minipro_unlock_tsop48(handle, &status)) {
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+        switch (status) {
+          case MP_TSOP48_TYPE_V3:
+            fprintf(stderr, "Found TSOP adapter V3\n");
+            break;
+          case MP_TSOP48_TYPE_NONE:
+            minipro_end_transaction(handle);  // We need this to turn off the
+                                              // power on the ZIF socket.
+            minipro_close(handle);
+            fprintf(stderr, "TSOP adapter not found!\n");
+            return EXIT_FAILURE;
+          case MP_TSOP48_TYPE_V0:
+            fprintf(stderr, "Found TSOP adapter V0\n");
+            break;
+          case MP_TSOP48_TYPE_FAKE1:
+          case MP_TSOP48_TYPE_FAKE2:
+            fprintf(stderr, "Fake TSOP adapter found!\n");
+            break;
+        }
+        minipro_end_transaction(handle);
+        break;
+    }
+
+    // Activate ICSP if the chip can only be programmed via ICSP.
+    handle->icsp = 0;
+    if ((handle->device->package_details & ICSP_MASK) &&
+        ((handle->device->package_details & PIN_COUNT_MASK) == 0)) {
+      handle->icsp = MP_ICSP_ENABLE | MP_ICSP_VCC;
+    } else if (handle->device->package_details & ICSP_MASK)
+      handle->icsp = cmdopts.icsp;
+    if (handle->icsp) fprintf(stderr, "Activating ICSP...\n");
+
+    uint8_t id_type;
+    // Verifying Chip ID (if applicable)
+    if (cmdopts.idcheck_skip) {
+      fprintf(stderr, "WARNING: skipping Chip ID test\n");
+    } else if ((handle->device->chip_id_bytes_count &&
+                handle->device->chip_id) &&
+               (handle->device->opts4 & MP_ID_MASK)) {
       if (minipro_begin_transaction(handle)) {
         minipro_close(handle);
         return EXIT_FAILURE;
       }
-      ret = erase_device(handle);
-      break;
-    default:
-      ret = EXIT_FAILURE;
-      break;
-  }
+      uint32_t chip_id;
+      if (minipro_get_chip_id(handle, &id_type, &chip_id)) {
+        minipro_close(handle);
+        return EXIT_FAILURE;
+      }
+      if (minipro_end_transaction(handle)) {
+        minipro_close(handle);
+        return EXIT_FAILURE;
+      }
+      uint32_t chip_id_temp = chip_id;
+      uint8_t shift = 0;
+      /* The id_type will tell us the Chip ID type. There are 5 types */
+      uint32_t ok = 0;
+      switch (id_type) {
+        case MP_ID_TYPE1:  // 1-3 bytes ID
+        case MP_ID_TYPE2:  // 4 bytes ID
+        case MP_ID_TYPE5:  // 3 bytes ID, this ID type is returning from 25 SPI
+                           // series.
+          ok = (chip_id == handle->device->chip_id);
+          if (ok) {
+            fprintf(stderr, "Chip ID OK: 0x%04X\n", chip_id);
+          }
+          break;
+        case MP_ID_TYPE3:  // Microchip controllers with 5 bit revision number.
+          ok = (handle->device->chip_id >> 5 ==
+                (chip_id >> 5));  // Throw the chip revision (last 5 bits).
+          if (ok) {
+            fprintf(stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id >> 5,
+                    chip_id & 0x1F);
+          }
+          chip_id >>= 5;
+          chip_id_temp = chip_id << 5;
+          shift = 5;
+          break;
+        case MP_ID_TYPE4:  // Microchip controllers with 4-5 bit revision
+                           // number.
+          ok = (handle->device->chip_id >>
+                    ((fuse_decl_t *)handle->device->config)->rev_mask ==
+                (chip_id >> ((fuse_decl_t *)handle->device->config)
+                                ->rev_mask));  // Throw the chip revision (last
+                                               // rev_mask bits).
+          if (ok) {
+            fprintf(
+                stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id,
+                chip_id & ~(0xFF >>
+                            ((fuse_decl_t *)handle->device->config)->rev_mask));
+          }
+          chip_id >>= ((fuse_decl_t *)handle->device->config)->rev_mask;
+          chip_id_temp = chip_id
+                         << ((fuse_decl_t *)handle->device->config)->rev_mask;
+          shift = ((fuse_decl_t *)handle->device->config)->rev_mask;
+          break;
+      }
 
-  if (minipro_end_transaction(handle)) {
+      if (cmdopts.idcheck_only && ok) {
+        minipro_close(handle);
+        return EXIT_SUCCESS;
+      }
+
+      if (!ok) {
+        const char *name = get_device_from_id(handle, chip_id_temp,
+                                              handle->device->protocol_id);
+        if (cmdopts.idcheck_only) {
+          fprintf(stderr,
+                  "Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
+                  handle->device->chip_id >> shift, chip_id_temp >> shift,
+                  name ? name : "unknown");
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+        if (cmdopts.idcheck_continue) {
+          fprintf(
+              stderr,
+              "WARNING: Chip ID mismatch: expected 0x%04X, got 0x%04X (%s)\n",
+              handle->device->chip_id >> shift, chip_id_temp >> shift,
+              name ? name : "unknown");
+        } else {
+          fprintf(
+              stderr,
+              "Invalid Chip ID: expected 0x%04X, got 0x%04X (%s)\n(use '-y' "
+              "to continue anyway at your own risk)\n",
+              handle->device->chip_id >> shift, chip_id_temp,
+              name ? name : "unknown");
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+      }
+    } else if (cmdopts.idcheck_only) {
+      minipro_close(handle);
+      fprintf(stderr, "This chip doesn't have a chip id!\n");
+      return EXIT_FAILURE;
+    }
+
+    // Performing requested action
+    int ret;
+    switch (cmdopts.action) {
+      case READ:
+        ret = action_read(handle);
+        break;
+      case WRITE:
+        ret = action_write(handle);
+        break;
+      case VERIFY:
+      case BLANK_CHECK:
+        ret = action_verify(handle);
+        break;
+      case ERASE:
+        if (!(handle->device->opts4 & MP_ERASE_MASK)) {
+          fprintf(stderr, "This chip can't be erased!\n");
+          return EXIT_FAILURE;
+        }
+        if (minipro_begin_transaction(handle)) {
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+        ret = erase_device(handle);
+        break;
+      default:
+        ret = EXIT_FAILURE;
+        break;
+    }
+
+    if (minipro_end_transaction(handle)) {
+      minipro_close(handle);
+      return EXIT_FAILURE;
+    }
     minipro_close(handle);
-    return EXIT_FAILURE;
-  }
-  minipro_close(handle);
-  return ret;
+    return ret;
 }
