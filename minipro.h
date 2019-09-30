@@ -133,6 +133,7 @@ typedef struct cmdopts_s {
   char *device;
   enum { UNSPECIFIED = 0, CODE, DATA, CONFIG } page;
   enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK } action;
+  enum { NO_FORMAT = 0, IHEX, SREC} format;
   uint8_t no_erase;
   uint8_t no_protect_off;
   uint8_t no_protect_on;
@@ -144,6 +145,7 @@ typedef struct cmdopts_s {
   uint8_t idcheck_continue;
   uint8_t idcheck_only;
   uint8_t pincheck;
+  uint8_t is_pipe;
 } cmdopts_t;
 
 typedef struct minipro_handle {

@@ -19,45 +19,48 @@
 #include <stdio.h>
 #include <string.h>
 
-fuse_decl_t atmel_lock[] = {{.num_fuses = 0,
-                             .num_locks = 0x81,
-                             .num_uids = 0,
-                             .item_size = 1,
-                             .word = 1,
-                             .erase_num_fuses = 0,
-                             .rev_mask = 0,
-                             .fnames = NULL,
-                             .unames = NULL,
-                             .lnames = (const char *[]){"lock_byte"}}};
+fuse_decl_t atmel_lock[] = {
+    {.num_fuses = 0,
+     .num_locks = 0x81,
+     .num_uids = 0,
+     .item_size = 1,
+     .word = 0,
+     .erase_num_fuses = 0,
+     .rev_mask = 0,
+     .fnames = NULL,
+     .unames = NULL,
+     .lnames = (const char *[]){"lock_byte"}}};
 
-fuse_decl_t avr_fuses[] = {{.num_fuses = 1,
-                            .num_locks = 1,
-                            .num_uids = 0,
-                            .item_size = 1,
-                            .word = 1,
-                            .erase_num_fuses = 1,
-                            .rev_mask = 0,
-                            .fnames = (const char *[]){"fuses"},
-                            .unames = NULL,
-                            .lnames = (const char *[]){"lock_byte"}}};
+fuse_decl_t avr_fuses[] = {
+    {.num_fuses = 1,
+     .num_locks = 1,
+     .num_uids = 0,
+     .item_size = 1,
+     .word = 0,
+     .erase_num_fuses = 1,
+     .rev_mask = 0,
+     .fnames = (const char *[]){"fuses"},
+     .unames = NULL,
+     .lnames = (const char *[]){"lock_byte"}}};
 
-fuse_decl_t avr2_fuses[] = {{.num_fuses = 2,
-                             .num_locks = 1,
-                             .num_uids = 0,
-                             .item_size = 1,
-                             .word = 1,
-                             .erase_num_fuses = 2,
-                             .rev_mask = 0,
-                             .fnames = (const char *[]){"fuses_lo", "fuses_hi"},
-                             .unames = NULL,
-                             .lnames = (const char *[]){"lock_byte"}}};
+fuse_decl_t avr2_fuses[] = {
+    {.num_fuses = 2,
+     .num_locks = 1,
+     .num_uids = 0,
+     .item_size = 1,
+     .word = 0,
+     .erase_num_fuses = 2,
+     .rev_mask = 0,
+     .fnames = (const char *[]){"fuses_lo", "fuses_hi"},
+     .unames = NULL,
+     .lnames = (const char *[]){"lock_byte"}}};
 
 fuse_decl_t avr3_fuses[] = {
     {.num_fuses = 3,
      .num_locks = 1,
      .num_uids = 0,
      .item_size = 1,
-     .word = 1,
+     .word = 0,
      .erase_num_fuses = 3,
      .rev_mask = 0,
      .fnames = (const char *[]){"fuses_lo", "fuses_hi", "fuses_ext"},
