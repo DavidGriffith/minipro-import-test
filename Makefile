@@ -54,7 +54,7 @@ else
     USB = usb_nix.o
 endif
 
-COMMON_OBJECTS=jedec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
+COMMON_OBJECTS=jedec.o ihex.o srec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
 OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
 MINIPRO=minipro

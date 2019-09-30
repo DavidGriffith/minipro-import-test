@@ -21,14 +21,6 @@
 
 #include <stdint.h>
 
-#define NO_ERROR 0
-#define FILE_OPEN_ERROR -1
-#define SIZE_ERROR -2
-#define FILE_READ_ERROR -3
-#define BAD_FORMAT -4
-#define TOKEN_NOT_FOUND -5
-#define MEMORY_ERROR -6
-
 typedef struct jedec_s {
   const char *device_name;      // Device name
   uint8_t F;                    // Unlisted fuses value (0-1)
@@ -42,7 +34,7 @@ typedef struct jedec_s {
   uint8_t *fuses;               // Fuses array
 } jedec_t;
 
-int read_jedec_file(const char *filename, jedec_t *jedec);
-int write_jedec_file(const char *filename, jedec_t *jedec);
+int read_jedec_file(char *buffer, size_t size, jedec_t *jedec);
+int write_jedec_file(FILE *file, jedec_t *jedec);
 
 #endif /* JEDEC_H_ */

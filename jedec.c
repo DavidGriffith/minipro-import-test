@@ -15,14 +15,12 @@
  *
  */
 
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include "jedec.h"
 #include "version.h"
 
@@ -33,6 +31,7 @@
 #define ROW_SIZE 40
 #define DELIMITER '*'
 
+typedef enum { NO_ERROR, BAD_FORMAT, TOKEN_NOT_FOUND, MEMORY_ERROR } Result;
 
 /* Parse uint32 value from char buffer */
 static int parse_uint32(const char *buffer, uint32_t *value, char **pEnd,
@@ -263,90 +262,74 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
 }
 
 // JEDEC file parser
-int read_jedec_file(const char *filename, jedec_t *jedec) {
+int read_jedec_file(char *buffer, size_t size, jedec_t *jedec) {
   uint16_t checksum;
-  // Open the jed file
-  FILE *file = fopen(filename, "rb");
-  if (file == NULL) {
-    return FILE_OPEN_ERROR;
-  }
-
-  // Get the jed file size
-  struct stat st;
-  if (stat(filename, &st)) {
-    fclose(file);
-    return FILE_OPEN_ERROR;
-  }
-  off_t size = st.st_size;
 
   // Check for size limits
-  if (size < JED_MIN_SIZE || size > JED_MAX_SIZE) {
-    fclose(file);
-    return SIZE_ERROR;
-  }
-
-  // Read the jed file
-  char *buffer = malloc(size + 64);
-  if (!buffer) {
-    fclose(file);
-    return MEMORY_ERROR;
-  }
-  memset(buffer, 0, size + 64);
-
-  if (fread(buffer, sizeof(char), size, file) != size) {
-    fclose(file);
+  if (size < JED_MIN_SIZE) {
     free(buffer);
-    return FILE_READ_ERROR;
+    fprintf(stderr, "File size error!\n");
+    return EXIT_FAILURE;
   }
-  fclose(file);
 
-  int error = parse_tokens(buffer, size, jedec, &checksum);
-  if (error != NO_ERROR) {
-    free(buffer);
-    return error;
+  switch (parse_tokens(buffer, size, jedec, &checksum)) {
+    case BAD_FORMAT:
+      fprintf(stderr, "JED file format error!\n");
+      free(buffer);
+      return EXIT_FAILURE;
+    case MEMORY_ERROR:
+      fprintf(stderr, "Out of memory!\n");
+      free(buffer);
+      return EXIT_FAILURE;
+    default:
+      break;
   }
-  free(buffer);
+
   jedec->fuse_checksum = checksum;
-
-  return NO_ERROR;
+  return EXIT_SUCCESS;
 }
 
 // JEDEC file writer
-int write_jedec_file(const char *filename, jedec_t *jedec) {
+int write_jedec_file(FILE *file, jedec_t *jedec) {
   uint16_t fuse_checksum = 0, file_checksum = 0;
-  int16_t c;
+  size_t i;
 
-  FILE *file = fopen(filename, "wb+");
-  if (file == NULL) {
-    return FILE_OPEN_ERROR;
+  char *buffer = malloc(JED_MAX_SIZE);
+  if (!buffer) {
+    fprintf(stderr, "Out of memory!\n");
+    return EXIT_FAILURE;
   }
+  char *p_buff = buffer;
+
   if (jedec->device_name == NULL) jedec->device_name = "Unknown";
 
   // Print jedec header
-  fprintf(file,
-          "%c\r\nDevice: %s\r\n\r\nNOTE: Written by Minipro open source"
-          " software v%s*\r\n\r\nQP%u*\r\nQF%u*\r\nF%u*\r\nG%u*\r\n\r\n",
-          STX, jedec->device_name, VERSION, jedec->QP, jedec->QF, jedec->F,
-          jedec->G);
+  p_buff +=
+      sprintf(p_buff,
+              "%c\r\nDevice: %s\r\n\r\nNOTE: Written by Minipro open source"
+              " software v%s*\r\n\r\nQP%u*\r\nQF%u*\r\nF%u*\r\nG%u*\r\n\r\n",
+              STX, jedec->device_name, VERSION, jedec->QP, jedec->QF, jedec->F,
+              jedec->G);
 
-  uint32_t i;
   // Print fuses
   for (i = 0; i < jedec->QF; i++) {
     if ((i % ROW_SIZE) == 0)
-      fprintf(file, "%sL%04u ", i ? (i % ROW_SIZE ? "" : "*\r\n") : "",
-              (uint32_t)i);
-    fprintf(file, "%c", jedec->fuses[i] == 1 ? '1' : '0');
+      p_buff += sprintf(p_buff, "%sL%04u ",
+                        i ? (i % ROW_SIZE ? "" : "*\r\n") : "", (uint32_t)i);
+    p_buff += sprintf(p_buff, "%c", jedec->fuses[i] == 1 ? '1' : '0');
     fuse_checksum += jedec->fuses[i] == 1 ? (0x01 << (i & 0x07)) : 0;
   }
 
   // Print fuses checksum and ETX character
-  fprintf(file, "*\r\nC%04X*\r\n%c", fuse_checksum, ETX);
+  p_buff += sprintf(p_buff, "*\r\nC%04X*\r\n%c", fuse_checksum, ETX);
 
   // Calculate the file checksum
-  rewind(file);
-  while ((c = fgetc(file)) != EOF) file_checksum += c;
-  fprintf(file, "%04X\r\n", file_checksum);
+  for(i = 0; i < p_buff - buffer; i++)
+	  file_checksum += buffer[i];
 
-  fclose(file);
-  return NO_ERROR;
+  sprintf(p_buff, "%04X\r\n", file_checksum);
+
+  fputs(buffer, file);
+  free(buffer);
+  return EXIT_SUCCESS;
 }
