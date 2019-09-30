@@ -9,7 +9,8 @@ minipro \- programs various chips using the Minipro TL866XX series of programmer
 .RB [-o " option"\ ...\ ]
 .RB [-r|-w " filename"]
 .RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t]
-.RB [-f " filename"]
+.RB [-f " ihex|srec"]
+.RB [-F " filename"]
 .RB [-h]
 
 .B miniprohex
@@ -145,6 +146,23 @@ Show version information.
 Start hardware check.
 
 .TP
+.B \-f <ihex | srec>
+Specify the file format: either Intel ihex or Motorola srecord.
+
+When writing chips, this is not necessary because the file format is
+automatically detected.  There is no need to specify the exact Intex hex
+format (ihex8, ihex16, or ihex32) as the format is automatically
+detected.  If this option is not used, then the file will be saved as a
+raw binary file.
+
+When reading chips and the ihex format is chosen, if the data size is up
+to 64Kb the file will be saved in ihex8 format. Just plain hex records
+are used -- no segment/linear address records are inserted.  If the data
+size exceeds 64Kb then the ihex32 format is used. The ihex16 format is
+not used when reading chips.  The same strategy is used for the Motorola
+srecord format.
+
+.TP
 .B \-F <filename>
 Update firmware (should be update.dat).
 
@@ -179,6 +197,37 @@ the latter leaves it off.  These options are of no use for the TL866CS.
 The Minipro TL866xx series of chip programmers is distributed by
 Autoelectric.  Their website is
 .BR http://www.autoelectric.cn.
+
+.SH PIPES
+
+.B Minipro
+supports reading and writing to standard input and output.  To do this,
+use a dash (-) as a filename for the
+.B -w
+or
+.B -r
+options.
+
+For example:
+
+head -c 256k < /dev/urandom | srec_cat - -bin -o - -intel -Address_Length=4 -obs=16 | minipro -p w49f002u -w-
+
+This is how the hex/srec parsers were tested for reading from stdin.
+256kb of random binary data is generated then converted from binary to
+intel hex by the srec_cat utility. Finally the converted data is passed
+to our minipro which will read this data, convert it to binary by
+decoding the intel hex format from stdin and write it to the specified
+chip.  Note the -r- which tells to read from stdin instead from a
+regular file.  This is just a test command to test the ihex/srec
+parsers.  Don't use this in real life (convert from binary to ihex then
+from ihex to binary).
+
+You can also read a chip and write the data to the stdout like this:
+
+minipro -p w49f002u -r- -f ihex.
+
+You can then pass the output to another command line tool with | for
+other processing, etc.
 
 .SH FUSES
 
