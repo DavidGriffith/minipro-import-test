@@ -1,5 +1,5 @@
 /*
- * jedec.c - Functions for dealing with intel hex files.
+ * ihex.c - Functions for dealing with intel hex files.
  *
  * This file is a part of Minipro.
  *

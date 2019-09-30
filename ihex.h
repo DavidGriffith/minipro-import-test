@@ -1,5 +1,5 @@
 /*
- * jedec.h - Definitions and declarations for dealing with
+ * ihex.h - Definitions and declarations for dealing with
  * intel hex files.
  *
  * This file is a part of Minipro.
