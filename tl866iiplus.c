@@ -366,17 +366,17 @@ int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type,
 
 int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                             uint32_t *device_id) {
-  uint8_t msg[8], format;
+  uint8_t msg[8], format, id_length;
   msg_init(handle, TL866IIPLUS_READID, msg, sizeof(msg));
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, 6)) return EXIT_FAILURE;
   *type = msg[0];  // The Chip ID type (1-5)
   format = (*type == MP_ID_TYPE3 || *type == MP_ID_TYPE4 ? MP_LITTLE_ENDIAN
                                                          : MP_BIG_ENDIAN);
-  msg[1] &= 0x03;  // The length byte is always 1-4 but never know, truncate to
-                   // max. 4 bytes.
-  *device_id = (msg[1] ? load_int(&(msg[2]), msg[1], format)
-                       : 0);  // Check for positive length.
+  // The length byte is always 1-4 but never know, truncate to max. 4 bytes.
+  id_length = handle->device->chip_id_bytes_count & 0x03;
+  *device_id = (id_length ? load_int(&(msg[2]), id_length, format)
+                          : 0);  // Check for positive length.
   return EXIT_SUCCESS;
 }
 
