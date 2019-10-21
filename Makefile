@@ -1,7 +1,7 @@
 # Install Configuration
 
 # Your C compiler
-CC=gcc
+CC = gcc
 #CC=clang
 
 # Compiler options
