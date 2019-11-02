@@ -131,7 +131,7 @@ void print_help_and_exit(char *progname) {
       "	-y		Do NOT error on ID mismatch\n"
       "	-V		Show version information\n"
       "	-t		Start hardware check\n"
-      "	-F <filename>	Update firmware (should be update.dat)\n"
+      "	-F <filename>	Update firmware (should be update.dat or updateII.dat)\n"
       "	-h		Show help (this text)\n";
   fprintf(stderr, usage, VERSION, basename(progname));
   exit(EXIT_SUCCESS);
