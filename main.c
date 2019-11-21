@@ -391,7 +391,8 @@ int set_voltage(minipro_handle_t *handle, char *value, int *target,
 // Parse and set programming options for both TL866A/CS and TL866II+
 int parse_options(minipro_handle_t *handle, int argc, char **argv) {
   uint32_t v;
-  char c, *p_end, option[64], value[64];
+  int8_t c;
+  char *p_end, option[64], value[64];
   int vpp = -1, vcc = -1, vdd = -1, pulse_delay = -1;
 
   // Parse options first
@@ -571,7 +572,7 @@ void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
 }
 
 void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
-  char c;
+  int8_t c;
   uint8_t package_type = 0;
   memset(cmdopts, 0, sizeof(cmdopts_t));
 
