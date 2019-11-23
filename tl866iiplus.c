@@ -374,7 +374,8 @@ int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
   format = (*type == MP_ID_TYPE3 || *type == MP_ID_TYPE4 ? MP_LITTLE_ENDIAN
                                                          : MP_BIG_ENDIAN);
   // The length byte is always 1-4 but never know, truncate to max. 4 bytes.
-  id_length = handle->device->chip_id_bytes_count & 0x03;
+  id_length = handle->device->chip_id_bytes_count > 4 ? 4
+                                      : handle->device->chip_id_bytes_count;
   *device_id = (id_length ? load_int(&(msg[2]), id_length, format)
                           : 0);  // Check for positive length.
   return EXIT_SUCCESS;
