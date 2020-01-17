@@ -172,8 +172,8 @@ int read_hex_file(uint8_t *buffer, uint8_t *data, size_t *size) {
             if (chip_size >= uba + rec.address + rec.count)
               // copy record data
               memcpy(&(data[uba + rec.address]), rec.data, rec.count);
-            else
-              *size = (uba + rec.address + rec.count);
+            //else
+              //*size = (uba + rec.address + rec.count);
             break;
           case IHEX_EOF:
             if (eof) {
