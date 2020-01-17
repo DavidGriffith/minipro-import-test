@@ -2190,9 +2190,10 @@ int action_verify(minipro_handle_t *handle) {
                                                // rev_mask bits).
           if (ok) {
             fprintf(
-                stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id,
-                chip_id & ~(0xFF >>
-                            ((fuse_decl_t *)handle->device->config)->rev_mask));
+                stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n",
+                chip_id >> ((fuse_decl_t *)handle->device->config)->rev_mask,
+                chip_id & ~(0xFF << ((fuse_decl_t *)handle->device->config)
+                                        ->rev_mask));
           }
           chip_id >>= ((fuse_decl_t *)handle->device->config)->rev_mask;
           chip_id_temp = chip_id
