@@ -807,8 +807,6 @@ int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
     if ((handle->device->opts4 & MP_DATA_BUS_WIDTH) && type == MP_CODE)
       address = address >> 1;
 
-    // Last block
-    if ((i + 1) * len > size) len = size % len;
     if (minipro_read_block(handle, type, address,
                            buf + i * handle->device->read_buffer_size, len))
       return EXIT_FAILURE;

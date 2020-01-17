@@ -280,8 +280,7 @@ int tl866iiplus_read_block(minipro_handle_t *handle, uint8_t type,
   format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[4]), addr, 4, MP_LITTLE_ENDIAN);
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
-  return read_payload(handle->usb_handle, buf,
-                      handle->device->read_buffer_size);
+  return read_payload(handle->usb_handle, buf, len);
 }
 
 int tl866iiplus_write_block(minipro_handle_t *handle, uint8_t type,
