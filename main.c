@@ -807,8 +807,6 @@ int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
     if ((handle->device->opts4 & MP_DATA_BUS_WIDTH) && type == MP_CODE)
       address = address >> 1;
 
-    // Last block
-    if ((i + 1) * len > size) len = size % len;
     if (minipro_read_block(handle, type, address,
                            buf + i * handle->device->read_buffer_size, len))
       return EXIT_FAILURE;
@@ -2190,9 +2188,10 @@ int action_verify(minipro_handle_t *handle) {
                                                // rev_mask bits).
           if (ok) {
             fprintf(
-                stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n", chip_id,
-                chip_id & ~(0xFF >>
-                            ((fuse_decl_t *)handle->device->config)->rev_mask));
+                stderr, "Chip ID OK: 0x%04X Rev.0x%02X\n",
+                chip_id >> ((fuse_decl_t *)handle->device->config)->rev_mask,
+                chip_id & ~(0xFF << ((fuse_decl_t *)handle->device->config)
+                                        ->rev_mask));
           }
           chip_id >>= ((fuse_decl_t *)handle->device->config)->rev_mask;
           chip_id_temp = chip_id

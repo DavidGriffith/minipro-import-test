@@ -1,5 +1,5 @@
 /*
- * tl866plus.h - Low level ops for TL866II+ declarations and definations
+ * tl866plus.h - Low level ops for TL866II+ declarations and definitions
  *
  * This file is a part of Minipro.
  *
@@ -18,8 +18,8 @@
 #ifndef __TL866IIPLUS_H
 #define __TL866IIPLUS_H
 
-#define TL866IIPLUS_FIRMWARE_VERSION 0x026d
-#define TL866IIPLUS_FIRMWARE_STRING "04.2.109"
+#define TL866IIPLUS_FIRMWARE_VERSION 0x026e
+#define TL866IIPLUS_FIRMWARE_STRING "04.2.110"
 
 // TL866II+ low level functions.
 int tl866iiplus_begin_transaction(minipro_handle_t *handle);
