@@ -113,6 +113,16 @@ The final RPMs can be found below `~/rpmbuild/RPMS/`
 
 ## Installation on macOS
 
+The easiest way to install on macOS is by using brew to install the most recent release:
+
+```nohighlight
+brew install minipro
+```
+
+At that point, minipro should be installed and ready to use.
+
+If you'd rather compile from source (if, for instance, you need newer code than is in the most recent release), you'll need to do the following to prepare your environment and compile the code.
+
 ### Install dependencies
 Install `pkg-config` and `libusb` using brew or MacPorts:
 ```
