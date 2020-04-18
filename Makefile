@@ -126,7 +126,7 @@ library: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS)
 
 clean:
 	rm -f $(OBJECTS) $(PROGS)
-	rm -f $(STATIC_LIBS)
+	rm -f $(STATIC_LIB)
 	rm -f version.h version.c version.o
 
 distclean: clean
@@ -172,7 +172,6 @@ install_library:
 uninstall_library:
 	rm /usr/local/lib/pkgconfig/libminipro.pc
 	rm -f $(LIB_INSTDIR)/pkgconfig/libminipro.pc
-	rmdir $(LIB_INSTDIR)/pkgconfig
 	rm -f $(LIB_INSTDIR)/$(STATIC_LIB)
 	rm -f $(INCLUDE_INSTDIR)/*.h
 	rmdir $(INCLUDE_INSTDIR)
