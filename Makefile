@@ -58,7 +58,7 @@ endif
 COMMON_OBJECTS=jedec.o ihex.o srec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
 OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
-STATIC_LIBS=libminipro.a
+STATIC_LIB=libminipro.a
 MINIPRO=minipro
 MINIPROHEX=miniprohex
 TESTS=$(wildcard tests/test_*.c);
@@ -121,12 +121,12 @@ minipro: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
 	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
 library: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS)
-	ar ru $(STATIC_LIBS) $(VERSION_OBJ) $(COMMON_OBJECTS)
-	ranlib $(STATIC_LIBS)
+	ar ru $(STATIC_LIB) $(VERSION_OBJ) $(COMMON_OBJECTS)
+	ranlib $(STATIC_LIB)
 
 clean:
 	rm -f $(OBJECTS) $(PROGS)
-	rm -f $(STATIC_LIBS)
+	rm -f $(STATIC_LIB)
 	rm -f version.h version.c version.o
 
 distclean: clean
@@ -162,7 +162,7 @@ install_library:
 	mkdir -p $(LIB_INSTDIR)
 	mkdir -p $(INCLUDE_INSTDIR)
 	mkdir $(LIB_INSTDIR)/pkgconfig
-	cp $(STATIC_LIBS) $(LIB_INSTDIR)/
+	cp $(STATIC_LIB) $(LIB_INSTDIR)/
 	cp *.h $(INCLUDE_INSTDIR)/
 	cp libminipro.pc $(LIB_INSTDIR)/pkgconfig/
 	sed -e "s#MINIPROPREFIX#$(DESTDIR)$(PREFIX)#" -i "" "$(LIB_INSTDIR)/pkgconfig/libminipro.pc"
@@ -171,8 +171,10 @@ install_library:
 
 uninstall_library:
 	rm /usr/local/lib/pkgconfig/libminipro.pc
-	rm -rf $(LIB_INSTDIR)
-	rm -rf $(INCLUDE_INSTDIR)
+	rm -f $(LIB_INSTDIR)/pkgconfig/libminipro.pc
+	rm -f $(LIB_INSTDIR)/$(STATIC_LIB)
+	rm -f $(INCLUDE_INSTDIR)/*.h
+	rmdir $(INCLUDE_INSTDIR)
 
 deb: distclean
 	dpkg-buildpackage -b -rfakeroot -us -uc
