@@ -42,6 +42,7 @@ endif
 BUILD_DATE = $(shell date "+%Y-%m-%d %H:%M:%S %z")
 VERSION_HEADER = version.h
 VERSION_STRINGS = version.c
+VERSION_OBJ = version.o
 
 PKG_CONFIG := $(shell which pkg-config 2>/dev/null)
 ifeq ($(PKG_CONFIG),)
@@ -57,6 +58,7 @@ endif
 COMMON_OBJECTS=jedec.o ihex.o srec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
 OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
+STATIC_LIBS=libminipro.a
 MINIPRO=minipro
 MINIPROHEX=miniprohex
 TESTS=$(wildcard tests/test_*.c);
@@ -64,6 +66,8 @@ OBJCOPY=objcopy
 
 DIST_DIR = $(MINIPRO)-$(VERSION)
 BIN_INSTDIR=$(DESTDIR)$(PREFIX)/bin
+LIB_INSTDIR=$(DESTDIR)$(PREFIX)/lib
+INCLUDE_INSTDIR=$(DESTDIR)$(PREFIX)/include/libminipro
 MAN_INSTDIR=$(DESTDIR)$(PREFIX)/share/man/man1
 
 UDEV_DIR=$(shell $(PKG_CONFIG) --define-variable=prefix=$(PREFIX) --silence-errors --variable=udevdir udev)
@@ -116,8 +120,13 @@ $(VERSION_STRINGS):
 minipro: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
 	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
+library: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS)
+	ar ru $(STATIC_LIBS) $(VERSION_OBJ) $(COMMON_OBJECTS)
+	ranlib $(STATIC_LIBS)
+
 clean:
 	rm -f $(OBJECTS) $(PROGS)
+	rm -f $(STATIC_LIBS)
 	rm -f version.h version.c version.o
 
 distclean: clean
@@ -148,6 +157,22 @@ uninstall:
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-plugdev.rules; fi
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-uaccess.rules; fi
 	if [ -n "$(COMPLETIONS_DIR)" ]; then rm -f $(COMPLETIONS_INSTDIR)/minipro; fi
+
+install_library:
+	mkdir -p $(LIB_INSTDIR)
+	mkdir -p $(INCLUDE_INSTDIR)
+	mkdir $(LIB_INSTDIR)/pkgconfig
+	cp $(STATIC_LIBS) $(LIB_INSTDIR)/
+	cp *.h $(INCLUDE_INSTDIR)/
+	cp libminipro.pc $(LIB_INSTDIR)/pkgconfig/
+	sed -e "s#MINIPROPREFIX#$(DESTDIR)$(PREFIX)#" -i "" "$(LIB_INSTDIR)/pkgconfig/libminipro.pc"
+	sed -e "s#MINIPROVERSION#$(VERSION)#" -i "" "$(LIB_INSTDIR)/pkgconfig/libminipro.pc"
+	ln -s "$(LIB_INSTDIR)/pkgconfig/libminipro.pc" /usr/local/lib/pkgconfig/libminipro.pc
+
+uninstall_library:
+	rm /usr/local/lib/pkgconfig/libminipro.pc
+	rm -rf $(LIB_INSTDIR)
+	rm -rf $(INCLUDE_INSTDIR)
 
 deb: distclean
 	dpkg-buildpackage -b -rfakeroot -us -uc
