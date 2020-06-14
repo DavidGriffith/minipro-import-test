@@ -1218,7 +1218,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   if (file_size != size) {
     if (!handle->cmdopts->size_error) {
       fprintf(stderr,
-              "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ")\n",
+              "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ", use -s/S to ignore)\n",
               file_size, size);
       free(file_data);
       return EXIT_FAILURE;
@@ -1345,7 +1345,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     if (file_size != size) {
       if (!handle->cmdopts->size_error) {
         fprintf(stderr,
-                "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ")\n",
+                "Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET ", use -s/S to ignore)\n",
                 file_size, size);
         free(file_data);
         return EXIT_FAILURE;
