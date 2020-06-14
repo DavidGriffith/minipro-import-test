@@ -1144,7 +1144,7 @@ int open_file(minipro_handle_t *handle, uint8_t *data, size_t *file_size) {
     return EXIT_FAILURE;
   }
   // This must be a binary file
-  memcpy(data, buffer, chip_size);
+  memcpy(data, buffer, *file_size > chip_size ? chip_size : *file_size);
   free(buffer);
   return EXIT_SUCCESS;
 }
