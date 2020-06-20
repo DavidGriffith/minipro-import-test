@@ -86,6 +86,18 @@ You should then have a .deb package for you to install with `dpkg -i`.
 Note that the .deb package will already provide the udev and 
 bash-completion configurations for you.
 
+### Making a Debian source package for a PPA
+
+The following commands require `git-buildpackage`:
+
+```nohighlight
+git archive --format=tar HEAD | tar x && git commit -am "packaging: Makefile substitution"
+gbp dch --commit --since=HEAD --upstream-branch=master --dch-opt="-lppa" --dch-opt="-D$(lsb_release -c -s)" debian
+gbp buildpackage --git-upstream-tree=SLOPPY --git-export-dir=../build-area -S
+```
+
+You can then `dput` the `*.changes` file in `../build-area` to your PPA.
+
 ### Making a .rpm package
 
 You can build RPM packages for Fedora and CentOS with the supplied

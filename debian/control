@@ -2,7 +2,7 @@ Source: minipro
 Section: universe/electronics
 Priority: extra
 Maintainer: David Griffith <dave@661.org>
-Build-Depends: debhelper (>= 8.0.0), libusb-1.0-0-dev, pkg-config
+Build-Depends: debhelper (>= 8.0.0), libusb-1.0-0-dev, pkg-config, bash-completion, udev
 Standards-Version: 3.9.4
 Homepage: https://gitlab.com/DavidGriffith/minipro
 Vcs-Git: git://gitlab.com/DavidGriffith/minipro
