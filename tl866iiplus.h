@@ -18,8 +18,8 @@
 #ifndef __TL866IIPLUS_H
 #define __TL866IIPLUS_H
 
-#define TL866IIPLUS_FIRMWARE_VERSION 0x0273
-#define TL866IIPLUS_FIRMWARE_STRING "04.2.115"
+#define TL866IIPLUS_FIRMWARE_VERSION 0x0274
+#define TL866IIPLUS_FIRMWARE_STRING "04.2.116"
 
 // TL866II+ low level functions.
 int tl866iiplus_begin_transaction(minipro_handle_t *handle);
