@@ -28,7 +28,7 @@
 #define ETX 0x03
 #define JED_MIN_SIZE 8
 #define JED_MAX_SIZE 1048576
-#define ROW_SIZE 40
+#define ROW_SIZE 32
 #define DELIMITER '*'
 
 typedef enum { NO_ERROR, BAD_FORMAT, TOKEN_NOT_FOUND, MEMORY_ERROR } Result;
@@ -307,21 +307,21 @@ int write_jedec_file(FILE *file, jedec_t *jedec) {
   p_buff +=
       sprintf(p_buff,
               "%c\r\nDevice: %s\r\n\r\nNOTE: Written by Minipro open source"
-              " software v%s*\r\n\r\nQP%u*\r\nQF%u*\r\nF%u*\r\nG%u*\r\n\r\n",
+              " software v%s\r\n\r\n*QP%u\r\n*QF%u\r\n*F%u\r\n*G%u\r\n\r\n",
               STX, jedec->device_name, VERSION, jedec->QP, jedec->QF, jedec->F,
               jedec->G);
 
   // Print fuses
   for (i = 0; i < jedec->QF; i++) {
     if ((i % ROW_SIZE) == 0)
-      p_buff += sprintf(p_buff, "%sL%04u ",
-                        i ? (i % ROW_SIZE ? "" : "*\r\n") : "", (uint32_t)i);
+      p_buff += sprintf(p_buff, "%s*L%05u ",
+                        i ? (i % ROW_SIZE ? "" : "\r\n") : "", (uint32_t)i);
     p_buff += sprintf(p_buff, "%c", jedec->fuses[i] == 1 ? '1' : '0');
     fuse_checksum += jedec->fuses[i] == 1 ? (0x01 << (i & 0x07)) : 0;
   }
 
   // Print fuses checksum and ETX character
-  p_buff += sprintf(p_buff, "*\r\nC%04X*\r\n%c", fuse_checksum, ETX);
+  p_buff += sprintf(p_buff, "\r\n*C%04X\r\n%c", fuse_checksum, ETX);
 
   // Calculate the file checksum
   for(i = 0; i < p_buff - buffer; i++)

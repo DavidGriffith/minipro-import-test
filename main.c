@@ -900,7 +900,7 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   // Read fuses
   memset(jedec->fuses, 0, jedec->QF);
   for (i = 0; i < config->fuses_size; i++) {
-    if (minipro_read_jedec_row(handle, buffer, i, config->row_width))
+    if (minipro_read_jedec_row(handle, buffer, i, 0, config->row_width))
       return EXIT_FAILURE;
     // Unpacking the row
     for (j = 0; j < config->row_width; j++) {
@@ -911,16 +911,17 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   }
 
   // Read user electronic signature (UES)
-  if (minipro_read_jedec_row(handle, buffer, i, config->ues_size))
+  if (minipro_read_jedec_row(handle, buffer, i, 0, config->ues_size))
     return EXIT_FAILURE;
   for (j = 0; j < config->ues_size; j++) {
-    if (buffer[j / 8] & (0x80 >> (j & 0x07)))
+    size_t offs = j + (config->ues_address % config->row_width);
+    if (buffer[offs / 8] & (0x80 >> (offs & 0x07)))
       jedec->fuses[config->ues_address + j] = 1;
   }
 
   // Read architecture control word (ACW)
   if (minipro_read_jedec_row(handle, buffer, config->acw_address,
-                             config->acw_size))
+        config->acw_flags, config->row_width))
     return EXIT_FAILURE;
   for (i = 0; i < config->acw_size; i++) {
     if (buffer[i / 8] & (0x80 >> (i & 0x07)))

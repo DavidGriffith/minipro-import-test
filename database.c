@@ -203,6 +203,7 @@ gal_config_t gal5_acw[] = {
      .ues_address = 5828,
      .ues_size = 64,
      .acw_address = 0x10,
+     .acw_flags = 0x10, // checked with firmware 0x274
      .acw_size = 0x14}};
 
 device_t infoic_devices[] = {

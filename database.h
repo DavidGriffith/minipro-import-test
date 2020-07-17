@@ -41,6 +41,7 @@ typedef struct gal_config {
   uint16_t ues_address;  // user electronic signature address
   uint8_t ues_size;      // ues size in bits
   uint8_t acw_address;   // address of 'architecture control word'
+  uint8_t acw_flags;     // flags for reading acw. For normal fuses this is 0
   uint8_t acw_size;      // acw size in bits
   uint16_t *acw_bits;    // acw bits order
 } gal_config_t;

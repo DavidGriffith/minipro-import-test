@@ -185,7 +185,7 @@ typedef struct minipro_handle {
   int (*minipro_write_jedec_row)(struct minipro_handle *, uint8_t *, uint8_t,
                                  size_t);
   int (*minipro_read_jedec_row)(struct minipro_handle *, uint8_t *, uint8_t,
-                                size_t);
+                                uint8_t, size_t);
   int (*minipro_firmware_update)(struct minipro_handle *, const char *);
   int (*minipro_pin_test)(struct minipro_handle *);
 } minipro_handle_t;
@@ -246,7 +246,7 @@ int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
 int minipro_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                             uint8_t row, size_t size);
 int minipro_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                           uint8_t row, size_t size);
+                           uint8_t row, uint8_t flags, size_t size);
 int minipro_erase(minipro_handle_t *handle);
 int minipro_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int minipro_hardware_check(minipro_handle_t *handle);
