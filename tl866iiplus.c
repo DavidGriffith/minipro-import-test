@@ -484,7 +484,7 @@ int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
   msg[2] = size;
   msg[4] = row;
   msg[5] = flags;
-  memcpy(&msg[8], buffer, size / 8 + 1);
+  memcpy(&msg[8], buffer, (size + 7) / 8);
   return msg_send(handle->usb_handle, msg, 64);
 }
 
@@ -499,7 +499,7 @@ int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
   msg[5] = flags;
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, 32)) return EXIT_FAILURE;
-  memcpy(buffer, msg, size / 8 + 1);
+  memcpy(buffer, msg, (size + 7) / 8);
   return EXIT_SUCCESS;
 }
 

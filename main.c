@@ -914,14 +914,13 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   if (minipro_read_jedec_row(handle, buffer, i, 0, config->ues_size))
     return EXIT_FAILURE;
   for (j = 0; j < config->ues_size; j++) {
-    size_t offs = j + (config->ues_address % config->row_width);
-    if (buffer[offs / 8] & (0x80 >> (offs & 0x07)))
+    if (buffer[j / 8] & (0x80 >> (j & 0x07)))
       jedec->fuses[config->ues_address + j] = 1;
   }
 
   // Read architecture control word (ACW)
   if (minipro_read_jedec_row(handle, buffer, config->acw_address,
-        config->acw_flags, config->row_width))
+        config->acw_flags, config->acw_size))
     return EXIT_FAILURE;
   for (i = 0; i < config->acw_size; i++) {
     if (buffer[i / 8] & (0x80 >> (i & 0x07)))
