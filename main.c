@@ -963,7 +963,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
         buffer[j / 8] |= (0x80 >> (j & 0x07));
     }
     update_status(status_msg, "%2d%%", i * 100 / config->fuses_size);
-    if (minipro_write_jedec_row(handle, buffer, i, config->row_width))
+    if (minipro_write_jedec_row(handle, buffer, i, 0, config->row_width))
       return EXIT_FAILURE;
   }
 
@@ -973,7 +973,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
     if (jedec->fuses[config->ues_address + j] == 1)
       buffer[j / 8] |= (0x80 >> (j & 0x07));
   }
-  if (minipro_write_jedec_row(handle, buffer, i, config->ues_size))
+  if (minipro_write_jedec_row(handle, buffer, i, 0, config->ues_size))
     return EXIT_FAILURE;
 
   // Write architecture control word (ACW)
@@ -984,7 +984,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   }
 
   if (minipro_write_jedec_row(handle, buffer, config->acw_address,
-                              config->acw_size))
+                              config->acw_flags, config->acw_size))
     return EXIT_FAILURE;
 
   gettimeofday(&end, NULL);

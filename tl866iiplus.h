@@ -43,7 +43,7 @@ int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
 int tl866iiplus_erase(minipro_handle_t *handle);
 int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                                uint8_t row, size_t size);
+                                uint8_t row, uint8_t flags, size_t size);
 int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                                uint8_t row, uint8_t flags, size_t size);
 int tl866iiplus_hardware_check(minipro_handle_t *handle);
