@@ -920,7 +920,7 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
 
   // Read architecture control word (ACW)
   if (minipro_read_jedec_row(handle, buffer, config->acw_address,
-        config->acw_flags, config->acw_size))
+        config->acw_address, config->acw_size))
     return EXIT_FAILURE;
   for (i = 0; i < config->acw_size; i++) {
     if (buffer[i / 8] & (0x80 >> (i & 0x07)))
@@ -982,7 +982,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
       buffer[i / 8] |= (0x80 >> (i & 0x07));
   }
   if (minipro_write_jedec_row(handle, buffer, config->acw_address,
-                              config->acw_flags, config->acw_size))
+                              config->acw_address, config->acw_size))
     return EXIT_FAILURE;
 
   // Write Lock Bit by writing to specific lock-bit row

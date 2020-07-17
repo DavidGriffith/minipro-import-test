@@ -42,7 +42,6 @@ typedef struct gal_config {
   uint8_t ues_size;      // ues size in bits
   uint8_t lockbit_row;   // row address to set lock bit
   uint8_t acw_address;   // row address of 'architecture control word'
-  uint8_t acw_flags;     // flags for reading acw. For normal fuses this is 0
   uint8_t acw_size;      // acw size in bits
   uint16_t *acw_bits;    // acw bits order
 } gal_config_t;

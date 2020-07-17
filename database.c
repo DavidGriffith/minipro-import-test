@@ -204,7 +204,6 @@ gal_config_t gal5_acw[] = {
      .ues_size = 64,
      .lockbit_row = 0x3b,
      .acw_address = 0x10,
-     .acw_flags = 0x10, // checked with firmware 0x274
      .acw_size = 0x14}};
 
 gal_config_t gal6_acw[] = { // e.g. for ATF750C
@@ -229,7 +228,6 @@ gal_config_t gal6_acw[] = { // e.g. for ATF750C
      .ues_address = 14435,
      .ues_size = 64,
      .acw_address = 0x10,
-     .acw_flags = 0x10, // checked with firmware 0x274
      .acw_size = 3*10 + 4*10}};
 
 /* TODO: remove once order of config bits is clear
@@ -265,7 +263,6 @@ gal_config_t gal6b_acw[] = { // e.g. for ATF750C
      .ues_address = 14435,
      .ues_size = 64,
      .acw_address = 0x10,
-     .acw_flags = 0x10, // checked with firmware 0x274
      .acw_size = 3*10 + 4*10}};
 */
 
