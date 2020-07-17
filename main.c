@@ -981,10 +981,16 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
     if (jedec->fuses[config->acw_bits[i]] == 1)
       buffer[i / 8] |= (0x80 >> (i & 0x07));
   }
-
   if (minipro_write_jedec_row(handle, buffer, config->acw_address,
                               config->acw_flags, config->acw_size))
     return EXIT_FAILURE;
+
+  // Write Lock Bit by writing to specific lock-bit row
+  if((handle->cmdopts->no_protect_on == 0) && (config->lockbit_row != 0)) {
+    memset(buffer, 0, sizeof(buffer));
+    if (minipro_write_jedec_row(handle, buffer, config->lockbit_row, 0, 1))
+      return EXIT_FAILURE;
+  }
 
   gettimeofday(&end, NULL);
   sprintf(status_msg, "Writing jedec file...  %.2fSec  OK",
@@ -1689,6 +1695,11 @@ int action_write(minipro_handle_t *handle) {
 
   if (is_pld(handle->device->protocol_id)) {
     if (open_jed_file(handle, &wjedec)) return EXIT_FAILURE;
+    if (!handle->device->config) {
+      fprintf(stderr, "No config section found.\n");
+      return EXIT_FAILURE;
+    }
+    gal_config_t *config = (gal_config_t *)handle->device->config;
 
     if (handle->cmdopts->no_protect_on == 0)
       fprintf(stderr, "Use -P to skip write protect\n\n");
@@ -1751,7 +1762,9 @@ int action_write(minipro_handle_t *handle) {
     }
     free(wjedec.fuses);
 
-    if (handle->cmdopts->no_protect_on == 0) {
+    if (handle->cmdopts->no_protect_on == 0 && config->lockbit_row == 0) {
+      // only set lock bit here, when device doesn't have a specific
+      // config->lockbit_row; then it will be done in write_jedec()
       fprintf(stderr, "Writing lock bit... ");
       fflush(stderr);
       gettimeofday(&begin, NULL);

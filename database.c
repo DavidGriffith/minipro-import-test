@@ -202,6 +202,7 @@ gal_config_t gal5_acw[] = {
      .row_width = 0x84,
      .ues_address = 5828,
      .ues_size = 64,
+     .lockbit_row = 0x3b,
      .acw_address = 0x10,
      .acw_flags = 0x10, // checked with firmware 0x274
      .acw_size = 0x14}};
