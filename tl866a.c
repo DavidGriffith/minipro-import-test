@@ -429,28 +429,30 @@ int tl866a_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
 }
 
 int tl866a_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                           uint8_t row, size_t size) {
+                           uint8_t row, uint8_t flags, size_t size) {
   uint8_t msg[64];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_WRITE_CODE;
   msg[1] = handle->device->protocol_id;
   msg[2] = size;
   msg[4] = row;
-  memcpy(&msg[7], buffer, size / 8 + 1);
+  //msg[5] = flags; // TODO: check if the flags are the same as for TL866II Plus
+  memcpy(&msg[7], buffer, (size + 7) / 8);
   return msg_send(handle->usb_handle, msg, 64);
 }
 
 int tl866a_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                          uint8_t row, size_t size) {
+                          uint8_t row, uint8_t flags, size_t size) {
   uint8_t msg[64];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866A_READ_CODE;
   msg[1] = handle->device->protocol_id;
   msg[2] = size;
   msg[4] = row;
+  //msg[5] = flags; // TODO: check if the flags are the same as for TL866II Plus
   if (msg_send(handle->usb_handle, msg, 18)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-  memcpy(buffer, msg, size / 8 + 1);
+  memcpy(buffer, msg, (size + 7) / 8);
   return EXIT_SUCCESS;
 }
 

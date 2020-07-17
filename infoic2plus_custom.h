@@ -82,3 +82,26 @@
     .package_details = 0x9c000000,
     .config = NULL
 },
+{
+    .name = "ATF750C-TEST",
+    .protocol_id = 0x2c,
+    .variant = 0x0d, // TODO
+    .read_buffer_size =  0x00,
+    .write_buffer_size = 0x00,
+    .code_memory_size = 14504,
+    .data_memory_size = 0x00,
+    .data_memory2_size = 0x00,
+    .chip_id = 0x0000,
+    .chip_id_bytes_count = 0x00,
+    .opts1 = 0x22,
+    .opts2 = 0x0084,
+    .opts3 = 0x0064,
+    .opts4 = 0x2040410,
+    .opts5 = 0x2200,
+    .opts6 = 0x0000,
+    .opts7 = 0x0007,
+    .opts8 = 0x0b34,
+    .package_details = 0x18000000,
+    .config = atf750c_acw
+},
+

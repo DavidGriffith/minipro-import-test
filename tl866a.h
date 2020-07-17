@@ -79,9 +79,9 @@ int tl866a_erase(minipro_handle_t *handle);
 int tl866a_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int tl866a_hardware_check(minipro_handle_t *handle);
 int tl866a_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                           uint8_t row, size_t size);
+                           uint8_t row, uint8_t flags, size_t size);
 int tl866a_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                          uint8_t row, size_t size);
+                          uint8_t row, uint8_t flags, size_t size);
 int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware);
 
 #endif

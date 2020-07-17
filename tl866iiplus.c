@@ -476,28 +476,30 @@ int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
   return EXIT_SUCCESS;
 }
 int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                                uint8_t row, size_t size) {
+                                uint8_t row, uint8_t flags, size_t size) {
   uint8_t msg[64];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_WRITE_JEDEC;
   msg[1] = handle->device->protocol_id;
   msg[2] = size;
   msg[4] = row;
-  memcpy(&msg[8], buffer, size / 8 + 1);
+  msg[5] = flags;
+  memcpy(&msg[8], buffer, (size + 7) / 8);
   return msg_send(handle->usb_handle, msg, 64);
 }
 
 int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                               uint8_t row, size_t size) {
+                               uint8_t row, uint8_t flags, size_t size) {
   uint8_t msg[32];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_READ_JEDEC;
   msg[1] = handle->device->protocol_id;
   msg[2] = size;
   msg[4] = row;
+  msg[5] = flags;
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, 32)) return EXIT_FAILURE;
-  memcpy(buffer, msg, size / 8 + 1);
+  memcpy(buffer, msg, (size + 7) / 8);
   return EXIT_SUCCESS;
 }
 
