@@ -102,6 +102,6 @@
     .opts7 = 0x0007,
     .opts8 = 0x0b34,
     .package_details = 0x18000000,
-    .config = gal6_acw
+    .config = atf750c_acw
 },
 

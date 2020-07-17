@@ -202,11 +202,22 @@ gal_config_t gal5_acw[] = {
      .row_width = 0x84,
      .ues_address = 5828,
      .ues_size = 64,
+     .acw_address = 0x10,
+     .acw_size = 0x14}};
+
+gal_config_t atf22v10c_acw[] = { // ATF22V10C(Q)
+    {.acw_bits = (uint16_t[]){5809, 5808, 5811, 5810, 5813, 5812, 5815,
+                              5814, 5817, 5816, 5819, 5818, 5821, 5820,
+                              5823, 5822, 5825, 5824, 5827, 5826},
+     .fuses_size = 0x2C,
+     .row_width = 0x84,
+     .ues_address = 5828,
+     .ues_size = 64,
      .lockbit_row = 0x3b,
      .acw_address = 0x10,
      .acw_size = 0x14}};
 
-gal_config_t gal6_acw[] = { // e.g. for ATF750C
+gal_config_t atf750c_acw[] = { // ATF750C(L)
     {.acw_bits = (uint16_t[]){ // TODO: order unclear
       //14394, // security?
       //14501, // ???
