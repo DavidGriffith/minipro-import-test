@@ -173,7 +173,7 @@ gal_config_t atf16V8c_acw[] = { // ATF16V8C and ATF16V8CZ
      .row_width = 0x40,
      .ues_address = 2056,
      .ues_size = 64,
-     .lockbit_row = 0x3b,
+     .powerdown_row = 0x3b,
      .acw_address = 0x3c,
      .acw_size = 0x52}};
 
@@ -232,7 +232,7 @@ gal_config_t atf22v10c_acw[] = { // ATF22V10C(Q)
      .row_width = 0x84,
      .ues_address = 5828,
      .ues_size = 64,
-     .lockbit_row = 0x3b,
+     .powerdown_row = 0x3b,
      .acw_address = 0x10,
      .acw_size = 0x14}};
 

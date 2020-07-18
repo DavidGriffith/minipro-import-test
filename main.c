@@ -911,11 +911,16 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   }
 
   // Read user electronic signature (UES)
-  if (minipro_read_jedec_row(handle, buffer, i, 0, config->ues_size))
-    return EXIT_FAILURE;
-  for (j = 0; j < config->ues_size; j++) {
-    if (buffer[j / 8] & (0x80 >> (j & 0x07)))
-      jedec->fuses[config->ues_address + j] = 1;
+  // UES data can be missing in jedec, e.g. for db entry "ATF22V10C"
+  if((config->ues_address != 0) && (config->ues_size != 0)
+        && ((config->ues_address + config->ues_size) <= jedec->QF) 
+        && !(handle->device->opts1 & ATF_IN_PAL_COMPAT_MODE)) {
+    if (minipro_read_jedec_row(handle, buffer, i, 0, config->ues_size))
+     return EXIT_FAILURE;
+    for (j = 0; j < config->ues_size; j++) {
+      if (buffer[j / 8] & (0x80 >> (j & 0x07)))
+        jedec->fuses[config->ues_address + j] = 1;
+    }
   }
 
   // Read architecture control word (ACW)
@@ -925,6 +930,14 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   for (i = 0; i < config->acw_size; i++) {
     if (buffer[i / 8] & (0x80 >> (i & 0x07)))
       jedec->fuses[config->acw_bits[i]] = 1;
+  }
+
+  // Read Power-Down bit
+  if((config->powerdown_row != 0)
+      && (handle->device->opts1 & LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE)) {
+    if (minipro_read_jedec_row(handle, buffer, config->powerdown_row, 0, 1))
+      return EXIT_FAILURE;
+    jedec->fuses[jedec->QF - 1] = (buffer[0] >> 7) & 0x01;
   }
 
   gettimeofday(&end, NULL);
@@ -968,10 +981,16 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
 
   // Write user electronic signature (UES)
   memset(buffer, 0, sizeof(buffer));
-  for (j = 0; j < config->ues_size; j++) {
-    if (jedec->fuses[config->ues_address + j] == 1)
-      buffer[j / 8] |= (0x80 >> (j & 0x07));
+  // UES data can be missing in jedec, e.g. for db entry "ATF22V10C"
+  if((config->ues_address != 0) && (config->ues_size != 0)
+        && ((config->ues_address + config->ues_size) <= jedec->QF) 
+        && !(handle->device->opts1 & ATF_IN_PAL_COMPAT_MODE)) {
+    for (j = 0; j < config->ues_size; j++) {
+      if (jedec->fuses[config->ues_address + j] == 1)
+        buffer[j / 8] |= (0x80 >> (j & 0x07));
+    }
   }
+  // UES field is always written, even when not contained in JEDEC
   if (minipro_write_jedec_row(handle, buffer, i, 0, config->ues_size))
     return EXIT_FAILURE;
 
@@ -985,11 +1004,16 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
                               config->acw_address, config->acw_size))
     return EXIT_FAILURE;
 
-  // Write Lock Bit by writing to specific lock-bit row
-  if((handle->cmdopts->no_protect_on == 0) && (config->lockbit_row != 0)) {
-    memset(buffer, 0, sizeof(buffer));
-    if (minipro_write_jedec_row(handle, buffer, config->lockbit_row, 0, 1))
-      return EXIT_FAILURE;
+  // Disable Power-Down by writing to specific power-down row
+  if(config->powerdown_row != 0) {
+    // only '0' bits shall be written
+    if(((handle->device->opts1 & LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE)
+              && (jedec->fuses[jedec->QF - 1] == 0))
+          || (handle->device->opts1 & POWERDOWN_MODE_DISABLE)) {
+      memset(buffer, 0, sizeof(buffer));
+      if (minipro_write_jedec_row(handle, buffer, config->powerdown_row, 0, 1))
+        return EXIT_FAILURE;
+    }
   }
 
   gettimeofday(&end, NULL);
@@ -1692,14 +1716,11 @@ int action_read(minipro_handle_t *handle) {
 int action_write(minipro_handle_t *handle) {
   jedec_t wjedec, rjedec;
   struct timeval begin, end;
+  int address = -1;
+  uint8_t c1, c2;
 
   if (is_pld(handle->device->protocol_id)) {
     if (open_jed_file(handle, &wjedec)) return EXIT_FAILURE;
-    if (!handle->device->config) {
-      fprintf(stderr, "No config section found.\n");
-      return EXIT_FAILURE;
-    }
-    gal_config_t *config = (gal_config_t *)handle->device->config;
 
     if (handle->cmdopts->no_protect_on == 0)
       fprintf(stderr, "Use -P to skip write protect\n\n");
@@ -1744,27 +1765,17 @@ int action_write(minipro_handle_t *handle) {
         free(rjedec.fuses);
         return EXIT_FAILURE;
       }
-      uint8_t c1, c2;
-      int address =
+      address =
           compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+      
+      // the error output is delayed until the security fuse has been written
+      // to avoid a 99% correctly programmed chip without the security fuse
 
-      if (address != -1) {
-        fprintf(stderr,
-                "Verification failed at address 0x%04X: File=0x%02X, "
-                "Device=0x%02X\n",
-                address, c1, c2);
-        free(rjedec.fuses);
-        return EXIT_FAILURE;
-      } else {
-        fprintf(stderr, "Verification OK\n");
-      }
       free(rjedec.fuses);
     }
     free(wjedec.fuses);
 
-    if (handle->cmdopts->no_protect_on == 0 && config->lockbit_row == 0) {
-      // only set lock bit here, when device doesn't have a specific
-      // config->lockbit_row; then it will be done in write_jedec()
+    if (handle->cmdopts->no_protect_on == 0) {
       fprintf(stderr, "Writing lock bit... ");
       fflush(stderr);
       gettimeofday(&begin, NULL);
@@ -1777,6 +1788,18 @@ int action_write(minipro_handle_t *handle) {
               (double)(end.tv_usec - begin.tv_usec) / 1000000 +
                   (double)(end.tv_sec - begin.tv_sec));
     }
+
+    // handle error from verify
+    if (address != -1) {
+      fprintf(stderr,
+              "Verification failed at address 0x%04X: File=0x%02X, "
+              "Device=0x%02X\n",
+              address, c1, c2);
+      return EXIT_FAILURE;
+    } else {
+      fprintf(stderr, "Verification OK\n");
+    }
+
     return EXIT_SUCCESS;
   } else {
     // No GAL devices
