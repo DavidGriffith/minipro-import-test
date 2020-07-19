@@ -1200,7 +1200,7 @@ int open_jed_file(minipro_handle_t *handle, jedec_t *jedec) {
   }
 
   if (handle->device->code_memory_size != jedec->QF)
-    fprintf(stderr, "Warning! JED file doesn't match the selected device!\n");
+    fprintf(stderr, "\nWarning! JED file doesn't match the selected device!\n");
 
   fprintf(stderr,
           "\nDeclared fuse checksum: 0x%04X Calculated: 0x%04X ... %s\n",
@@ -1744,7 +1744,7 @@ int action_write(minipro_handle_t *handle) {
     if (handle->cmdopts->no_verify == 0) {
       rjedec.QF = wjedec.QF;
       rjedec.F = wjedec.F;
-      rjedec.fuses = malloc(rjedec.QF);
+      rjedec.fuses = malloc(handle->device->code_memory_size);
       if (!rjedec.fuses) {
         free(wjedec.fuses);
         return EXIT_FAILURE;
