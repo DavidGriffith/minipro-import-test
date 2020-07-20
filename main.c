@@ -269,9 +269,10 @@ size_t get_pic_word_width(device_t *dev) {
   else return 0;
 }
 
-uint32_t get_pic_compare_mask(device_t *dev) {
+// will return 0 when mask doesn't require masked compare
+uint16_t get_compare_mask(device_t *dev) {
   size_t wordlen = get_pic_word_width(dev);
-  if(wordlen)
+  if(wordlen > 0 && wordlen < 16)
     return (0xffffUL >> (16-wordlen));
   else return 0;
 }
@@ -906,6 +907,35 @@ int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t s
   return -1;
 }
 
+// returned value will be a byte offset
+// sizes are in bytes, but must be a multiple of 2
+// replacement_value needs to be in native byte order
+int compare_word_memory(uint16_t replacement_value,
+      uint16_t compare_mask, uint8_t little_endian,
+      uint8_t *s1, uint8_t *s2, size_t size1, size_t size2,
+      uint16_t *c1, uint16_t *c2) {
+  size_t i;
+  uint16_t v1, v2;
+  size_t size = (size1 > size2) ? size1 : size2;
+  for (i = 0; i < size; i +=2 ) {
+    if(little_endian) {
+      v1 = (i < (size1 + 1)) ? (s1[i] | (s1[i + 1] << 8)) : replacement_value;
+      v2 = (i < (size2 + 1)) ? (s2[i] | (s2[i + 1] << 8)) : replacement_value; 
+    }
+    else {
+      v1 = (i < (size1 + 1)) ? (s1[i] << 8) | (s1[i + 1]) : replacement_value;
+      v2 = (i < (size2 + 1)) ? (s2[i] << 8) | (s2[i + 1]) : replacement_value; 
+    }
+    if ((v1 & compare_mask) != (v2 & compare_mask)) {
+      *c1 = v1;
+      *c2 = v2;
+      return i;
+    }
+  }
+  return -1;
+}
+
+
 /* RAM-centric IO operations */
 int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
                   size_t size) {
@@ -1403,15 +1433,31 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
       return EXIT_FAILURE;
     }
 
-    uint8_t c1, c2;
-    int idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
+    int idx;
+    uint8_t c1 = 0, c2 = 0;
+    uint16_t cw1 = 0, cw2 = 0;
+    uint16_t compare_mask = get_compare_mask(handle->device);
+    if(compare_mask) {
+      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
+      chip_data, size, size, &cw1, &cw2);
+    }
+    else {
+      idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
+    }
+
     free(chip_data);
 
     if (idx != -1) {
-      fprintf(
-          stderr,
-          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-          idx, c1, c2);
+      if(compare_mask) {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+            idx, cw1, cw2);
+      }
+      else {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+            idx, c1, c2);
+      }
       return EXIT_FAILURE;
     } else {
       fprintf(stderr, "Verification OK\n");
@@ -1512,20 +1558,31 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     return EXIT_FAILURE;
   }
 
-  uint8_t c1, c2;
-  int idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
+    int idx;
+    uint8_t c1 = 0, c2 = 0;
+    uint16_t cw1 = 0, cw2 = 0;
+    uint16_t compare_mask = get_compare_mask(handle->device);
+    if(compare_mask) {
+      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
+      chip_data, size, size, &cw1, &cw2);
+    }
+    else {
+      idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
+    }
 
   free(file_data);
   free(chip_data);
 
   if (idx != -1) {
-    if (handle->cmdopts->filename) {
-      fprintf(
-          stderr,
+    if(compare_mask) {
+      fprintf(stderr,
+          "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+          idx, cw1, cw2);
+    }
+    else {
+      fprintf(stderr,
           "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
           idx, c1, c2);
-    } else {
-      fprintf(stderr, "%s memory section is not blank.\n", name);
     }
     return EXIT_FAILURE;
   } else {
