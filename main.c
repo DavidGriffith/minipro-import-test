@@ -262,6 +262,21 @@ int is_pic(device_t *dev) {
         || (dev->protocol_id == PIC_PROTOCOL_4);
 }
 
+size_t get_pic_word_width(device_t *dev) {
+  if(is_pic10(dev) || is_pic12(dev)) return 12;
+  else if(is_pic16(dev)) return 14;
+  else if(is_pic18(dev)) return 16;
+  else return 0;
+}
+
+uint32_t get_pic_compare_mask(device_t *dev) {
+  size_t wordlen = get_pic_word_width(dev);
+  if(wordlen)
+    return (0xffffUL >> (16-wordlen));
+  else return 0;
+}
+
+
 void print_one_device(device_t *dev) {
 #if 1
     fprintf(stdout, "%s\n", dev->name);
