@@ -908,7 +908,7 @@ int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t s
 }
 
 // returned value will be a byte offset
-// sizes are in bytes, but must be a multiple of 2
+// sizes are in bytes
 // replacement_value needs to be in native byte order
 int compare_word_memory(uint16_t replacement_value,
       uint16_t compare_mask, uint8_t little_endian,
@@ -917,7 +917,7 @@ int compare_word_memory(uint16_t replacement_value,
   size_t i;
   uint16_t v1, v2;
   size_t size = (size1 > size2) ? size1 : size2;
-  for (i = 0; i < size; i +=2 ) {
+  for (i = 0; (i + 1) < size; i +=2 ) {
     if(little_endian) {
       v1 = (i < (size1 + 1)) ? (s1[i] | (s1[i + 1] << 8)) : replacement_value;
       v2 = (i < (size2 + 1)) ? (s2[i] | (s2[i + 1] << 8)) : replacement_value; 
@@ -925,6 +925,23 @@ int compare_word_memory(uint16_t replacement_value,
     else {
       v1 = (i < (size1 + 1)) ? (s1[i] << 8) | (s1[i + 1]) : replacement_value;
       v2 = (i < (size2 + 1)) ? (s2[i] << 8) | (s2[i + 1]) : replacement_value; 
+    }
+    if ((v1 & compare_mask) != (v2 & compare_mask)) {
+      *c1 = v1;
+      *c2 = v2;
+      return i;
+    }
+  }
+
+  // when size is not a multiple of 2 then compare the last byte separately
+  if(i == (size - 1)) {
+    if(little_endian) {
+      v1 = (i < size1) ? s1[i] : (replacement_value & 0xff);
+      v2 = (i < size2) ? s2[i] : (replacement_value & 0xff);
+    }
+    else {
+      v1 = (i < size1) ? (s1[i] << 8) : (replacement_value & 0xff00);
+      v2 = (i < size2) ? (s2[i] << 8) : (replacement_value & 0xff00);
     }
     if ((v1 & compare_mask) != (v2 & compare_mask)) {
       *c1 = v1;
