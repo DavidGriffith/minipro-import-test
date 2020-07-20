@@ -773,13 +773,17 @@ void update_status(char *status_msg, char *fmt, ...) {
   va_end(args);
 }
 
-int compare_memory(uint8_t *s1, uint8_t *s2, size_t size, uint8_t *c1,
+int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t size1, size_t size2, uint8_t *c1,
                    uint8_t *c2) {
   size_t i;
+  uint8_t v1, v2;
+  size_t size = (size1 > size2) ? size1 : size2;
   for (i = 0; i < size; i++) {
-    if (s1[i] != s2[i]) {
-      *c1 = s1[i];
-      *c2 = s2[i];
+    v1 = (i < size1) ? s1[i] : replacement_value; // use replacement value when buf too short 
+    v2 = (i < size2) ? s2[i] : replacement_value; 
+    if (v1 != v2) {
+      *c1 = v1;
+      *c2 = v2;
       return i;
     }
   }
@@ -1298,7 +1302,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     }
 
     uint8_t c1, c2;
-    int idx = compare_memory(file_data, chip_data, size, &c1, &c2);
+    int idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
     free(chip_data);
 
     if (idx != -1) {
@@ -1407,7 +1411,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   }
 
   uint8_t c1, c2;
-  int idx = compare_memory(file_data, chip_data, size, &c1, &c2);
+  int idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
 
   free(file_data);
   free(chip_data);
@@ -1742,7 +1746,7 @@ int action_write(minipro_handle_t *handle) {
       return EXIT_FAILURE;
     }
     if (handle->cmdopts->no_verify == 0) {
-      rjedec.QF = wjedec.QF;
+      rjedec.QF = handle->device->code_memory_size;
       rjedec.F = wjedec.F;
       rjedec.fuses = malloc(rjedec.QF);
       if (!rjedec.fuses) {
@@ -1766,7 +1770,7 @@ int action_write(minipro_handle_t *handle) {
         return EXIT_FAILURE;
       }
       address =
-          compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+          compare_memory(0x00, wjedec.fuses, rjedec.fuses, wjedec.QF, rjedec.QF, &c1, &c2);
       
       // the error output is delayed until the security fuse has been written
       // to avoid a 99% correctly programmed chip without the security fuse
@@ -1861,7 +1865,7 @@ int action_verify(minipro_handle_t *handle) {
       return EXIT_FAILURE;
     }
 
-    rjedec.QF = wjedec.QF;
+    rjedec.QF = handle->device->code_memory_size;
     rjedec.F = wjedec.F;
     rjedec.fuses = malloc(rjedec.QF);
     if (!rjedec.fuses) {
@@ -1886,7 +1890,7 @@ int action_verify(minipro_handle_t *handle) {
     }
     uint8_t c1, c2;
     int address =
-        compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+        compare_memory(0x00, wjedec.fuses, rjedec.fuses, wjedec.QF, rjedec.QF, &c1, &c2);
 
     if (address != -1) {
       if (handle->cmdopts->filename) {
