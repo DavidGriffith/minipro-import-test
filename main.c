@@ -897,6 +897,8 @@ int compare_word_memory(uint16_t replacement_value,
   size_t i;
   uint16_t v1, v2;
   size_t size = (size1 > size2) ? size1 : size2;
+  if(compare_mask == 0) compare_mask = 0xffff;
+
   for (i = 0; i < size; i +=2 ) {
     if(little_endian) {
       v1 = (i < size1) ? s1[i] : (replacement_value & 0xff);
@@ -1418,31 +1420,16 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
       return EXIT_FAILURE;
     }
 
-    int idx;
-    uint8_t c1 = 0, c2 = 0;
     uint16_t cw1 = 0, cw2 = 0;
-    uint16_t compare_mask = get_compare_mask(handle);
-    if(compare_mask) {
-      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
-      chip_data, size, size, &cw1, &cw2);
-    }
-    else {
-      idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
-    }
+    int idx = compare_word_memory(0xffff, get_compare_mask(handle), 1, file_data,
+      chip_data, file_size, size, &cw1, &cw2);
 
     free(chip_data);
 
     if (idx != -1) {
-      if(compare_mask) {
-        fprintf(stderr,
-            "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
-            idx, cw1, cw2);
-      }
-      else {
-        fprintf(stderr,
-            "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-            idx, c1, c2);
-      }
+      fprintf(stderr,
+          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+          idx, cw1, cw2);
       return EXIT_FAILURE;
     } else {
       fprintf(stderr, "Verification OK\n");
@@ -1497,6 +1484,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   uint8_t *file_data;
 
   char *name = type == MP_CODE ? "Code" : "Data";
+  size_t file_size = size;
   if (handle->cmdopts->filename) {
     // Allocate the buffer and clear it with default value
     file_data = malloc(size);
@@ -1506,7 +1494,6 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     }
 
     memset(file_data, 0xFF, size);
-    size_t file_size = size;
     if (open_file(handle, file_data, &file_size)) return EXIT_FAILURE;
 
     if (file_size != size) {
@@ -1543,32 +1530,17 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     return EXIT_FAILURE;
   }
 
-  int idx;
-  uint8_t c1 = 0, c2 = 0;
   uint16_t cw1 = 0, cw2 = 0;
-  uint16_t compare_mask = get_compare_mask(handle);
-  if(compare_mask) {
-    idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
-    chip_data, size, size, &cw1, &cw2);
-  }
-  else {
-    idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
-  }
+  int idx = compare_word_memory(0xffff, get_compare_mask(handle), 1, file_data,
+    chip_data, file_size, size, &cw1, &cw2);
 
   free(file_data);
   free(chip_data);
 
   if (idx != -1) {
-    if(compare_mask) {
-      fprintf(stderr,
-          "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
-          idx, cw1, cw2);
-    }
-    else {
-      fprintf(stderr,
-          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-          idx, c1, c2);
-    }
+    fprintf(stderr,
+        "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+        idx, cw1, cw2);
     return EXIT_FAILURE;
   } else {
     if (handle->cmdopts->filename) {
