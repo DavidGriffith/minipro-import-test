@@ -202,81 +202,60 @@ int is_pld(uint8_t protocol_id) {
 }
 
 //Helper function to check for PIC devices
-int is_pic10(device_t *dev) {
-  if((dev->protocol_id == PIC_PROTOCOL_2)
-      && (dev->opts8 == 0x32d)) {
-    return 1;
-}
-  return 0;
-}
-
-int is_rfpic12(device_t *dev) {
-  if((dev->protocol_id == PIC_PROTOCOL_3)
-      && ((dev->opts8 == 0x82f)
-          || ((dev->opts8 == 0x92c)))) {
-    return 1;
-}
-  return 0;
-}
-
-int is_nonrfpic12(device_t *dev) {
-  if(((     dev->protocol_id == PIC_PROTOCOL_1)
-        || (dev->protocol_id == PIC_PROTOCOL_2)
-        || (dev->protocol_id == PIC_PROTOCOL_3))
-      && (dev->opts8 == 0x330)) {
-    return 1;
-}
-  return 0;
-}
-
-int is_pic12(device_t *dev) {
-  return is_nonrfpic12(dev) || is_rfpic12(dev);
-}
-
-int is_pic16(device_t *dev) {
-  if(((     dev->protocol_id == PIC_PROTOCOL_1)
-        || (dev->protocol_id == PIC_PROTOCOL_2)
-        || (dev->protocol_id == PIC_PROTOCOL_3)
-        || (dev->protocol_id == PIC_PROTOCOL_4))
-      && (dev->opts8 != 0x330)
-      && (dev->opts8 != 0x32d)) {
-    return 1;
-}
-  return 0;
-}
-
-int is_pic18(device_t *dev) {
-  switch (dev->protocol_id) {
-    case PIC_PROTOCOL_PIC18:
-    case PIC_PROTOCOL_PIC18_ICSP:
-      return 1;
+int is_pic(minipro_handle_t *handle) {
+  if(handle->version == MP_TL866A) {
+    switch (handle->device->protocol_id) {
+      case TL866A_PIC_PROTOCOL_1:
+      case TL866A_PIC_PROTOCOL_2:
+      case TL866A_PIC_PROTOCOL_3:
+      case TL866A_PIC_PROTOCOL_4:
+      case TL866A_PIC_PROTOCOL_PIC18:
+      case TL866A_PIC_PROTOCOL_PIC18_ICSP:
+        return 1;
+    }
+  }
+  else if(handle->version == MP_TL866IIPLUS) {
+    switch (handle->device->protocol_id) {
+      case TL866IIP_PIC_PROTOCOL_1:
+      case TL866IIP_PIC_PROTOCOL_2:
+      case TL866IIP_PIC_PROTOCOL_3:
+      case TL866IIP_PIC_PROTOCOL_4:
+      case TL866IIP_PIC_PROTOCOL_PIC18:
+      case TL866IIP_PIC_PROTOCOL_PIC18_ICSP:
+        return 1;
+    }
   }
   return 0;
 }
 
-int is_pic(device_t *dev) {
-  return is_pic18(dev)
-        || (dev->protocol_id == PIC_PROTOCOL_1)
-        || (dev->protocol_id == PIC_PROTOCOL_2)
-        || (dev->protocol_id == PIC_PROTOCOL_3)
-        || (dev->protocol_id == PIC_PROTOCOL_4);
-}
+size_t get_pic_word_width(minipro_handle_t *handle) {
+  if(is_pic(handle)) {
+    switch(handle->device->opts7 & PIC_INSTR_WORD_WIDTH_MASK) {
+      case PIC_INSTR_WORD_WIDTH_12:
+        return 12;
+        break;
 
-size_t get_pic_word_width(device_t *dev) {
-  if(is_pic10(dev) || is_pic12(dev)) return 12;
-  else if(is_pic16(dev)) return 14;
-  else if(is_pic18(dev)) return 16;
-  else return 0;
+      case PIC_INSTR_WORD_WIDTH_14:
+        return 14;
+        break;
+
+      case PIC_INSTR_WORD_WIDTH_16_PIC18F:
+      case PIC_INSTR_WORD_WIDTH_16_PIC18J:
+        return 16;
+        break;
+    }
+  }
+
+  return 0;  
 }
 
 // will return 0 when mask doesn't require masked compare
-uint16_t get_compare_mask(device_t *dev) {
-  size_t wordlen = get_pic_word_width(dev);
+uint16_t get_compare_mask(minipro_handle_t *handle) {
+  size_t wordlen = get_pic_word_width(handle);
   if(wordlen > 0 && wordlen < 16)
     return (0xffffUL >> (16-wordlen));
   else return 0;
 }
-
 
 void print_one_device(device_t *dev) {
 #if 1
@@ -288,7 +267,7 @@ void print_one_device(device_t *dev) {
   static const char* fmtu8 = "%02x\t";
 
   fprintf(stdout, "\"%s\"\t", dev->name);
-  fprintf(stdout, fmtu8, dev->protocol_id);
+  fprintf(stdout, fmtu8,  dev->protocol_id);
   fprintf(stdout, fmtu32, dev->opts1);
   fprintf(stdout, fmtu32, dev->opts2);
   fprintf(stdout, fmtu32, dev->opts3);
@@ -1453,7 +1432,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     int idx;
     uint8_t c1 = 0, c2 = 0;
     uint16_t cw1 = 0, cw2 = 0;
-    uint16_t compare_mask = get_compare_mask(handle->device);
+    uint16_t compare_mask = get_compare_mask(handle);
     if(compare_mask) {
       idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
       chip_data, size, size, &cw1, &cw2);
@@ -1575,17 +1554,17 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     return EXIT_FAILURE;
   }
 
-    int idx;
-    uint8_t c1 = 0, c2 = 0;
-    uint16_t cw1 = 0, cw2 = 0;
-    uint16_t compare_mask = get_compare_mask(handle->device);
-    if(compare_mask) {
-      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
-      chip_data, size, size, &cw1, &cw2);
-    }
-    else {
-      idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
-    }
+  int idx;
+  uint8_t c1 = 0, c2 = 0;
+  uint16_t cw1 = 0, cw2 = 0;
+  uint16_t compare_mask = get_compare_mask(handle);
+  if(compare_mask) {
+    idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
+    chip_data, size, size, &cw1, &cw2);
+  }
+  else {
+    idx = compare_memory(0xff, file_data, chip_data, size, size, &c1, &c2);
+  }
 
   free(file_data);
   free(chip_data);
