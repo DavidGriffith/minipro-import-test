@@ -187,6 +187,107 @@ minipro_handle_t *get_handle(const char *device_name) {
   return handle;
 }
 
+//Helper function to check for pld devices
+int is_pld(uint8_t protocol_id) {
+  switch (protocol_id) {
+    case PLD_PROTOCOL_16V8:
+    case PLD_PROTOCOL_20V8:
+    case PLD_PROTOCOL_22V10:
+    case PLD_PROTOCOL2_16V8:
+    case PLD_PROTOCOL2_20V8:
+    case PLD_PROTOCOL2_22V10:
+      return 1;
+  }
+  return 0;
+}
+
+//Helper function to check for PIC devices
+int is_pic10(device_t *dev) {
+  if((dev->protocol_id == PIC_PROTOCOL_2)
+      && (dev->opts8 == 0x32d)) {
+    return 1;
+}
+  return 0;
+}
+
+int is_rfpic12(device_t *dev) {
+  if((dev->protocol_id == PIC_PROTOCOL_3)
+      && ((dev->opts8 == 0x82f)
+          || ((dev->opts8 == 0x92c)))) {
+    return 1;
+}
+  return 0;
+}
+
+int is_nonrfpic12(device_t *dev) {
+  if(((     dev->protocol_id == PIC_PROTOCOL_1)
+        || (dev->protocol_id == PIC_PROTOCOL_2)
+        || (dev->protocol_id == PIC_PROTOCOL_3))
+      && (dev->opts8 == 0x330)) {
+    return 1;
+}
+  return 0;
+}
+
+int is_pic12(device_t *dev) {
+  return is_nonrfpic12(dev) || is_rfpic12(dev);
+}
+
+int is_pic16(device_t *dev) {
+  if(((     dev->protocol_id == PIC_PROTOCOL_1)
+        || (dev->protocol_id == PIC_PROTOCOL_2)
+        || (dev->protocol_id == PIC_PROTOCOL_3)
+        || (dev->protocol_id == PIC_PROTOCOL_4))
+      && (dev->opts8 != 0x330)
+      && (dev->opts8 != 0x32d)) {
+    return 1;
+}
+  return 0;
+}
+
+int is_pic18(device_t *dev) {
+  switch (dev->protocol_id) {
+    case PIC_PROTOCOL_PIC18:
+    case PIC_PROTOCOL_PIC18_ICSP:
+      return 1;
+  }
+  return 0;
+}
+
+int is_pic(device_t *dev) {
+  return is_pic18(dev)
+        || (dev->protocol_id == PIC_PROTOCOL_1)
+        || (dev->protocol_id == PIC_PROTOCOL_2)
+        || (dev->protocol_id == PIC_PROTOCOL_3)
+        || (dev->protocol_id == PIC_PROTOCOL_4);
+}
+
+void print_one_device(device_t *dev) {
+#if 1
+    fprintf(stdout, "%s\n", dev->name);
+#else
+  static const char* fmtptr = "%lx\t";
+  static const char* fmtu32 = "%x\t";
+  //static const char* fmtu32 = "0x%08x\t";
+  static const char* fmtu8 = "%02x\t";
+
+  fprintf(stdout, "\"%s\"\t", dev->name);
+  fprintf(stdout, fmtu8, dev->protocol_id);
+  fprintf(stdout, fmtu32, dev->opts1);
+  fprintf(stdout, fmtu32, dev->opts2);
+  fprintf(stdout, fmtu32, dev->opts3);
+  fprintf(stdout, fmtu32, dev->opts4);
+  fprintf(stdout, fmtu32, dev->opts5);
+  fprintf(stdout, fmtu32, dev->opts6);
+  fprintf(stdout, fmtu32, dev->opts7);
+  fprintf(stdout, fmtu32, dev->opts8);
+  fprintf(stdout, fmtu32, dev->package_details);
+  fprintf(stdout, "%d\t", is_pld(dev->protocol_id));
+  fprintf(stdout, fmtptr, dev->config);
+  fprintf(stdout, "\n");
+#endif
+}
+
 void print_devices_and_exit(const char *device_name) {
   minipro_handle_t *handle = get_handle(NULL);
   if (!handle) exit(EXIT_FAILURE);
@@ -236,7 +337,7 @@ void print_devices_and_exit(const char *device_name) {
 
     if (devicet &&
         (device_name == NULL || STRCASESTR(devicet->name, device_name))) {
-      fprintf(stdout, "%s\n", devicet->name);
+      print_one_device(devicet);
     }
   }
 
@@ -245,7 +346,7 @@ void print_devices_and_exit(const char *device_name) {
 
        device = &(device[1])) {
     if (device_name == NULL || STRCASESTR(device->name, device_name)) {
-      fprintf(stdout, "%s\n", device->name);
+      print_one_device(device);
     }
   }
 
@@ -1044,20 +1145,6 @@ int erase_device(minipro_handle_t *handle) {
                 (double)(end.tv_sec - begin.tv_sec));
   }
   return EXIT_SUCCESS;
-}
-
-//Helper function to check for pld devices
-int is_pld(uint8_t protocol_id) {
-  switch (protocol_id) {
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      return 1;
-  }
-  return 0;
 }
 
 // Opens a physical file or a pipe if the pipe character is specified

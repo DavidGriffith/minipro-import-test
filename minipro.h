@@ -100,6 +100,13 @@
 #define PLD_PROTOCOL2_20V8 0x2B
 #define PLD_PROTOCOL2_22V10 0x2C
 
+#define PIC_PROTOCOL_PIC18_ICSP 0x17
+#define PIC_PROTOCOL_PIC18 0x19
+#define PIC_PROTOCOL_1 0x18
+#define PIC_PROTOCOL_2 0x1a
+#define PIC_PROTOCOL_3 0x1b
+#define PIC_PROTOCOL_4 0x1c
+
 // Helper macros
 #define PIN_COUNT(x) (((x)&PIN_COUNT_MASK) >> 24)
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
