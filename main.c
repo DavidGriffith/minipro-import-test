@@ -320,7 +320,7 @@ void print_device_info_and_exit(const char *device_name) {
 
   uint32_t *target =
       (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
-                                         : (uint32_t *)&handle->device->opts1);
+                                         : &handle->device->opts1);
 
   // Printing device programming info
   if (handle->device->opts7 == MP_VOLTAGES1 ||
@@ -427,7 +427,7 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
 
   uint32_t *target =
       (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
-                                         : (uint32_t *)&handle->device->opts1);
+                                         : &handle->device->opts1);
 
   // Set the programming options
   if ((handle->device->opts7 == MP_VOLTAGES1 ||
