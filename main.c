@@ -1742,9 +1742,9 @@ int action_write(minipro_handle_t *handle) {
       return EXIT_FAILURE;
     }
     if (handle->cmdopts->no_verify == 0) {
-      rjedec.QF = wjedec.QF;
+      rjedec.QF = handle->device->code_memory_size;
       rjedec.F = wjedec.F;
-      rjedec.fuses = malloc(handle->device->code_memory_size);
+      rjedec.fuses = malloc(rjedec.QF);
       if (!rjedec.fuses) {
         free(wjedec.fuses);
         return EXIT_FAILURE;
