@@ -320,7 +320,7 @@ void print_device_info_and_exit(const char *device_name) {
 
   uint32_t *target =
       (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
-                                         : (uint32_t *)&handle->device->opts1);
+                                         : &handle->device->opts1);
 
   // Printing device programming info
   if (handle->device->opts7 == MP_VOLTAGES1 ||
@@ -427,7 +427,7 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
 
   uint32_t *target =
       (handle->version == MP_TL866IIPLUS ? &handle->device->opts5
-                                         : (uint32_t *)&handle->device->opts1);
+                                         : &handle->device->opts1);
 
   // Set the programming options
   if ((handle->device->opts7 == MP_VOLTAGES1 ||
@@ -1200,7 +1200,7 @@ int open_jed_file(minipro_handle_t *handle, jedec_t *jedec) {
   }
 
   if (handle->device->code_memory_size != jedec->QF)
-    fprintf(stderr, "Warning! JED file doesn't match the selected device!\n");
+    fprintf(stderr, "\nWarning! JED file doesn't match the selected device!\n");
 
   fprintf(stderr,
           "\nDeclared fuse checksum: 0x%04X Calculated: 0x%04X ... %s\n",
@@ -1742,7 +1742,7 @@ int action_write(minipro_handle_t *handle) {
       return EXIT_FAILURE;
     }
     if (handle->cmdopts->no_verify == 0) {
-      rjedec.QF = wjedec.QF;
+      rjedec.QF = handle->device->code_memory_size;
       rjedec.F = wjedec.F;
       rjedec.fuses = malloc(rjedec.QF);
       if (!rjedec.fuses) {
