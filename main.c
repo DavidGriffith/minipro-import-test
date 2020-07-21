@@ -1420,16 +1420,31 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
       return EXIT_FAILURE;
     }
 
+    int idx;
+    uint8_t c1 = 0, c2 = 0;
     uint16_t cw1 = 0, cw2 = 0;
-    int idx = compare_word_memory(0xffff, get_compare_mask(handle), 1, file_data,
+    uint16_t compare_mask = get_compare_mask(handle);
+    if(compare_mask) {
+      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
       chip_data, file_size, size, &cw1, &cw2);
+    }
+    else {
+      idx = compare_memory(0xff, file_data, chip_data, file_size, size, &c1, &c2);
+    }
 
     free(chip_data);
 
     if (idx != -1) {
-      fprintf(stderr,
-          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-          idx, cw1, cw2);
+      if(compare_mask) {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+            idx, cw1, cw2);
+      }
+      else {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+            idx, c1, c2);
+      }
       return EXIT_FAILURE;
     } else {
       fprintf(stderr, "Verification OK\n");
@@ -1530,17 +1545,32 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     return EXIT_FAILURE;
   }
 
+  int idx;
+  uint8_t c1 = 0, c2 = 0;
   uint16_t cw1 = 0, cw2 = 0;
-  int idx = compare_word_memory(0xffff, get_compare_mask(handle), 1, file_data,
+  uint16_t compare_mask = get_compare_mask(handle);
+  if(compare_mask) {
+    idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
     chip_data, file_size, size, &cw1, &cw2);
+  }
+  else {
+    idx = compare_memory(0xff, file_data, chip_data, file_size, size, &c1, &c2);
+  }
 
   free(file_data);
   free(chip_data);
 
   if (idx != -1) {
-    fprintf(stderr,
-        "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-        idx, cw1, cw2);
+    if(compare_mask) {
+      fprintf(stderr,
+          "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+          idx, cw1, cw2);
+    }
+    else {
+      fprintf(stderr,
+          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+          idx, c1, c2);
+    }
     return EXIT_FAILURE;
   } else {
     if (handle->cmdopts->filename) {
