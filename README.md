@@ -1,7 +1,16 @@
 # minipro
-An open source program for controlling the MiniPRO TL866xx series of chip programmers
+An open source program for controlling the MiniPRO TL866xx series of
+chip programmers
+
+This program exists because the manufacturer of the MiniPRO TL866xx
+series of chip programmers does not provide a program for use on Linux
+or other flavors of Unix.  We who keep this project going prefer a
+simple, free, and open-source program that presents a command-line
+interface that allows for a GUI front-end if desired.
+
 
 ## Features
+* Native support for Linux, BSD, and other flavors of Unix.
 * Compatibility with Minipro TL866CS, TL866A, and TL866II+ from
 Autoelectric (http://www.autoelectric.cn/en/tl866_main.html)
 * More than 13000 target devices (including AVRs, PICs, various BIOSes
