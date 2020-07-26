@@ -258,30 +258,7 @@ uint16_t get_compare_mask(minipro_handle_t *handle) {
 }
 
 void print_one_device(device_t *dev) {
-#if 1
     fprintf(stdout, "%s\n", dev->name);
-#else
-  // TODO: preparation for more verbose device information (with "-W" switch)
-  static const char* fmtptr = "%lx\t";
-  static const char* fmtu32 = "%x\t";
-  //static const char* fmtu32 = "0x%08x\t";
-  static const char* fmtu8 = "%02x\t";
-
-  fprintf(stdout, "\"%s\"\t", dev->name);
-  fprintf(stdout, fmtu8,  dev->protocol_id);
-  fprintf(stdout, fmtu32, dev->opts1);
-  fprintf(stdout, fmtu32, dev->opts2);
-  fprintf(stdout, fmtu32, dev->opts3);
-  fprintf(stdout, fmtu32, dev->opts4);
-  fprintf(stdout, fmtu32, dev->opts5);
-  fprintf(stdout, fmtu32, dev->opts6);
-  fprintf(stdout, fmtu32, dev->opts7);
-  fprintf(stdout, fmtu32, dev->opts8);
-  fprintf(stdout, fmtu32, dev->package_details);
-  fprintf(stdout, "%d\t", is_pld(dev->protocol_id));
-  fprintf(stdout, fmtptr, dev->config);
-  fprintf(stdout, "\n");
-#endif
 }
 
 void print_devices_and_exit(const char *device_name) {
