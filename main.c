@@ -891,28 +891,29 @@ int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t s
 // replacement_value needs to be in native byte order
 // sizes can be odd
 int compare_word_memory(uint16_t replacement_value,
-      uint16_t compare_mask, uint8_t little_endian,
+      uint8_t little_endian,
       uint8_t *s1, uint8_t *s2, size_t size1, size_t size2,
       uint16_t *c1, uint16_t *c2) {
   size_t i;
   uint16_t v1, v2;
   size_t size = (size1 > size2) ? size1 : size2;
-  if(compare_mask == 0) compare_mask = 0xffff;
+  uint8_t rvl = replacement_value & 0xff;
+  uint8_t rvh = (replacement_value >> 8) & 0xff;
 
   for (i = 0; i < size; i +=2 ) {
     if(little_endian) {
-      v1 = (i < size1) ? s1[i] : (replacement_value & 0xff);
-      v1 |= ((i + 1) < size1) ? (s1[i + 1] << 8): (replacement_value & 0xff00);
-      v2 = (i < size2) ? s2[i] : (replacement_value & 0xff);
-      v2 |= ((i + 1) < size2) ? (s2[i + 1] << 8) : (replacement_value & 0xff00);
+      v1 = (i < size1) ? s1[i] : rvl;
+      v1 |= (((i + 1) < size1) ? s1[i + 1] : rvh) << 8;
+      v2 = (i < size2) ? s2[i] : rvl;
+      v2 |= (((i + 1) < size2) ? s2[i + 1] : rvh) << 8;
     }
     else {
-      v1 = (i < size1) ? (s1[i] << 8) : (replacement_value & 0xff00);
-      v1 |= ((i + 1) < size1) ? (s1[i + 1]) : (replacement_value & 0xff);
-      v2 = (i < size2) ? (s2[i] << 8) : (replacement_value & 0xff00);
-      v2 |= ((i + 1) < size2) ? (s2[i + 1]) : (replacement_value & 0xff);
+      v1 = ((i < size1) ? s1[i] : rvh) << 8;
+      v1 |= ((i + 1) < size1) ? (s1[i + 1]) : rvl;
+      v2 = ((i < size2) ? s2[i] : rvh) << 8;
+      v2 |= ((i + 1) < size2) ? (s2[i + 1]) : rvl;
     }
-    if ((v1 & compare_mask) != (v2 & compare_mask)) {
+    if (v1 != v2) {
       *c1 = v1;
       *c2 = v2;
       return i;
@@ -1425,7 +1426,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     uint16_t cw1 = 0, cw2 = 0;
     uint16_t compare_mask = get_compare_mask(handle);
     if(compare_mask) {
-      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
+      idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
       chip_data, file_size, size, &cw1, &cw2);
     }
     else {
@@ -1550,7 +1551,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   uint16_t cw1 = 0, cw2 = 0;
   uint16_t compare_mask = get_compare_mask(handle);
   if(compare_mask) {
-    idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
+    idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
     chip_data, file_size, size, &cw1, &cw2);
   }
   else {
