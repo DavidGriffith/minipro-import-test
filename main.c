@@ -187,6 +187,80 @@ minipro_handle_t *get_handle(const char *device_name) {
   return handle;
 }
 
+//Helper function to check for pld devices
+int is_pld(uint8_t protocol_id) {
+  switch (protocol_id) {
+    case PLD_PROTOCOL_16V8:
+    case PLD_PROTOCOL_20V8:
+    case PLD_PROTOCOL_22V10:
+    case PLD_PROTOCOL2_16V8:
+    case PLD_PROTOCOL2_20V8:
+    case PLD_PROTOCOL2_22V10:
+      return 1;
+  }
+  return 0;
+}
+
+//Helper function to check for PIC devices
+int is_pic(minipro_handle_t *handle) {
+  if(handle->version == MP_TL866A) {
+    switch (handle->device->protocol_id) {
+      case TL866A_PIC_PROTOCOL_1:
+      case TL866A_PIC_PROTOCOL_2:
+      case TL866A_PIC_PROTOCOL_3:
+      case TL866A_PIC_PROTOCOL_4:
+      case TL866A_PIC_PROTOCOL_PIC18:
+      case TL866A_PIC_PROTOCOL_PIC18_ICSP:
+        return 1;
+    }
+  }
+  else if(handle->version == MP_TL866IIPLUS) {
+    switch (handle->device->protocol_id) {
+      case TL866IIP_PIC_PROTOCOL_1:
+      case TL866IIP_PIC_PROTOCOL_2:
+      case TL866IIP_PIC_PROTOCOL_3:
+      case TL866IIP_PIC_PROTOCOL_4:
+      case TL866IIP_PIC_PROTOCOL_PIC18:
+      case TL866IIP_PIC_PROTOCOL_PIC18_ICSP:
+        return 1;
+    }
+  }
+  return 0;
+}
+
+size_t get_pic_word_width(minipro_handle_t *handle) {
+  if(is_pic(handle)) {
+    switch(handle->device->opts7 & PIC_INSTR_WORD_WIDTH_MASK) {
+      case PIC_INSTR_WORD_WIDTH_12:
+        return 12;
+        break;
+
+      case PIC_INSTR_WORD_WIDTH_14:
+        return 14;
+        break;
+
+      case PIC_INSTR_WORD_WIDTH_16_PIC18F:
+      case PIC_INSTR_WORD_WIDTH_16_PIC18J:
+        return 16;
+        break;
+    }
+  }
+
+  return 0;  
+}
+
+// will return 0 when mask doesn't require masked compare
+uint16_t get_compare_mask(minipro_handle_t *handle) {
+  size_t wordlen = get_pic_word_width(handle);
+  if(wordlen > 0 && wordlen < 16)
+    return (0xffffUL >> (16-wordlen));
+  else return 0;
+}
+
+void print_one_device(device_t *dev) {
+    fprintf(stdout, "%s\n", dev->name);
+}
+
 void print_devices_and_exit(const char *device_name) {
   minipro_handle_t *handle = get_handle(NULL);
   if (!handle) exit(EXIT_FAILURE);
@@ -236,7 +310,7 @@ void print_devices_and_exit(const char *device_name) {
 
     if (devicet &&
         (device_name == NULL || STRCASESTR(devicet->name, device_name))) {
-      fprintf(stdout, "%s\n", devicet->name);
+      print_one_device(devicet);
     }
   }
 
@@ -245,7 +319,7 @@ void print_devices_and_exit(const char *device_name) {
 
        device = &(device[1])) {
     if (device_name == NULL || STRCASESTR(device->name, device_name)) {
-      fprintf(stdout, "%s\n", device->name);
+      print_one_device(device);
     }
   }
 
@@ -773,13 +847,53 @@ void update_status(char *status_msg, char *fmt, ...) {
   va_end(args);
 }
 
-int compare_memory(uint8_t *s1, uint8_t *s2, size_t size, uint8_t *c1,
+int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t size1, size_t size2, uint8_t *c1,
                    uint8_t *c2) {
   size_t i;
+  uint8_t v1, v2;
+  size_t size = (size1 > size2) ? size1 : size2;
   for (i = 0; i < size; i++) {
-    if (s1[i] != s2[i]) {
-      *c1 = s1[i];
-      *c2 = s2[i];
+    v1 = (i < size1) ? s1[i] : replacement_value; // use replacement value when buf too short 
+    v2 = (i < size2) ? s2[i] : replacement_value; 
+    if (v1 != v2) {
+      *c1 = v1;
+      *c2 = v2;
+      return i;
+    }
+  }
+  return -1;
+}
+
+// returned value will be a byte offset
+// sizes are in bytes
+// replacement_value needs to be in native byte order
+// sizes can be odd
+int compare_word_memory(uint16_t replacement_value,
+      uint8_t little_endian,
+      uint8_t *s1, uint8_t *s2, size_t size1, size_t size2,
+      uint16_t *c1, uint16_t *c2) {
+  size_t i;
+  uint16_t v1, v2;
+  size_t size = (size1 > size2) ? size1 : size2;
+  uint8_t rvl = replacement_value & 0xff;
+  uint8_t rvh = (replacement_value >> 8) & 0xff;
+
+  for (i = 0; i < size; i +=2 ) {
+    if(little_endian) {
+      v1 = (i < size1) ? s1[i] : rvl;
+      v1 |= (((i + 1) < size1) ? s1[i + 1] : rvh) << 8;
+      v2 = (i < size2) ? s2[i] : rvl;
+      v2 |= (((i + 1) < size2) ? s2[i + 1] : rvh) << 8;
+    }
+    else {
+      v1 = ((i < size1) ? s1[i] : rvh) << 8;
+      v1 |= ((i + 1) < size1) ? (s1[i + 1]) : rvl;
+      v2 = ((i < size2) ? s2[i] : rvh) << 8;
+      v2 |= ((i + 1) < size2) ? (s2[i + 1]) : rvl;
+    }
+    if (v1 != v2) {
+      *c1 = v1;
+      *c2 = v2;
       return i;
     }
   }
@@ -1042,20 +1156,6 @@ int erase_device(minipro_handle_t *handle) {
   return EXIT_SUCCESS;
 }
 
-//Helper function to check for pld devices
-int is_pld(uint8_t protocol_id) {
-  switch (protocol_id) {
-    case PLD_PROTOCOL_16V8:
-    case PLD_PROTOCOL_20V8:
-    case PLD_PROTOCOL_22V10:
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      return 1;
-  }
-  return 0;
-}
-
 // Opens a physical file or a pipe if the pipe character is specified
 int open_file(minipro_handle_t *handle, uint8_t *data, size_t *file_size) {
   FILE *file;
@@ -1297,15 +1397,31 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
       return EXIT_FAILURE;
     }
 
-    uint8_t c1, c2;
-    int idx = compare_memory(file_data, chip_data, size, &c1, &c2);
+    int idx;
+    uint8_t c1 = 0, c2 = 0;
+    uint16_t cw1 = 0, cw2 = 0;
+    uint16_t compare_mask = get_compare_mask(handle);
+    if(compare_mask) {
+      idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
+      chip_data, file_size, size, &cw1, &cw2);
+    }
+    else {
+      idx = compare_memory(0xff, file_data, chip_data, file_size, size, &c1, &c2);
+    }
+
     free(chip_data);
 
     if (idx != -1) {
-      fprintf(
-          stderr,
-          "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
-          idx, c1, c2);
+      if(compare_mask) {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+            idx, cw1, cw2);
+      }
+      else {
+        fprintf(stderr,
+            "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
+            idx, c1, c2);
+      }
       return EXIT_FAILURE;
     } else {
       fprintf(stderr, "Verification OK\n");
@@ -1360,6 +1476,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   uint8_t *file_data;
 
   char *name = type == MP_CODE ? "Code" : "Data";
+  size_t file_size = size;
   if (handle->cmdopts->filename) {
     // Allocate the buffer and clear it with default value
     file_data = malloc(size);
@@ -1369,7 +1486,6 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     }
 
     memset(file_data, 0xFF, size);
-    size_t file_size = size;
     if (open_file(handle, file_data, &file_size)) return EXIT_FAILURE;
 
     if (file_size != size) {
@@ -1406,20 +1522,31 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     return EXIT_FAILURE;
   }
 
-  uint8_t c1, c2;
-  int idx = compare_memory(file_data, chip_data, size, &c1, &c2);
+  int idx;
+  uint8_t c1 = 0, c2 = 0;
+  uint16_t cw1 = 0, cw2 = 0;
+  uint16_t compare_mask = get_compare_mask(handle);
+  if(compare_mask) {
+    idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
+    chip_data, file_size, size, &cw1, &cw2);
+  }
+  else {
+    idx = compare_memory(0xff, file_data, chip_data, file_size, size, &c1, &c2);
+  }
 
   free(file_data);
   free(chip_data);
 
   if (idx != -1) {
-    if (handle->cmdopts->filename) {
-      fprintf(
-          stderr,
+    if(compare_mask) {
+      fprintf(stderr,
+          "Verification failed at address 0x%04X: File=0x%04X, Device=0x%04X\n",
+          idx, cw1, cw2);
+    }
+    else {
+      fprintf(stderr,
           "Verification failed at address 0x%04X: File=0x%02X, Device=0x%02X\n",
           idx, c1, c2);
-    } else {
-      fprintf(stderr, "%s memory section is not blank.\n", name);
     }
     return EXIT_FAILURE;
   } else {
@@ -1766,7 +1893,7 @@ int action_write(minipro_handle_t *handle) {
         return EXIT_FAILURE;
       }
       address =
-          compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+          compare_memory(0x00, wjedec.fuses, rjedec.fuses, wjedec.QF, rjedec.QF, &c1, &c2);
       
       // the error output is delayed until the security fuse has been written
       // to avoid a 99% correctly programmed chip without the security fuse
@@ -1861,7 +1988,7 @@ int action_verify(minipro_handle_t *handle) {
       return EXIT_FAILURE;
     }
 
-    rjedec.QF = wjedec.QF;
+    rjedec.QF = handle->device->code_memory_size;
     rjedec.F = wjedec.F;
     rjedec.fuses = malloc(rjedec.QF);
     if (!rjedec.fuses) {
@@ -1886,7 +2013,7 @@ int action_verify(minipro_handle_t *handle) {
     }
     uint8_t c1, c2;
     int address =
-        compare_memory(wjedec.fuses, rjedec.fuses, wjedec.QF, &c1, &c2);
+        compare_memory(0x00, wjedec.fuses, rjedec.fuses, wjedec.QF, rjedec.QF, &c1, &c2);
 
     if (address != -1) {
       if (handle->cmdopts->filename) {
