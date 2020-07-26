@@ -261,6 +261,7 @@ void print_one_device(device_t *dev) {
 #if 1
     fprintf(stdout, "%s\n", dev->name);
 #else
+  // TODO: preparation for more verbose device information (with "-W" switch)
   static const char* fmtptr = "%lx\t";
   static const char* fmtu32 = "%x\t";
   //static const char* fmtu32 = "0x%08x\t";
@@ -919,10 +920,8 @@ int compare_word_memory(uint16_t replacement_value,
       return i;
     }
   }
-
   return -1;
 }
-
 
 /* RAM-centric IO operations */
 int read_page_ram(minipro_handle_t *handle, uint8_t *buf, uint8_t type,
