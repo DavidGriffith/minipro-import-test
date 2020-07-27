@@ -250,11 +250,14 @@ size_t get_pic_word_width(minipro_handle_t *handle) {
 }
 
 // will return 0 when mask doesn't require masked compare
-uint16_t get_compare_mask(minipro_handle_t *handle) {
-  size_t wordlen = get_pic_word_width(handle);
-  if(wordlen > 0 && wordlen < 16)
-    return (0xffffUL >> (16-wordlen));
-  else return 0;
+uint16_t get_compare_mask(minipro_handle_t *handle, uint8_t type) {
+  if(type == MP_CODE) { // only code memory, not data memory
+    size_t wordlen = get_pic_word_width(handle);
+    if(wordlen > 0 && wordlen < 16)
+      return (0xffffUL >> (16-wordlen));
+  }
+  
+  return 0;
 }
 
 void print_one_device(device_t *dev) {
@@ -1400,7 +1403,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     int idx;
     uint8_t c1 = 0, c2 = 0;
     uint16_t cw1 = 0, cw2 = 0;
-    uint16_t compare_mask = get_compare_mask(handle);
+    uint16_t compare_mask = get_compare_mask(handle, type);
     if(compare_mask) {
       idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
       chip_data, file_size, size, &cw1, &cw2);
@@ -1525,7 +1528,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   int idx;
   uint8_t c1 = 0, c2 = 0;
   uint16_t cw1 = 0, cw2 = 0;
-  uint16_t compare_mask = get_compare_mask(handle);
+  uint16_t compare_mask = get_compare_mask(handle, type);
   if(compare_mask) {
     idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
     chip_data, file_size, size, &cw1, &cw2);
