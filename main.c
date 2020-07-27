@@ -872,14 +872,15 @@ int compare_memory(uint8_t replacement_value, uint8_t *s1, uint8_t *s2, size_t s
 // replacement_value needs to be in native byte order
 // sizes can be odd
 int compare_word_memory(uint16_t replacement_value,
-      uint8_t little_endian,
+      uint16_t compare_mask, uint8_t little_endian,
       uint8_t *s1, uint8_t *s2, size_t size1, size_t size2,
       uint16_t *c1, uint16_t *c2) {
   size_t i;
   uint16_t v1, v2;
   size_t size = (size1 > size2) ? size1 : size2;
-  uint8_t rvl = replacement_value & 0xff;
-  uint8_t rvh = (replacement_value >> 8) & 0xff;
+  if(compare_mask == 0) compare_mask = 0xffff;
+  uint8_t rvl =  (replacement_value & compare_mask)       & 0xff;
+  uint8_t rvh = ((replacement_value & compare_mask) >> 8) & 0xff;
 
   for (i = 0; i < size; i +=2 ) {
     if(little_endian) {
@@ -894,7 +895,7 @@ int compare_word_memory(uint16_t replacement_value,
       v2 = ((i < size2) ? s2[i] : rvh) << 8;
       v2 |= ((i + 1) < size2) ? (s2[i + 1]) : rvl;
     }
-    if (v1 != v2) {
+    if ((v1 & compare_mask) != (v2 & compare_mask)) {
       *c1 = v1;
       *c2 = v2;
       return i;
@@ -1405,7 +1406,7 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
     uint16_t cw1 = 0, cw2 = 0;
     uint16_t compare_mask = get_compare_mask(handle, type);
     if(compare_mask) {
-      idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
+      idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
       chip_data, file_size, size, &cw1, &cw2);
     }
     else {
@@ -1530,7 +1531,7 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
   uint16_t cw1 = 0, cw2 = 0;
   uint16_t compare_mask = get_compare_mask(handle, type);
   if(compare_mask) {
-    idx = compare_word_memory(0xffff & compare_mask, 1, file_data,
+    idx = compare_word_memory(0xffff, compare_mask, 1, file_data,
     chip_data, file_size, size, &cw1, &cw2);
   }
   else {
