@@ -27,6 +27,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <getopt.h>
 #include <unistd.h>
 
 #include "database.h"
@@ -53,7 +54,7 @@
 
 const char *get_voltage(minipro_handle_t*, uint8_t, uint8_t);
 
-struct voltage_s {
+static struct voltage_s {
   const char *name;
   uint8_t value;
 } tl866a_vpp_voltages[] = {{"10", 0x04}, {"12.5", 0x00}, {"13.5", 0x03},
@@ -72,8 +73,55 @@ struct voltage_s {
                             {"5", 0x00},   {"5.5", 0x04}, {"6.5", 0x05},
                             {NULL, 0x00}};
 
+static struct option long_options[] = {
+    {"pulse", required_argument, NULL, 0},
+    {"vpp", required_argument, NULL, 0},
+    {"vdd", required_argument, NULL, 0},
+    {"vcc", required_argument, NULL, 0},
+    {"list", no_argument, NULL, 'l'},
+    {"search", required_argument, NULL, 'L'},
+    {"get_info", required_argument, NULL, 'd'},
+    {"device", required_argument, NULL, 'p'},
+    {"programmer", required_argument, NULL, 'q'},
+    {"presence_check", no_argument, NULL, 'k'},
+    {"query_supported", no_argument, NULL, 'Q'},
+    {"auto_detect", required_argument, NULL, 'a'},
+    {"write", required_argument, NULL, 'w'},
+    {"read", required_argument, NULL, 'r'},
+    {"verify", required_argument, NULL, 'm'},
+    {"blank_check", required_argument, NULL, 'b'},
+    {"erase", no_argument, NULL, 'E'},
+    {"read_id", no_argument, NULL, 'D'},
+    {"page", required_argument, NULL, 'c'},
+    {"skip_erase", no_argument, NULL, 'e'},
+    {"skip_verify", no_argument, NULL, 'v'},
+    {"skip_id", no_argument, NULL, 'x'},
+    {"no_size_error", no_argument, NULL, 's'},
+    {"no_size_warning", no_argument, NULL, 'S'},
+    {"no_id_error", no_argument, NULL, 'y'},
+    {"format", required_argument, NULL, 'f'},
+    {"version", no_argument, NULL, 'V'},
+    {"pin_check", no_argument, NULL, 'z'},
+    {"icsp_vcc", no_argument, NULL, 'i'},
+    {"icsp_no_vcc", no_argument, NULL, 'I'},
+    {"no_write_protect", no_argument, NULL, 'P'},
+    {"write_protect", no_argument, NULL, 'u'},
+    {"hardware_check", no_argument, NULL, 't'},
+    {"update", required_argument, NULL, 'F'},
+    {"help", no_argument, NULL, 'h'},
+    {NULL, 0, NULL, 0}};
 
 void print_version_and_exit() {
+  fprintf(stderr, "Supported programmers: TL866A/CS, TL866II+\n");
+  minipro_handle_t *handle = minipro_open(NULL, VERBOSE);
+  if (handle) {
+    minipro_print_system_info(handle);
+    if (handle->status == MP_STATUS_BOOTLOADER) {
+      fprintf(stderr, "in bootloader mode!\n");
+    }
+    minipro_close(handle);
+  }
+
   char output[] =
       "minipro version %s     A free and open TL866XX programmer\n"
       "Build date:\t%s\n"
@@ -90,90 +138,101 @@ void print_help_and_exit(char *progname) {
       "minipro version %s     A free and open TL866XX programmer\n"
       "Usage: %s [options]\n"
       "options:\n"
-      "	-l		List all supported devices\n"
-      "	-L <search>	List devices like this\n"
-      "	-d <device>	Show device information\n"
-      "	-D		Just read the chip ID\n"
-      "	-r <filename>	Read memory\n"
-      "	-w <filename>	Write memory\n"
-      "	-m <filename>	Verify memory\n"
-      "	-f <format>	Specify file format\n"
-      "			Possible values: ihex, srec\n"
-      "	-b		Blank check. Optionally, you can use -c\n"
-      "			to specify a memory type\n"
-      "	-a <type>	Autodetect SPI 25xx devices\n"
-      "			Possible values: 8, 16\n"
-      "	-z		Check for bad pin contact\n"
-      "	-e 		Do NOT erase device\n"
-      "	-E 		Just erase device\n"
-      "	-u 		Do NOT disable write-protect\n"
-      "	-P 		Do NOT enable write-protect\n"
-      "	-v		Do NOT verify after write\n"
-      "	-p <device>	Specify device (use quotes)\n"
-      "	-c <type>	Specify memory type (optional)\n"
-      "			Possible values: code, data, config\n"
-      "	-o <option>	Specify various programming options\n"
-      "			For multiple options use -o for each option\n"
-      "			Programming voltage <vpp=value>\n"
-      "			*=TL866II+ only  **=TL866A/CS only\n"
-      "			(*9,*9.5, 10, *11, *11.5, *12, 12.5, *13, 13.5)\n"
-      "			(14, *14,5, 15.5, 16, *16.5, 17, 18, **21)\n"
-      "			VDD write voltage <vdd=value>\n"
-      "			VCC verify voltage <vcc=value>\n"
-      "			(3.3, 4, 4.5, 5, 5.5, 6.5)\n"
-      "			Programming pulse delay <pulse=value> (0-65535 usec)\n"
-      "	-i		Use ICSP\n"
-      "	-I		Use ICSP (without enabling Vcc)\n"
-      "	-s		Do NOT error on file size mismatch (only a warning)\n"
-      "	-S		No warning message for file size mismatch\n"
-      "			(can't combine with -s)\n"
-      "	-x		Do NOT attempt to read ID (only valid in read mode)\n"
-      "	-y		Do NOT error on ID mismatch\n"
-      "	-V		Show version information\n"
-      "	-t		Start hardware check\n"
-      "	-F <filename>	Update firmware (should be update.dat or updateII.dat)\n"
-      "	-h		Show help (this text)\n";
+      "  --list		-l		List all supported devices\n"
+      "  --search		-L <search>	List devices like this\n"
+      "  --programmer		-q <model>	Force a programmer model\n"
+      "					when listing devices.\n"
+      "					Possible values: TL866A TL866II\n"
+      "  --query_supported	-Q		Query supported programmers\n"
+      "  --presence_check	-k		Query programmer version\n"
+      "					currently connected.\n"
+      "  --get_info		-d <device>	Show device information\n"
+      "  --get_id		-D		Just read the chip ID\n"
+      "  --read		-r <filename>	Read memory\n"
+      "  --write		-w <filename>	Write memory\n"
+      "  --verify		-m <filename>	Verify memory\n"
+      "  --format		-f <format>	Specify file format\n"
+      "					Possible values: ihex, srec\n"
+      "  --blank_check		-b		Blank check.\n"
+      "					Optionally, you can use -c\n"
+      "					to specify a memory type\n"
+      "  --auto_detect		-a <type>	Auto-detect SPI 25xx devices\n"
+      "					Possible values: 8, 16\n"
+      "  --pin_check		-z		Check for bad pin contact\n"
+      "  --skip_erase		-e 		Do NOT erase device\n"
+      "  --erase		-E 		Just erase device\n"
+      "  --write_protect	-u 		Do NOT disable write-protect\n"
+      "  --no_write_protect	-P 		Do NOT enable write-protect\n"
+      "  --skip_verify		-v		Do NOT verify after write\n"
+      "  --device		-p <device>	Specify device (use quotes)\n"
+      "  --page		-c <type>	Specify memory type (optional)\n"
+      "					Possible values: code, data, config\n"
+      "  --pulse, --vpp	-o <option>	Specify various programming options\n"
+      "  --vdd, --vcc\n"
+      "					For multiple options use -o\n"
+      "					for each option\n"
+      "					Programming voltage <vpp=value>\n"
+      "					*=TL866II+ only  **=TL866A/CS only\n"
+      "					(*9,*9.5, 10, *11, *11.5, *12, 12.5)\n"
+      "					(*13, 13.5, 14, *14,5, 15.5, 16)\n"
+      "					(*16.5, 17, 18, **21)\n"
+      "					VDD write voltage <vdd=value>\n"
+      "					VCC verify voltage <vcc=value>\n"
+      "					(3.3, 4, 4.5, 5, 5.5, 6.5)\n"
+      "					Programming pulse delay\n"
+      "					<pulse=value> (0-65535 usec)\n"
+      "  --icsp_vcc		-i		Use ICSP\n"
+      "  --icsp_no_vcc		-I		Use ICSP (without enabling Vcc)\n"
+      "  --no_size_error	-s		Do NOT error on file size mismatch\n"
+      "					(only a warning)\n"
+      "  --no_size_warning	-S		No warning message for\n"
+      "					file size mismatch\n"
+      "					(can't combine with -s)\n"
+      "  --skip_id		-x		Do NOT attempt to read ID\n"
+      "					(only valid in read mode)\n"
+      "  --no_id_error		-y		Do NOT error on ID mismatch\n"
+      "  --version		-V		Show version information\n"
+      "  --hardware_check	-t		Start hardware check\n"
+      "  --update		-F <filename>	Update firmware\n"
+      "					(should be update.dat or updateII.dat)\n"
+      "  --help		-h		Show help (this text)\n";
   fprintf(stderr, usage, VERSION, basename(progname));
-  exit(EXIT_SUCCESS);
+  exit(EXIT_FAILURE);
 }
 
-minipro_handle_t *get_handle(const char *device_name) {
-  minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
+minipro_handle_t *get_handle(const char *device_name, cmdopts_t *cmdopts) {
+  minipro_handle_t *handle = calloc(1, sizeof(minipro_handle_t));
   if (handle == NULL) {
     fprintf(stderr, "Out of memory!\n");
     return NULL;
   }
 
+  if (cmdopts->version) handle->version = cmdopts->version;
+
   if (!(minipro_get_devices_count(MP_TL866A) +
         minipro_get_devices_count(MP_TL866IIPLUS))) {
-    fprintf(stderr,
-            "No TL866 device found. Which database do you want to display?\n1) "
-            "TL866A\n2) TL866II+\n3) Abort\n");
-    fflush(stderr);
-    char c = getchar();
-    switch (c) {
-      case '1':
-        handle->version = MP_TL866A;
-        break;
-      case '2':
-        handle->version = MP_TL866IIPLUS;
-        break;
-      default:
-        free(handle);
-        fprintf(stderr, "Aborted.\n");
-        return NULL;
-    }
-
-    if (device_name != NULL) {
-      handle->device = get_device_by_name(handle, device_name);
-      if (handle->device == NULL) {
-        free(handle);
-        fprintf(stderr, "Device %s not found!\n", device_name);
-        return NULL;
+    if (!cmdopts->version) {
+      fprintf(
+          stderr,
+          "No TL866 device found. Which database do you want to display?\n1) "
+          "TL866A\n2) TL866II+\n3) Abort\n");
+      fflush(stderr);
+      char c = getchar();
+      switch (c) {
+        case '1':
+          handle->version = MP_TL866A;
+          break;
+        case '2':
+          handle->version = MP_TL866IIPLUS;
+          break;
+        default:
+          free(handle);
+          fprintf(stderr, "Aborted.\n");
+          return NULL;
       }
     }
-  } else {
-    minipro_handle_t *tmp = minipro_open(device_name);
+  } else if (!cmdopts->version) {
+    minipro_handle_t *tmp = minipro_open(device_name, VERBOSE);
     if (!tmp) {
       free(handle);
       return NULL;
@@ -184,6 +243,16 @@ minipro_handle_t *get_handle(const char *device_name) {
     handle->version = tmp->version;
     minipro_close(tmp);
   }
+
+  if (!handle->device && device_name) {
+    handle->device = get_device_by_name(handle, device_name);
+    if (handle->device == NULL) {
+      free(handle);
+      fprintf(stderr, "Device %s not found!\n", device_name);
+      return NULL;
+    }
+  }
+
   return handle;
 }
 
@@ -264,8 +333,36 @@ void print_one_device(device_t *dev) {
     fprintf(stdout, "%s\n", dev->name);
 }
 
-void print_devices_and_exit(const char *device_name) {
-  minipro_handle_t *handle = get_handle(NULL);
+void print_supported_programmers_and_exit() {
+  fprintf(stderr, "tl866a: TL866CS/A\ntl866ii: TL866II+\n");
+  exit(EXIT_SUCCESS);
+}
+
+void print_connected_programmer_and_exit() {
+  minipro_handle_t *handle = minipro_open(NULL, NO_VERBOSE);
+  if (!handle) {
+    fprintf(stderr, "[No programmer found]\n");
+  } else {
+    switch (handle->version) {
+      case MP_TL866A:
+        fprintf(stderr, "tl866a: TL866A\n");
+        break;
+      case MP_TL866CS:
+        fprintf(stderr, "tl866a: TL866CS\n");
+        break;
+      case MP_TL866IIPLUS:
+        fprintf(stderr, "tl866ii: TL866II+\n");
+        break;
+      default:
+        fprintf(stderr, "[Unknown programmer version]\n");
+    }
+    free(handle);
+  }
+  exit(EXIT_SUCCESS);
+}
+
+void print_devices_and_exit(const char *device_name, cmdopts_t *cmdopts) {
+  minipro_handle_t *handle = get_handle(NULL, cmdopts);
   if (!handle) exit(EXIT_FAILURE);
 
   // If less is available under windows use it, otherwise just use more.
@@ -335,8 +432,8 @@ void print_devices_and_exit(const char *device_name) {
   exit(EXIT_SUCCESS);
 }
 
-void print_device_info_and_exit(const char *device_name) {
-  minipro_handle_t *handle = get_handle(device_name);
+void print_device_info_and_exit(const char *device_name, cmdopts_t *cmdopts) {
+  minipro_handle_t *handle = get_handle(device_name, cmdopts);
   if (!handle) exit(EXIT_FAILURE);
 
   fprintf(stderr, "Name: %s\n", handle->device->name);
@@ -470,13 +567,44 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
   uint32_t v;
   int8_t c;
   char *p_end, option[64], value[64];
-  int vpp = -1, vcc = -1, vdd = -1, pulse_delay = -1;
+  int vpp = -1, vcc = -1, vdd = -1, pulse_delay = -1, opt_idx = 0;
 
   // Parse options first
   optind = 1;
   opterr = 0;
-  while ((c = getopt(argc, argv, "o:")) != -1) {
+
+  while ((c = getopt_long(argc, argv, "o:", long_options, &opt_idx)) != -1) {
     switch (c) {
+      case 0:
+        if (!strlen(optarg)) {
+          fprintf(stderr, "%s: option '--%s' requires an argument\n", argv[0],
+                  long_options[opt_idx].name);
+          return EXIT_FAILURE;
+        }
+        switch (opt_idx) {
+          case 0:
+            errno = 0;
+            v = strtoul(optarg, &p_end, 10);
+            if ((p_end == optarg) || errno) return EXIT_FAILURE;
+            if (v > 0xffff) return EXIT_FAILURE;
+            pulse_delay = (uint16_t)v;
+            break;
+          case 1:
+            if (set_voltage(handle, optarg, &vpp, VPP_VOLTAGE))
+              return EXIT_FAILURE;
+            break;
+          case 2:
+            if (set_voltage(handle, optarg, &vdd, VCC_VOLTAGE))
+              return EXIT_FAILURE;
+            break;
+          case 3:
+            if (set_voltage(handle, optarg, &vcc, VCC_VOLTAGE))
+              return EXIT_FAILURE;
+            break;
+          default:
+            return EXIT_FAILURE;
+        }
+        break;
       case 'o':
         if (sscanf(optarg, "%[^=]=%[^=]", option, value) != 2)
           return EXIT_FAILURE;
@@ -544,7 +672,7 @@ int parse_options(minipro_handle_t *handle, int argc, char **argv) {
 }
 
 void hardware_check_and_exit() {
-  minipro_handle_t *handle = minipro_open(NULL);
+  minipro_handle_t *handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
@@ -561,7 +689,7 @@ void hardware_check_and_exit() {
 }
 
 void firmware_update_and_exit(const char *firmware) {
-  minipro_handle_t *handle = minipro_open(NULL);
+  minipro_handle_t *handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
@@ -575,7 +703,7 @@ void firmware_update_and_exit(const char *firmware) {
 
 // Autodetect 25xx SPI devices
 void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
-  minipro_handle_t *handle = minipro_open(NULL);
+  minipro_handle_t *handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     exit(EXIT_FAILURE);
   }
@@ -651,21 +779,52 @@ void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
 void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   int8_t c;
   uint8_t package_type = 0;
+  void (*list_func)(const char *, cmdopts_t *) = NULL;
+  char *name = NULL;
   memset(cmdopts, 0, sizeof(cmdopts_t));
+  int opt_idx = 0;
 
-  while ((c = getopt(argc, argv, "lL:d:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:F:")) != -1) {
+  while ((c = getopt_long(argc, argv,
+                          "lL:q:Qkd:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:F:",
+                          long_options, &opt_idx)) != -1) {
     switch (c) {
+      case 0:
+    	break;// Skip pulse, vcc and vdd here
+
+      case 'q':
+        if (!strcasecmp(optarg, "tl866a"))
+          cmdopts->version = MP_TL866A;
+        else if (!strcasecmp(optarg, "tl866ii"))
+          cmdopts->version = MP_TL866IIPLUS;
+        else {
+          fprintf(stderr, "Unknown programmer version (%s).\n", optarg);
+          print_help_and_exit(argv[0]);
+        }
+        break;
+
+      case 'Q':
+        list_func = print_supported_programmers_and_exit;
+        break;
+
+      case 'k':
+        list_func = print_connected_programmer_and_exit;
+        break;
+
       case 'l':
-        print_devices_and_exit(NULL);
+        list_func = print_devices_and_exit;
+        // print_devices_and_exit(NULL, cmdopts);
         break;
 
       case 'L':
-        print_devices_and_exit(optarg);
-        break;
+        name = optarg;
+        list_func = print_devices_and_exit;
+        // print_devices_and_exit(optarg, cmdopts);
         break;
 
       case 'd':
-        print_device_info_and_exit(optarg);
+        name = optarg;
+        list_func = print_device_info_and_exit;
+        // print_device_info_and_exit(optarg, cmdopts);
         break;
 
       case 'e':
@@ -697,7 +856,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         break;
 
       case 'p':
-        if (!strcasecmp(optarg, "help")) print_devices_and_exit(NULL);
+        if (!strcasecmp(optarg, "help")) print_devices_and_exit(NULL, cmdopts);
         cmdopts->device = optarg;
         break;
 
@@ -736,12 +895,12 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         break;
 
       case 'E':
-    	  cmdopts->action = ERASE;
-    	  break;
+        cmdopts->action = ERASE;
+        break;
 
       case 'b':
-    	  cmdopts->action = BLANK_CHECK;
-    	  break;
+        cmdopts->action = BLANK_CHECK;
+        break;
 
       case 'a':
         if (!strcasecmp(optarg, "8"))
@@ -775,7 +934,6 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         cmdopts->idcheck_only = 1;
         break;
 
-
       case 'h':
         print_help_and_exit(argv[0]);
         break;
@@ -804,6 +962,11 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
     }
   }
 
+  if (cmdopts->version && !list_func) {
+    fprintf(stderr, "-L, -l or -d command is required for this action.\n");
+    print_help_and_exit(argv[0]);
+  }
+  if (list_func) list_func(name, cmdopts);
   if (package_type) spi_autodetect_and_exit(package_type, cmdopts);
 }
 
@@ -2218,7 +2381,7 @@ int action_verify(minipro_handle_t *handle) {
     if (cmdopts.filename)
     	cmdopts.is_pipe = (!strcmp(cmdopts.filename, "-"));
 
-    minipro_handle_t *handle = minipro_open(cmdopts.device);
+    minipro_handle_t *handle = minipro_open(cmdopts.device, VERBOSE);
     if (!handle) {
       return EXIT_FAILURE;
     }
@@ -2234,9 +2397,9 @@ int action_verify(minipro_handle_t *handle) {
     // Parse programming options
     handle->cmdopts = &cmdopts;
     if (parse_options(handle, argc, argv)) {
-      fprintf(stderr, "Invalid option '%s'\n", optarg);
+      if(strlen(optarg)) fprintf(stderr, "Invalid option '%s'\n", optarg);
       minipro_close(handle);
-      exit(EXIT_FAILURE);
+      print_help_and_exit(argv[0]);
     }
 
     if (cmdopts.pincheck) {

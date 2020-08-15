@@ -31,10 +31,11 @@
 #define MP_USB_READ_TIMEOUT 360000
 
 // Open usb device
-void *usb_open() {
+void *usb_open(uint8_t verbose) {
   int ret = libusb_init(NULL);
   if (ret < 0) {
-    fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(ret));
+    if(verbose)
+    	fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(ret));
     return NULL;
   }
 
@@ -49,14 +50,16 @@ void *usb_open() {
     // If we don't get that either report error in connecting
     if (usb_handle == NULL) {
       libusb_exit(NULL);
-      fprintf(stderr, "\nError opening device\n");
+      if(verbose)
+    	  fprintf(stderr, "No programmer found.\n");
       return NULL;
     }
   }
 
   ret = libusb_claim_interface(usb_handle, 0);
   if (ret != 0) {
-    fprintf(stderr, "\nIO error: claim_interface: %s\n",
+    if(verbose)
+    	fprintf(stderr, "\nIO error: claim_interface: %s\n",
             libusb_error_name(ret));
     libusb_close(usb_handle);
     libusb_exit(NULL);

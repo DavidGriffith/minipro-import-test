@@ -58,13 +58,14 @@ typedef struct usb_handle {
 } usb_handle_t;
 
 // Open usb device
-void *usb_open() {
+void *usb_open(uint8_t verbose) {
   char *device_path;
 
   // Alocate memory for the usb handle structure
   usb_handle_t *handle = malloc(sizeof(usb_handle_t));
   if (!handle) {
-    fprintf(stderr, "Out of memory!\n");
+    if(verbose)
+    	fprintf(stderr, "Out of memory!\n");
     return NULL;
   }
 
@@ -79,7 +80,8 @@ void *usb_open() {
         FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     free(device_path);
     if (handle->DeviceHandle == INVALID_HANDLE_VALUE) {
-      fprintf(stderr, "\nError opening device\n");
+      if(verbose)
+    	  fprintf(stderr, "No programmer found.\n");
       free(handle);
       return NULL;
     }
@@ -95,7 +97,8 @@ void *usb_open() {
                     FILE_FLAG_OVERLAPPED, NULL);
     free(device_path);
     if (handle->DeviceHandle == INVALID_HANDLE_VALUE) {
-      fprintf(stderr, "\nError opening device\n");
+      if(verbose)
+    	  fprintf(stderr, "No programmer found.\n");
       free(handle);
       return NULL;
     }
@@ -112,7 +115,8 @@ void *usb_open() {
     }
   }
 
-  fprintf(stderr, "\nError opening device\n");
+  if(verbose)
+	  fprintf(stderr, "No programmer found.\n");
   free(handle);
   return NULL;
 }

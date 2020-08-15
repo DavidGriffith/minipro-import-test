@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-void *usb_open();
+void *usb_open(uint8_t verbose);
 int usb_close(void *usb_handle);
 int minipro_get_devices_count(uint8_t version);
 

@@ -65,14 +65,15 @@ uint32_t crc32(uint8_t *data, size_t size, uint32_t initial) {
   return crc;
 }
 
-minipro_handle_t *minipro_open(const char *device_name) {
+minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
   minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
   if (handle == NULL) {
-    fprintf(stderr, "Out of memory!\n");
+    if(verbose)
+    	fprintf(stderr, "Out of memory!\n");
     return NULL;
   }
 
-  handle->usb_handle = usb_open();
+  handle->usb_handle = usb_open(verbose);
   if (!handle->usb_handle) {
     free(handle);
     return NULL;
@@ -91,7 +92,8 @@ minipro_handle_t *minipro_open(const char *device_name) {
           break;
         default:
           minipro_close(handle);
-          fprintf(stderr, "\nUnknown device status!\nExiting...\n");
+          if (verbose)
+        	  fprintf(stderr, "\nUnknown device status!\nExiting...\n");
           return NULL;
       }
       handle->model = info.device_version == MP_TL866A ? "TL866A" : "TL866CS";
@@ -143,7 +145,8 @@ minipro_handle_t *minipro_open(const char *device_name) {
       break;
     default:
       minipro_close(handle);
-      fprintf(stderr, "Unknown programmer model!\n");
+      if(verbose)
+    	  fprintf(stderr, "Unknown programmer model!\n");
       return NULL;
   }
 
@@ -157,7 +160,8 @@ minipro_handle_t *minipro_open(const char *device_name) {
     handle->device = get_device_by_name(handle, device_name);
     if (handle->device == NULL) {
       minipro_close(handle);
-      fprintf(stderr, "Device %s not found!\n", device_name);
+      if(verbose)
+    	  fprintf(stderr, "Device %s not found!\n", device_name);
       return NULL;
     }
   }

@@ -175,6 +175,7 @@ typedef struct cmdopts_s {
   uint8_t idcheck_only;
   uint8_t pincheck;
   uint8_t is_pipe;
+  uint8_t version;
 } cmdopts_t;
 
 typedef struct minipro_handle {
@@ -232,6 +233,8 @@ typedef struct minipro_report_info {
   uint8_t buffer[20]; /* for future autoelectric expansion */
 } minipro_report_info_t;
 
+enum { NO_VERBOSE = 0, VERBOSE } verbosity;
+
 // These are old byte_utils functions
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness);
 uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness);
@@ -252,7 +255,7 @@ int minipro_get_devices_count(uint8_t version);
  * the higher logic routines to exit cleanly leaving the device in a clean
  * state.
  */
-minipro_handle_t *minipro_open(const char *device_name);
+minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose);
 void minipro_close(minipro_handle_t *handle);
 int minipro_begin_transaction(minipro_handle_t *handle);
 int minipro_end_transaction(minipro_handle_t *handle);

@@ -686,7 +686,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
       free(update_dat);
       return EXIT_FAILURE;
     }
-    handle = minipro_open(NULL);
+    handle = minipro_open(NULL, VERBOSE);
     if (!handle) {
       fprintf(stderr, "failed!\n");
       free(update_dat);
@@ -824,7 +824,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
     free(update_dat);
     return EXIT_FAILURE;
   }
-  handle = minipro_open(NULL);
+  handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     fprintf(stderr, "failed!\n");
     free(update_dat);

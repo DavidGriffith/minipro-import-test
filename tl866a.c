@@ -920,7 +920,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
       return EXIT_FAILURE;
     }
 
-    handle = minipro_open(NULL);
+    handle = minipro_open(NULL, VERBOSE);
     if (!handle) {
       fprintf(stderr, "failed!\n");
       return EXIT_FAILURE;
@@ -1010,7 +1010,7 @@ int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware) {
     fprintf(stderr, "failed!\n");
     return EXIT_FAILURE;
   }
-  handle = minipro_open(NULL);
+  handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     fprintf(stderr, "failed!\n");
     return EXIT_FAILURE;
