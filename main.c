@@ -232,7 +232,7 @@ minipro_handle_t *get_handle(const char *device_name, cmdopts_t *cmdopts) {
       }
     }
   } else if (!cmdopts->version) {
-    minipro_handle_t *tmp = minipro_open(device_name, VERBOSE);
+    minipro_handle_t *tmp = minipro_open(NULL, VERBOSE);
     if (!tmp) {
       free(handle);
       return NULL;
