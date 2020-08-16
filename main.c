@@ -89,7 +89,7 @@ static struct option long_options[] = {
     {"write", required_argument, NULL, 'w'},
     {"read", required_argument, NULL, 'r'},
     {"verify", required_argument, NULL, 'm'},
-    {"blank_check", required_argument, NULL, 'b'},
+    {"blank_check", no_argument, NULL, 'b'},
     {"erase", no_argument, NULL, 'E'},
     {"read_id", no_argument, NULL, 'D'},
     {"page", required_argument, NULL, 'c'},
