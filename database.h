@@ -52,11 +52,11 @@ typedef struct pin_map {
 	uint8_t mask [40];
 } pin_map_t;
 
-pin_map_t *get_pin_map(uint8_t index);
-uint32_t get_pin_count(device_t *device);
-device_t *get_device_table(minipro_handle_t *handle);
-device_t *get_device_custom(minipro_handle_t *handle);
-device_t *get_device_by_name(minipro_handle_t *handle, const char *name);
-const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
-                               uint8_t protocol);
+
+pin_map_t *get_pin_map(uint8_t);
+uint32_t get_pin_count(uint32_t);
+int print_chip_count();
+int list_devices(uint8_t, const char *, uint32_t, uint32_t, uint32_t *);
+device_t *get_device_by_name(uint8_t, const char *);
+const char *get_device_from_id(uint8_t, uint32_t, uint8_t);
 #endif

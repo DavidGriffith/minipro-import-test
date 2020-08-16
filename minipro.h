@@ -128,7 +128,7 @@
 #define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
 
 typedef struct device {
-  const char *name;
+  char name[40];
   uint8_t protocol_id;
   uint8_t variant;
   uint16_t read_buffer_size;

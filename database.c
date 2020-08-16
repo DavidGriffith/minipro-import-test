@@ -14,10 +14,57 @@
  * GNU General Public License for more details.
  *
  */
-
-#include "database.h"
+#define _GNU_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include "xml.h"
+#include "database.h"
+
+#ifdef _WIN32
+	#include <Shlobj.h>
+	#include <shlwapi.h>
+	#define STRCASESTR StrStrIA
+#else
+	#define STRCASESTR strcasestr
+#endif
+
+#define PIN_MAP_COUNT 117
+pin_map_t pin_map_table[] = {
+#include "pin_map.h"
+};
+
+// infoic.xml name and tag names
+#define DATABASE_NAME "infoic.xml"
+#define DEVICE_TAG "device"
+#define MANUF_TAG "manufacturer"
+#define CUSTOM_TAG "custom"
+#define IC_TAG "ic"
+#define NAME_ATTRIBUTE "name"
+#define FUSE_ATTRIBUTE "fuses"
+#define TL866II_ATTR_NAME "TL866II"
+#define TL866A_ATTR_NAME "TL866A"
+
+
+// State machine structure used by sax xml parser callback function
+// for persistent data between calls.
+typedef struct state_machine {
+  device_t *device;
+  int version;
+  int sm_version;
+  int custom;
+  int print_name;
+  uint32_t found;
+  int match_id;
+  const char *device_name;
+  uint32_t tl866a_count;
+  uint32_t tl866a_custom_count;
+  uint32_t tl866ii_count;
+  uint32_t tl866ii_custom_count;
+} state_machine_t;
+
 
 fuse_decl_t atmel_lock[] = {
     {.num_fuses = 0,
@@ -296,36 +343,359 @@ gal_config_t gal6b_acw[] = { // e.g. for ATF750C
      .acw_size = 3*10 + 4*10}};
 */
 
-device_t infoic_devices[] = {
-#include "infoic_devices.h"
-    {.name = NULL},
-};
+// Parse a numeric value from an attribute tag
+static uint32_t get_value(const uint8_t *xml_device, size_t size,
+                          char *attr_name, int *err) {
+  Memblock memblock = get_attribute(
+      xml_device, size, (Memblock){strlen(attr_name), (uint8_t *)attr_name});
+  char attr[64];
+  if (memblock.b && memblock.z < sizeof(attr)) {
+    memcpy(attr, memblock.b, memblock.z);
+    attr[memblock.z] = 0;
+    return strtoul(attr, NULL, 0);
+  }
+  (*err)++;
+  return 0;
+}
 
-device_t infoic_custom[] = {
-#include "infoic_custom.h"
-    {.name = NULL},
-};
+// Load a device from an xml 'ic' tag
+static int load_device(const uint8_t *xml_device, size_t size, device_t *device,
+                       uint8_t version) {
+  int err = 0;
 
-device_t infoic2plus_devices[] = {
-#include "infoic2plus_devices.h"
-    {.name = NULL},
-};
+  Memblock memblock = get_attribute(
+      xml_device, size,
+      (Memblock){strlen(NAME_ATTRIBUTE), (uint8_t *)NAME_ATTRIBUTE});
+  if (!memblock.b || memblock.z > sizeof(device->name)) return EXIT_FAILURE;
+  memcpy(device->name, memblock.b, memblock.z);
+  device->protocol_id = get_value(xml_device, size, "protocol_id", &err);
+  device->variant = get_value(xml_device, size, "variant", &err);
+  device->read_buffer_size =
+      get_value(xml_device, size, "read_buffer_size", &err);
+  device->write_buffer_size =
+      get_value(xml_device, size, "write_buffer_size", &err);
+  device->code_memory_size =
+      get_value(xml_device, size, "code_memory_size", &err);
+  device->data_memory_size =
+      get_value(xml_device, size, "data_memory_size", &err);
+  device->data_memory2_size =
+      get_value(xml_device, size, "data_memory2_size", &err);
+  device->chip_id = get_value(xml_device, size, "chip_id", &err);
+  device->chip_id_bytes_count =
+      get_value(xml_device, size, "chip_id_bytes_count", &err);
+  device->opts1 = get_value(xml_device, size, "opts1", &err);
+  device->opts2 = get_value(xml_device, size, "opts2", &err);
+  device->opts3 = get_value(xml_device, size, "opts3", &err);
+  device->opts4 = get_value(xml_device, size, "opts4", &err);
+  device->opts5 = get_value(xml_device, size, "opts5", &err);
+  device->opts6 = get_value(xml_device, size, "opts6", &err);
+  device->opts7 = get_value(xml_device, size, "opts7", &err);
+  if (version == MP_TL866IIPLUS)
+    device->opts8 = get_value(xml_device, size, "opts8", &err);
+  device->package_details =
+      get_value(xml_device, size, "package_details", &err);
 
-device_t infoic2plus_custom[] = {
-#include "infoic2plus_custom.h"
-    {.name = NULL},
-};
+  if (err) return EXIT_FAILURE;
 
+  // Parse configuration name
+  Memblock fuses = get_attribute(
+      xml_device, size,
+      (Memblock){strlen(FUSE_ATTRIBUTE), (uint8_t *)FUSE_ATTRIBUTE});
+  if (!fuses.b) return EXIT_FAILURE;
 
-#define PIN_MAP_COUNT 117
-pin_map_t pin_map_table[] = {
-#include "pin_map.h"
-};
+  if (!strncasecmp((char *)fuses.b, "atmel_lock", fuses.z))
+    device->config = atmel_lock;
+  else if (!strncasecmp((char *)fuses.b, "avr_fuses", fuses.z))
+    device->config = avr_fuses;
+  else if (!strncasecmp((char *)fuses.b, "avr2_fuses", fuses.z))
+    device->config = avr2_fuses;
+  else if (!strncasecmp((char *)fuses.b, "avr3_fuses", fuses.z))
+    device->config = avr3_fuses;
+  else if (!strncasecmp((char *)fuses.b, "pic_fuses", fuses.z))
+    device->config = pic_fuses;
+  else if (!strncasecmp((char *)fuses.b, "pic2_fuses", fuses.z))
+    device->config = pic2_fuses;
+  else if (!strncasecmp((char *)fuses.b, "pic3_fuses", fuses.z))
+    device->config = pic3_fuses;
+  else if (!strncasecmp((char *)fuses.b, "pic4_fuses", fuses.z))
+    device->config = pic4_fuses;
+  else if (!strncasecmp((char *)fuses.b, "gal1_acw", fuses.z))
+    device->config = gal1_acw;
+  else if (!strncasecmp((char *)fuses.b, "gal2_acw", fuses.z))
+    device->config = gal2_acw;
+  else if (!strncasecmp((char *)fuses.b, "gal3_acw", fuses.z))
+    device->config = gal3_acw;
+  else if (!strncasecmp((char *)fuses.b, "gal4_acw", fuses.z))
+    device->config = gal4_acw;
+  else if (!strncasecmp((char *)fuses.b, "gal5_acw", fuses.z))
+    device->config = gal5_acw;
+  else if (!strncasecmp((char *)fuses.b, "atf16V8c_acw", fuses.z))
+    device->config = atf16V8c_acw;
+  else if (!strncasecmp((char *)fuses.b, "atf22v10c_acw", fuses.z))
+    device->config = atf22v10c_acw;
+  else if (!strncasecmp((char *)fuses.b, "atf750c_acw", fuses.z))
+    device->config = atf750c_acw;
+  else if (!strncasecmp((char *)fuses.b, "NULL", fuses.z))
+    device->config = NULL;
+  else
+    return EXIT_FAILURE;
+  return EXIT_SUCCESS;
+}
 
-uint32_t get_pin_count(device_t *device){
-	if(device->package_details == 0xff000000)
-		return 32;
-	return PIN_COUNT(device->package_details);
+// Compare a device by protocol ID/device ID or protocol ID/package
+// If the device match the device name is returned in device->name
+static int compare_device(const uint8_t *xml_device, size_t size,
+                          device_t *device, uint8_t version) {
+  int err = 0;
+
+  uint8_t protocol_id = get_value(xml_device, size, "protocol_id", &err);
+  uint8_t chip_id_bytes_count =
+      get_value(xml_device, size, "chip_id_bytes_count", &err);
+  uint32_t chip_id = get_value(xml_device, size, "chip_id", &err);
+  uint32_t package_details =
+      get_value(xml_device, size, "package_details", &err);
+
+  if (err) return EXIT_FAILURE;
+
+  uint32_t pin_count = get_pin_count(package_details);
+  uint8_t match_package =
+      device->package_details ? (device->package_details == pin_count) : 1;
+
+  if (chip_id && chip_id_bytes_count && match_package && device->chip_id &&
+      device->chip_id == chip_id &&
+      (match_package || device->protocol_id == protocol_id)) {
+    Memblock memblock = get_attribute(
+        xml_device, size,
+        (Memblock){strlen(NAME_ATTRIBUTE), (uint8_t *)NAME_ATTRIBUTE});
+    if (!memblock.b || memblock.z > sizeof(device->name)) return EXIT_FAILURE;
+    memcpy(device->name, memblock.b, memblock.z);
+  }
+  return EXIT_SUCCESS;
+}
+
+// XML SAX parser handler. Each xml tag pair is dispatched here.
+// The persistent state machine data is kept in parser->userdata structure
+static int sax_callback(int type, const uint8_t *tag, size_t taglen,
+                        Parser *parser) {
+  state_machine_t *sm = parser->userdata;
+  Memblock memblock;
+
+  switch (type) {
+    case OPENTAG_:
+      // Get database version
+      memblock = get_attribute(
+          tag, taglen, (Memblock){strlen(DEVICE_TAG), (uint8_t *)DEVICE_TAG});
+      if (memblock.b &&
+          !strncasecmp((char *)memblock.b, TL866II_ATTR_NAME, memblock.z))
+        sm->sm_version = MP_TL866IIPLUS;
+      else if (memblock.b &&
+               !strncasecmp((char *)memblock.b, TL866A_ATTR_NAME, memblock.z))
+        sm->sm_version = MP_TL866A;
+      // Get manufacturer/custom item
+      if (taglen && !strncasecmp((char *)tag, MANUF_TAG, strlen(MANUF_TAG)))
+        sm->custom = 0;
+      else if (taglen &&
+               !strncasecmp((char *)tag, CUSTOM_TAG, strlen(CUSTOM_TAG)))
+        sm->custom = 1;
+      break;
+    case SELFCLOSE_:
+      // Filter by "IC tag"
+      if (taglen && strncasecmp((char *)tag, IC_TAG, strlen(IC_TAG)))
+        return XML_OK;
+      if (sm->sm_version == MP_TL866IIPLUS) {
+        sm->custom ? sm->tl866ii_custom_count++ : sm->tl866ii_count++;
+      } else if (sm->sm_version == MP_TL866A) {
+        sm->custom ? sm->tl866a_custom_count++ : sm->tl866a_count++;
+      }
+      /*
+       * Filter only devices from the desired database.
+       * We pass 0 to sm->version to just traverse the entire xml
+       * and count all chips.
+       */
+      if (sm->sm_version != sm->version) return XML_OK;
+
+      // Grab the device name
+      memblock = get_attribute(
+          tag, taglen,
+          (Memblock){strlen(NAME_ATTRIBUTE), (uint8_t *)NAME_ATTRIBUTE});
+      if (!memblock.b) return EXIT_FAILURE;
+      char name[sizeof((device_t){0}).name];
+      if (memblock.z > sizeof(name)) return EXIT_FAILURE;
+      memset(name, 0, sizeof(name));
+      memcpy(name, memblock.b, memblock.z);
+
+      // Only print device name
+      if (sm->print_name) {
+        // Print only devices that match the chip ID (SPI autodetect -a)
+        if (sm->match_id) {
+          if (compare_device(tag, taglen, sm->device, sm->version))
+            return EXIT_FAILURE;
+          if (strlen(sm->device->name)) {
+            fprintf(stdout, "%s%s\n", sm->device->name,
+                    sm->custom == 1 ? "(custom)" : "");
+            fflush(stdout);
+            sm->found++;
+            memset(sm->device->name, 0, sizeof(sm->device->name));
+          }
+          return XML_OK;
+        }
+
+        // Print all device that match the name (-l and -L)
+        if (!sm->device_name || STRCASESTR(name, sm->device_name)) {
+          fprintf(stdout, "%s%s\n", name, sm->custom == 1 ? "(custom)" : "");
+          fflush(stdout);
+        }
+        return XML_OK;
+      }
+
+      // Search by chip ID (get_device_from_id)
+      if (!sm->device_name) {
+        if (sm->found && !sm->custom) return XML_OK;
+        if (compare_device(tag, taglen, sm->device, sm->version))
+          return EXIT_FAILURE;
+        if (strlen(sm->device->name)) sm->found = 1;
+        return XML_OK;
+      }
+
+      // Search and load device (-p and -d)
+      if (strcasecmp(sm->device_name, name)) return XML_OK;
+      if (sm->found && !sm->custom) return XML_OK;
+      if (load_device(tag, taglen, sm->device, sm->version))
+        return EXIT_FAILURE;
+      sm->found = 1;
+  }
+  return XML_OK;
+}
+
+// Search and return database xml file
+static FILE* get_database_file(){
+#ifdef _WIN32
+  char appdata[MAX_PATH];
+  SHGetSpecialFolderPathA(NULL, appdata, CSIDL_COMMON_APPDATA, 0);
+  strcat(appdata, "\\minipro\\" DATABASE_NAME);
+#endif
+
+  struct stat st;
+  int ret1 = stat(
+#ifdef _WIN32
+      appdata, &st);
+#else
+      SHARE_INSTDIR "/" DATABASE_NAME, &st);
+#endif
+
+  int ret2 = stat(DATABASE_NAME, &st);
+  if (ret1 && ret2) {
+    fprintf(stderr, "Could not load %s database file.\n", DATABASE_NAME);
+    perror("");
+    return NULL;
+  }
+
+  char *path =
+#ifdef _WIN32
+      appdata;
+#else
+      SHARE_INSTDIR "/" DATABASE_NAME;
+#endif
+  if (!ret2) path = DATABASE_NAME;
+  // Open datbase xml file
+  FILE *file = fopen(path, "rb");
+  if (!file) return perror(path), NULL;
+  return file;
+}
+
+// Parse xml database file
+static int parse_xml(state_machine_t *sm) {
+  // Open datbase xml file
+  FILE *file = get_database_file();
+  if (!file) return EXIT_FAILURE;
+
+  // Begin xml parse
+  Parser parser = {file, sax_callback, sm};
+
+  int ret = parse(&parser);
+  done(&parser);
+  fclose(file);
+  if (ret) {
+    fprintf(stderr, "An error occurred while parsing XML database.\n");
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+// XML based device search
+device_t *get_device_by_name(uint8_t version, const char *name) {
+  if (!name) return NULL;
+
+  // Initialize state machine structure
+  device_t *device = device = calloc(1, sizeof(device_t));
+
+  if (!device) {
+    fprintf(stderr, "Out of memory\n");
+    return NULL;
+  }
+
+  if (version == MP_TL866CS) version = MP_TL866A;
+  state_machine_t sm = {device, version, -1, -1, 0, 0, 0, name, 0, 0, 0, 0};
+  int ret = parse_xml(&sm);
+
+  if (ret || !sm.found) {
+    free(device);
+    device = NULL;
+  }
+  return device;
+}
+
+// Get first device name found in the database from a device ID
+const char *get_device_from_id(uint8_t version, uint32_t chip_id, uint8_t protocol) {
+  // Initialize state machine structure
+  device_t device;
+  device.chip_id = chip_id;
+  device.protocol_id = protocol;
+  device.package_details = 0;
+  memset(device.name, 0 , sizeof(device.name));
+  if (version == MP_TL866CS) version = MP_TL866A;
+  state_machine_t sm = {&device, version, -1, -1, 0, 0, 1, NULL, 0, 0, 0, 0};
+
+  if(parse_xml(&sm)) return NULL;
+  return sm.found ? strdup(device.name) : NULL;
+}
+
+/* List all devices from XML
+ * If name == NULL list all devices
+ */
+int list_devices(uint8_t version, const char *name, uint32_t chip_id,
+                 uint32_t package_details, uint32_t *count) {
+  // Initialize state machine structure
+  device_t device;
+  device.chip_id = chip_id;
+  device.package_details = package_details;
+  memset(device.name, 0, sizeof(device.name));
+  if (version == MP_TL866CS) version = MP_TL866A;
+  int flag = (chip_id || package_details) ? 1 : 0;
+  state_machine_t sm = {&device, version, -1, -1, 1, 0, flag, name, 0, 0, 0, 0};
+
+  if (parse_xml(&sm)) return EXIT_FAILURE;
+  if (count) *count = sm.found;
+  return EXIT_SUCCESS;
+}
+
+// Print database chip count
+int print_chip_count() {
+  // Initialize state machine structure
+  state_machine_t sm = {NULL, 0, -1, -1, 0, 0, 0, NULL, 0, 0, 0, 0};
+
+  if (parse_xml(&sm)) return EXIT_FAILURE;
+
+  fprintf(stderr,
+          "TL866A/CS: %u devices, %u custom\nTL866II+: %u devices, %u custom\n",
+          sm.tl866a_count, sm.tl866a_custom_count, sm.tl866ii_count,
+          sm.tl866ii_custom_count);
+  return EXIT_SUCCESS;
+}
+
+uint32_t get_pin_count(uint32_t package_details) {
+  if (package_details == 0xff000000) return 32;
+  return PIN_COUNT(package_details);
 }
 
 pin_map_t *get_pin_map(uint8_t index){
@@ -334,53 +704,3 @@ pin_map_t *get_pin_map(uint8_t index){
 	return &pin_map_table[index];
 }
 
-device_t *get_device_table(minipro_handle_t *handle) {
-  if (handle->version == MP_TL866IIPLUS) {
-    return &(infoic2plus_devices[0]);
-  }
-
-  return &(infoic_devices[0]);
-}
-
-device_t *get_device_custom(minipro_handle_t *handle) {
-  if (handle->version == MP_TL866IIPLUS) {
-    return &(infoic2plus_custom[0]);
-  }
-
-  return &(infoic_custom[0]);
-}
-
-device_t *get_device_by_name(minipro_handle_t *handle, const char *name) {
-  device_t *device;
-
-    for (device = get_device_custom(handle); device[0].name;
-       device = &(device[1])) {
-    if (!strcasecmp(name, device->name)) return (device);
-  }
-
-  for (device = get_device_table(handle); device[0].name;
-       device = &(device[1])) {
-    if (!strcasecmp(name, device->name)) return (device);
-  }
-  return NULL;
-}
-
-const char *get_device_from_id(minipro_handle_t *handle, uint32_t id,
-                               uint8_t protocol) {
-  device_t *device;
-
-    for (device = get_device_custom(handle); device[0].name;
-       device = &(device[1])) {
-    if (device->chip_id == id && device->protocol_id == protocol &&
-        device->chip_id && device->chip_id_bytes_count)
-      return (device->name);
-  }
-
-  for (device = get_device_table(handle); device[0].name;
-       device = &(device[1])) {
-    if (device->chip_id == id && device->protocol_id == protocol &&
-        device->chip_id && device->chip_id_bytes_count)
-      return (device->name);
-  }
-  return NULL;
-}

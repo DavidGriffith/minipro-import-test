@@ -156,8 +156,9 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
           info.firmware_version_major, info.firmware_version_minor);
   handle->version = info.device_version;
 
+  handle->device = NULL;
   if (device_name != NULL) {
-    handle->device = get_device_by_name(handle, device_name);
+    handle->device = get_device_by_name(handle->version, device_name);
     if (handle->device == NULL) {
       minipro_close(handle);
       if(verbose)
@@ -170,6 +171,7 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
 
 void minipro_close(minipro_handle_t *handle) {
   usb_close(handle->usb_handle);
+  if(handle->device) free(handle->device);
   free(handle);
 }
 

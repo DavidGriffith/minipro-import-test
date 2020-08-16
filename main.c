@@ -130,7 +130,7 @@ void print_version_and_exit() {
       "Git branch:\t%s\n";
   fprintf(stderr, output, VERSION, build_timestamp, GIT_DATE, GIT_HASH,
           GIT_BRANCH);
-  exit(EXIT_SUCCESS);
+  exit(print_chip_count());
 }
 
 void print_help_and_exit(char *progname) {
@@ -245,7 +245,7 @@ minipro_handle_t *get_handle(const char *device_name, cmdopts_t *cmdopts) {
   }
 
   if (!handle->device && device_name) {
-    handle->device = get_device_by_name(handle, device_name);
+    handle->device = get_device_by_name(handle->version, device_name);
     if (handle->device == NULL) {
       free(handle);
       fprintf(stderr, "Device %s not found!\n", device_name);
@@ -331,6 +331,7 @@ uint16_t get_compare_mask(minipro_handle_t *handle, uint8_t type) {
 
 void print_one_device(device_t *dev) {
     fprintf(stdout, "%s\n", dev->name);
+    fflush(stdout);
 }
 
 void print_supported_programmers_and_exit() {
@@ -389,39 +390,7 @@ void print_devices_and_exit(const char *device_name, cmdopts_t *cmdopts) {
     dup2(fileno(pager), STDOUT_FILENO);
   }
 
-  device_t *device;
-  device_t *deviceo;
-  device_t *devicet;
-
-  // Show custom devices without overrides
-  for (deviceo = get_device_custom(handle); deviceo[0].name;
-
-       deviceo = &(deviceo[1])) {
-    devicet = deviceo;
-
-    for (device = get_device_table(handle); device[0].name;
-
-         device = &(device[1])) {
-      if (!strcasecmp(deviceo->name, device->name)) {
-        devicet = NULL;  // Skip if existing
-        break;
-      }
-    }
-
-    if (devicet &&
-        (device_name == NULL || STRCASESTR(devicet->name, device_name))) {
-      print_one_device(devicet);
-    }
-  }
-
-  // Show devices.
-  for (device = get_device_table(handle); device[0].name;
-
-       device = &(device[1])) {
-    if (device_name == NULL || STRCASESTR(device->name, device_name)) {
-      print_one_device(device);
-    }
-  }
+  list_devices(handle->version, device_name, 0, 0, NULL);
 
   if (pager) {
     close(STDOUT_FILENO);
@@ -473,7 +442,7 @@ void print_device_info_and_exit(const char *device_name, cmdopts_t *cmdopts) {
   if (package_details[0]) {
     fprintf(stderr, "Adapter%03d.JPG\n", package_details[0]);
   } else if (package_details[3]) {
-    fprintf(stderr, "DIP%d\n", get_pin_count(handle->device));
+    fprintf(stderr, "DIP%d\n", get_pin_count(handle->device->package_details));
   } else {
     fprintf(stderr, "ICSP only\n");
   }
@@ -721,6 +690,7 @@ void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
       handle->device = &device;
       if (minipro_pin_test(handle)) {
         minipro_end_transaction(handle);
+        handle->device = NULL;
         minipro_close(handle);
         exit(EXIT_FAILURE);
       }
@@ -728,50 +698,18 @@ void spi_autodetect_and_exit(uint8_t package_type, cmdopts_t *cmdopts) {
       fprintf(stderr, "Pin test is not supported.\n");
   }
 
-  if (minipro_spi_autodetect(handle, package_type >> 4, &chip_id))
+  if (minipro_spi_autodetect(handle, package_type >> 4, &chip_id)) {
     exit(EXIT_FAILURE);
-
-  device_t *device;
-  device_t *deviceo;
-  device_t *devicet;
-
-  fprintf(stderr, "Autodetecting device (ID:0x%04X)\n", chip_id);
-
-  // Show custom devices without overrides
-  for (deviceo = get_device_custom(handle); deviceo[0].name;
-
-       deviceo = &(deviceo[1])) {
-    devicet = deviceo;
-
-    for (device = get_device_table(handle); device[0].name;
-
-         device = &(device[1])) {
-      if (!strcasecmp(deviceo->name, device->name)) {
-        devicet = NULL;  // Skip if existing
-        break;
-      }
-    }
-
-    if (devicet && devicet->chip_id_bytes_count &&
-        devicet->chip_id == chip_id && get_pin_count(devicet) == package_type) {
-      fprintf(stderr, "%s\n", devicet->name);
-      n++;
-    }
   }
 
-  // Show devices.
-  for (device = get_device_table(handle); device[0].name;
-
-       device = &(device[1])) {
-    if (device->chip_id_bytes_count && device->chip_id == chip_id &&
-        get_pin_count(device) == package_type) {
-      fprintf(stderr, "%s\n", device->name);
-      n++;
-    }
+  fprintf(stderr, "Autodetecting device (ID:0x%04X)\n", chip_id);
+  if (list_devices(handle->version, NULL, chip_id, package_type, &n)) {
+    minipro_close(handle);
+    exit(EXIT_FAILURE);
   }
 
   fprintf(stderr, "%u device(s) found.\n", n);
-
+  handle->device = NULL;
   minipro_close(handle);
   exit(EXIT_SUCCESS);
 }
@@ -818,7 +756,6 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
       case 'L':
         name = optarg;
         list_func = print_devices_and_exit;
-        // print_devices_and_exit(optarg, cmdopts);
         break;
 
       case 'd':
@@ -1954,7 +1891,7 @@ int action_read(minipro_handle_t *handle) {
     memset(jedec.fuses, 0, jedec.QF);
     jedec.F = 0;
     jedec.G = 0;
-    jedec.QP = get_pin_count(handle->device);
+    jedec.QP = get_pin_count(handle->device->package_details);
     jedec.device_name = handle->device->name;
 
     if (read_jedec(handle, &jedec)) {
@@ -2382,9 +2319,7 @@ int action_verify(minipro_handle_t *handle) {
     	cmdopts.is_pipe = (!strcmp(cmdopts.filename, "-"));
 
     minipro_handle_t *handle = minipro_open(cmdopts.device, VERBOSE);
-    if (!handle) {
-      return EXIT_FAILURE;
-    }
+    if (!handle) return EXIT_FAILURE;
 
     // Exit if bootloader is active
     minipro_print_system_info(handle);
@@ -2536,7 +2471,7 @@ int action_verify(minipro_handle_t *handle) {
       }
 
       if (!ok) {
-        const char *name = get_device_from_id(handle, chip_id_temp,
+        const char *name = get_device_from_id(handle->version, chip_id_temp,
                                               handle->device->protocol_id);
         if (cmdopts.idcheck_only) {
           fprintf(stderr,
@@ -2544,6 +2479,7 @@ int action_verify(minipro_handle_t *handle) {
                   handle->device->chip_id >> shift, chip_id_temp >> shift,
                   name ? name : "unknown");
           minipro_close(handle);
+          if(name) free((char*)name);
           return EXIT_FAILURE;
         }
         if (cmdopts.idcheck_continue) {
@@ -2560,8 +2496,10 @@ int action_verify(minipro_handle_t *handle) {
               handle->device->chip_id >> shift, chip_id_temp,
               name ? name : "unknown");
           minipro_close(handle);
+          if(name) free((char*)name);
           return EXIT_FAILURE;
         }
+        if(name) free((char*)name);
       }
     } else if (cmdopts.idcheck_only) {
       minipro_close(handle);
@@ -2585,6 +2523,7 @@ int action_verify(minipro_handle_t *handle) {
       case ERASE:
         if (!(handle->device->opts4 & MP_ERASE_MASK)) {
           fprintf(stderr, "This chip can't be erased!\n");
+          minipro_close(handle);
           return EXIT_FAILURE;
         }
         if (minipro_begin_transaction(handle)) {

@@ -5,7 +5,7 @@ CC=gcc
 #CC=clang
 
 # Compiler options
-CFLAGS = -g -O0 -Wall
+CFLAGS = -g -O0 -Wall -DSHARE_INSTDIR="\"$(SHARE_INSTDIR)\""
 
 # Normally minipro is installed to /usr/local.  If you want to put it
 # somewhere else, define that location here.
@@ -55,18 +55,20 @@ else
     USB = usb_nix.o
 endif
 
-COMMON_OBJECTS=jedec.o ihex.o srec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
+COMMON_OBJECTS=xml.o jedec.o ihex.o srec.o database.o minipro.o tl866a.o tl866iiplus.o version.o $(USB)
 OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
 STATIC_LIB=libminipro.a
 MINIPRO=minipro
 MINIPROHEX=miniprohex
+INFOIC=infoic.xml
 TESTS=$(wildcard tests/test_*.c);
 OBJCOPY=objcopy
 
 DIST_DIR = $(MINIPRO)-$(VERSION)
 BIN_INSTDIR=$(DESTDIR)$(PREFIX)/bin
 LIB_INSTDIR=$(DESTDIR)$(PREFIX)/lib
+SHARE_INSTDIR=$(DESTDIR)$(PREFIX)/share/minipro
 INCLUDE_INSTDIR=$(DESTDIR)$(PREFIX)/include/libminipro
 MAN_INSTDIR=$(DESTDIR)$(PREFIX)/share/man/man1
 
@@ -135,8 +137,10 @@ distclean: clean
 install:
 	mkdir -p $(BIN_INSTDIR)
 	mkdir -p $(MAN_INSTDIR)
+	mkdir -p $(SHARE_INSTDIR)
 	cp $(MINIPRO) $(BIN_INSTDIR)/
 	cp $(MINIPROHEX) $(BIN_INSTDIR)/
+	cp $(INFOIC) $(SHARE_INSTDIR)/
 	cp man/minipro.1 $(MAN_INSTDIR)/
 	if [ -n "$(UDEV_DIR)" ]; then \
 		mkdir -p $(UDEV_RULES_INSTDIR); \
@@ -152,6 +156,7 @@ install:
 uninstall:
 	rm -f $(BIN_INSTDIR)/$(MINIPRO)
 	rm -f $(BIN_INSTDIR)/$(MINIPROHEX)
+	rm -f $(SHARE_INSTDIR)/$(INFOIC)
 	rm -f $(MAN_INSTDIR)/minipro.1
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/60-minipro.rules; fi
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-plugdev.rules; fi
