@@ -233,7 +233,7 @@ typedef struct minipro_report_info {
   uint8_t buffer[20]; /* for future autoelectric expansion */
 } minipro_report_info_t;
 
-enum { NO_VERBOSE = 0, VERBOSE } verbosity;
+enum verbosity { NO_VERBOSE = 0, VERBOSE };
 
 // These are old byte_utils functions
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness);
