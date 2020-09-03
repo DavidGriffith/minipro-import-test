@@ -10,10 +10,16 @@
 #export DH_VERBOSE=1
 
 DESTDIR = debian/minipro
+PREFIX = /usr
+
+override_dh_auto_build:
+	make \
+	    PREFIX=$(PREFIX)
+
 override_dh_auto_install:
 	make install \
 	    DESTDIR=$(DESTDIR) \
-	    PREFIX=/usr
+	    PREFIX=$(PREFIX)
 
 # XXX Figure out how to handle 61-minipro-*.rules
 override_dh_installudev:
