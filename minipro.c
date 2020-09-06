@@ -259,6 +259,11 @@ int minipro_get_system_info(minipro_handle_t *handle,
     case MP_TL866IIPLUS:
       msg[7] = 0;
       memcpy(info, msg, sizeof(*info));
+
+      // Manually fixup 16-bit fields to account for endianness
+      info->report_size = load_int(msg+2, 2, MP_LITTLE_ENDIAN);
+      info->device_version = load_int(msg+6, 2, MP_LITTLE_ENDIAN);
+
       break;
     case MP_TL866A:
     case MP_TL866CS:
