@@ -4,13 +4,13 @@ then
    cat << EOF
 miniprohex by Al Williams http://www.awce.com
 Usage:
-  miniprohex [--o offset] [--unfill byte size] [--obs blksize] [--line-length length] [minipro_options] -r filename.ext
-  miniprohex [--o offset] [minipro_options] -w filename.ext
+  miniprohex [--offset offset] [--unfill byte size] [--obs blksize] [--line-length length] [minipro_options] -r filename.ext
+  miniprohex [--offset offset] [minipro_options] -w filename.ext
 
 This calls minipro after converting known file types to
 .bin for writing or converting bin files after reading.
 
---o: Offset for file conversion (see srec_cat)
+--offset: Offset for file conversion (see srec_cat)
 --unfill: Unfil blocks of at least size of byte (see srec_cat)
 --obs: Output block size (see srec_cat)
 --line-length: Output line length max (see srec_cat)
@@ -110,12 +110,12 @@ POSTCVT=
 ;;
 hex)
 RFILE="$(mktemp)"
-PRECVT="srec_cat $FN --intel -o $SRECOPT $RFILE --binary"
+PRECVT="srec_cat $FN --intel $SRECOPTS -o $RFILE --binary"
 POSTCVT="srec_cat $RFILE --binary $SRECOPTS -o $FN --intel"
 ;;
-srec)
+srec | s19)
 RFILE="$(mktemp)"
-PRECVT="srec_cat $FN --motorola -o $SRECOPT $RFILE --binary"
+PRECVT="srec_cat $FN --motorola $SRECOPTS -o $RFILE --binary"
 POSTCVT="srec_cat $RFILE --binary $SRECOPTS -o $FN --motorola"
 ;;
 txt)
