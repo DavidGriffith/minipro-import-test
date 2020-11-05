@@ -124,12 +124,10 @@ void print_version_and_exit() {
 
   char output[] =
       "minipro version %s     A free and open TL866XX programmer\n"
-      "Build date:\t%s\n"
       "Commit date:\t%s\n"
       "Git commit:\t%s\n"
       "Git branch:\t%s\n";
-  fprintf(stderr, output, VERSION, build_timestamp, GIT_DATE, GIT_HASH,
-          GIT_BRANCH);
+  fprintf(stderr, output, VERSION, GIT_DATE, GIT_HASH, GIT_BRANCH);
   exit(print_chip_count());
 }
 
