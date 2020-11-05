@@ -687,7 +687,7 @@ int print_chip_count() {
   if (parse_xml(&sm)) return EXIT_FAILURE;
 
   fprintf(stderr,
-          "TL866A/CS: %u devices, %u custom\nTL866II+: %u devices, %u custom\n",
+          "TL866A/CS:\t%u devices, %u custom\nTL866II+:\t%u devices, %u custom\n",
           sm.tl866a_count, sm.tl866a_custom_count, sm.tl866ii_count,
           sm.tl866ii_custom_count);
   return EXIT_SUCCESS;
