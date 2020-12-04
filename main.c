@@ -1689,6 +1689,10 @@ int read_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
   } else
     items = fuses->item_size / fuses->word;
 
+  if (fuses->rev_mask == 0x5) {
+    items = fuses->num_fuses;
+  }
+
   if (fuses->num_fuses > 0) {
     if (minipro_read_fuses(handle, MP_FUSE_CFG,
                            fuses->num_fuses * fuses->item_size, items,
@@ -1764,6 +1768,10 @@ int write_fuses(minipro_handle_t *handle, fuse_decl_t *fuses) {
     fuses->word = 1;
   } else
     items = fuses->item_size / fuses->word;
+
+  if (fuses->rev_mask == 0x5) {
+    items = fuses->num_fuses;
+  }
 
   gettimeofday(&begin, NULL);
   if (fuses->num_fuses > 0) {
@@ -2196,6 +2204,10 @@ int action_verify(minipro_handle_t *handle) {
         fuses->word = 1;
       } else
         items = fuses->item_size / fuses->word;
+
+      if (fuses->rev_mask == 0x5) {
+        items = fuses->num_fuses;
+      }
 
       if (fuses->num_fuses > 0) {
         for (i = 0; i < fuses->num_fuses; i++) {
