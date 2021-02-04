@@ -117,6 +117,8 @@ $(VERSION_STRINGS):
 	@echo "#include \"minipro.h\"" >> $@
 	@echo "#include \"version.h\"" >> $@
 
+$(OBJECTS): version_header
+
 minipro: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
 	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
