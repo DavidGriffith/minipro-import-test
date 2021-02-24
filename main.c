@@ -39,6 +39,7 @@
 
 #ifdef _WIN32
 	#include <shlwapi.h>
+	#include <fcntl.h>
 	#define STRCASESTR StrStrIA
 	#define PRI_SIZET  "Iu"
 #else
@@ -2282,6 +2283,9 @@ int action_verify(minipro_handle_t *handle) {
   int main(int argc, char **argv) {
 #ifdef _WIN32
     system(" ");  // If we are in windows start the VT100 support
+    // Set the Windows translation mode to binary
+    setmode(STDOUT_FILENO, O_BINARY);
+    setmode(STDIN_FILENO, O_BINARY);
 #endif
 
     cmdopts_t cmdopts;
