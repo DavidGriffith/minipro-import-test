@@ -1,3 +1,4 @@
+
 _minipro () {
 	COMPREPLY=()
 	local cur="${COMP_WORDS[COMP_CWORD]}"
@@ -5,7 +6,7 @@ _minipro () {
 
 	if [ "$prev" = "-p" ] && [ "$cur" != "" ]
 	then
-		TXT=$(minipro -L $cur)
+		TXT=$(minipro -L "$cur" < /dev/null 2>/dev/null ||:)
 		COMPREPLY=( 	$(compgen -W '$TXT' -- ${cur}) )
 		return 0
 	fi
