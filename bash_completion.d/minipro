@@ -26,16 +26,4 @@ _minipro () {
 	COMPREPLY=( 	$(compgen -W 'r -w -p -c -i' -- ${cur}) )
 }
 
-_minipro () {
-	COMPREPLY=()
-	local cur="${COMP_WORDS[COMP_CWORD]}"
-	if [ "$cur" != "" ]
-	then
-		local cur="${COMP_WORDS[COMP_CWORD]}"
-		TXT=$(minipro -L $cur)
-		COMPREPLY=( 	$(compgen -W '$TXT' -- ${cur}) )
-		return 0
-	fi
-}
-
 complete -F _minipro minipro
