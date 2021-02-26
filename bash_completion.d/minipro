@@ -4,27 +4,30 @@ _minipro () {
 	local cur="${COMP_WORDS[COMP_CWORD]}"
 	local prev=${COMP_WORDS[COMP_CWORD-1]}
 
-	if [ "$prev" = "-p" ] && [ "$cur" != "" ]
-	then
-		TXT=$(minipro -L "$cur" < /dev/null 2>/dev/null ||:)
-		COMPREPLY=( 	$(compgen -W '$TXT' -- ${cur}) )
-		return 0
-	fi
-
-	if [ "$prev" = "-c" ]
-	then
-		TXT="code data config"
-		COMPREPLY=( 	$(compgen -W '$TXT' -- ${cur}) )
-		return 0
-	fi
-
-	if [ "$prev" = "-r" ] || [ "$prev" = "-w" ]
-	then
-		_filedir
-		return 0
-	fi
-
-	COMPREPLY=( 	$(compgen -W 'r -w -p -c -i' -- ${cur}) )
+	case "$prev" in
+		-p|--device|-d|--get_info)
+			if [ "$cur" != "" ]; then
+				TXT=$(minipro -L "$cur" < /dev/null 2>/dev/null ||:)
+				COMPREPLY=($(compgen -W '$TXT' -- ${cur}))
+			fi
+			;;
+		-c|--page)
+			TXT="code data config"
+			COMPREPLY=($(compgen -W '$TXT' -- ${cur}))
+			;;
+		-r|--read|-w|--write|--verify|-m|--update|-F)
+			_filedir
+			;;
+		*)
+			case "$cur" in
+				-*)
+					TXT=$(minipro --help 2>&1 < /dev/null | grep -o -e '\(--[a-z_-]\+\)')
+					COMPREPLY=($(compgen -W '$TXT' -- ${cur}))
+					;;
+				*) _filedir ;;
+			esac
+			;;
+	esac
 }
 
 complete -F _minipro minipro
