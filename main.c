@@ -146,7 +146,7 @@ void print_help_and_exit(char *progname) {
       "  --presence_check	-k		Query programmer version\n"
       "					currently connected.\n"
       "  --get_info		-d <device>	Show device information\n"
-      "  --get_id		-D		Just read the chip ID\n"
+      "  --read_id		-D		Just read the chip ID\n"
       "  --read		-r <filename>	Read memory\n"
       "  --write		-w <filename>	Write memory\n"
       "  --verify		-m <filename>	Verify memory\n"
