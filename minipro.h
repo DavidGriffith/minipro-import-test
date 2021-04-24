@@ -168,7 +168,7 @@ typedef struct cmdopts_s {
   char *filename;
   char *device;
   enum { UNSPECIFIED = 0, CODE, DATA, CONFIG } page;
-  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK } action;
+  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK, LOGIC_IC_TEST } action;
   enum { NO_FORMAT = 0, IHEX, SREC} format;
   uint8_t no_erase;
   uint8_t no_protect_off;
@@ -225,6 +225,7 @@ typedef struct minipro_handle {
                                 uint8_t, size_t);
   int (*minipro_firmware_update)(struct minipro_handle *, const char *);
   int (*minipro_pin_test)(struct minipro_handle *);
+  int (*minipro_logic_ic_test)(struct minipro_handle *);
 } minipro_handle_t;
 
 typedef struct minipro_report_info {
@@ -291,5 +292,6 @@ int minipro_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int minipro_hardware_check(minipro_handle_t *handle);
 int minipro_firmware_update(minipro_handle_t *handle, const char *firmware);
 int minipro_pin_test(minipro_handle_t *handle);
+int minipro_logic_ic_test(minipro_handle_t *handle);
 
 #endif
