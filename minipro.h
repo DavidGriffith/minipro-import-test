@@ -129,6 +129,8 @@
 
 typedef struct device {
   char name[40];
+  uint8_t type;
+
   uint8_t protocol_id;
   uint8_t variant;
   uint16_t read_buffer_size;
@@ -148,6 +150,11 @@ typedef struct device {
   uint32_t opts8;
   uint32_t package_details;  // pins count or image ID for some devices
   void *config;  // Configuration bytes that's presenting in some architectures
+
+  uint8_t voltage;
+  uint8_t pin_count;
+  uint8_t vector_count;
+  uint8_t *vectors;
 } device_t;
 
 typedef struct minipro_status {

@@ -171,7 +171,7 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
 
 void minipro_close(minipro_handle_t *handle) {
   usb_close(handle->usb_handle);
-  if(handle->device) free(handle->device);
+  free_device(handle->device);
   free(handle);
 }
 

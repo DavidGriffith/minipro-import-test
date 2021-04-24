@@ -59,4 +59,5 @@ int print_chip_count();
 int list_devices(uint8_t, const char *, uint32_t, uint32_t, uint32_t *);
 device_t *get_device_by_name(uint8_t, const char *);
 const char *get_device_from_id(uint8_t, uint32_t, uint8_t);
+void free_device(device_t *device);
 #endif
