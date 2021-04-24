@@ -575,31 +575,20 @@ static FILE* get_database_file(){
   strcat(appdata, "\\minipro\\" DATABASE_NAME);
 #endif
 
-  struct stat st;
-  int ret1 = stat(
-#ifdef _WIN32
-      appdata, &st);
-#else
-      SHARE_INSTDIR "/" DATABASE_NAME, &st);
-#endif
-
-  int ret2 = stat(DATABASE_NAME, &st);
-  if (ret1 && ret2) {
-    fprintf(stderr, "Could not load %s database file.\n", DATABASE_NAME);
-    perror("");
-    return NULL;
-  }
-
   char *path =
 #ifdef _WIN32
       appdata;
 #else
       SHARE_INSTDIR "/" DATABASE_NAME;
 #endif
-  if (!ret2) path = DATABASE_NAME;
   // Open datbase xml file
   FILE *file = fopen(path, "rb");
-  if (!file) return perror(path), NULL;
+  if (!file)
+    file = fopen(DATABASE_FILE, "rb");
+  if (!file) {
+    perror(DATABASE_FILE);
+    return NULL;
+  }
   return file;
 }
 
