@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "xml.h"
@@ -37,7 +38,8 @@ pin_map_t pin_map_table[] = {
 };
 
 // infoic.xml name and tag names
-#define DATABASE_NAME "infoic.xml"
+#define INFOIC_NAME "infoic.xml"
+#define LOGICIC_NAME "logicic.xml"
 #define DEVICE_TAG "device"
 #define MANUF_TAG "manufacturer"
 #define CUSTOM_TAG "custom"
@@ -650,34 +652,32 @@ static int sax_callback(int type, const uint8_t *tag, size_t taglen,
 }
 
 // Search and return database xml file
-static FILE* get_database_file(){
+static FILE* get_database_file(const char *name){
 #ifdef _WIN32
-  char appdata[MAX_PATH];
-  SHGetSpecialFolderPathA(NULL, appdata, CSIDL_COMMON_APPDATA, 0);
-  strcat(appdata, "\\minipro\\" DATABASE_NAME);
-#endif
-
-  char *path =
-#ifdef _WIN32
-      appdata;
+  char path[MAX_PATH];
+  SHGetSpecialFolderPathA(NULL, path, CSIDL_COMMON_APPDATA, 0);
+  strcat(path, "\\minipro\\");
 #else
-      SHARE_INSTDIR "/" DATABASE_NAME;
+  char path[PATH_MAX] = SHARE_INSTDIR "/";
 #endif
+  strncat(path, name, sizeof(path));
+  path[sizeof(path)-1] = '\0';
+
   // Open datbase xml file
   FILE *file = fopen(path, "rb");
   if (!file)
-    file = fopen(DATABASE_FILE, "rb");
+    file = fopen(name, "rb");
   if (!file) {
-    perror(DATABASE_FILE);
+    perror(name);
     return NULL;
   }
   return file;
 }
 
 // Parse xml database file
-static int parse_xml(state_machine_t *sm) {
+static int parse_xml_file(state_machine_t *sm, const char *name) {
   // Open datbase xml file
-  FILE *file = get_database_file();
+  FILE *file = get_database_file(name);
   if (!file) return EXIT_FAILURE;
 
   // Begin xml parse
@@ -691,6 +691,14 @@ static int parse_xml(state_machine_t *sm) {
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;
+}
+
+// Parse xml database file
+static int parse_xml(state_machine_t *sm) {
+  int ret = parse_xml_file(sm, LOGICIC_NAME);
+  if (ret)
+    return ret;
+  return parse_xml_file(sm, INFOIC_NAME);
 }
 
 void free_device(device_t *device) {
