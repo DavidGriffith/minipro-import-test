@@ -96,7 +96,6 @@ endif
 
 all: $(PROGS)
 
-version_header: $(VERSION_HEADER)
 $(VERSION_HEADER):
 	@echo "Creating $@"
 	@echo "/*" > $@
@@ -108,7 +107,6 @@ $(VERSION_HEADER):
 	@echo "#define GIT_HASH_SHORT \"$(GIT_HASH_SHORT)\"" >> $@
 	@echo "#define GIT_DATE \"$(GIT_DATE)\"" >> $@
 
-version_strings: $(VERSION_STRINGS)
 $(VERSION_STRINGS):
 	@echo "Creating $@"
 	@echo "/*" > $@
@@ -117,12 +115,12 @@ $(VERSION_STRINGS):
 	@echo "#include \"minipro.h\"" >> $@
 	@echo "#include \"version.h\"" >> $@
 
-$(OBJECTS): version_header
+$(OBJECTS): $(VERSION_HEADER)
 
-minipro: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
+minipro: $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
 	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
-library: $(VERSION_HEADER) $(VERSION_STRINGS) $(COMMON_OBJECTS)
+library: $(VERSION_STRINGS) $(COMMON_OBJECTS)
 	ar ru $(STATIC_LIB) $(VERSION_OBJ) $(COMMON_OBJECTS)
 	ranlib $(STATIC_LIB)
 
