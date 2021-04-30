@@ -898,6 +898,11 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
     }
   }
 
+  if (optind < argc) {
+    fprintf(stderr, "Extra argument: '%s'\n", argv[optind]);
+    print_help_and_exit(argv[0]);
+  }
+
   if (cmdopts->version && !list_func) {
     fprintf(stderr, "-L, -l or -d command is required for this action.\n");
     print_help_and_exit(argv[0]);
