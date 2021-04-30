@@ -62,6 +62,7 @@ STATIC_LIB=libminipro.a
 MINIPRO=minipro
 MINIPROHEX=miniprohex
 INFOIC=infoic.xml
+LOGICIC=logicic.xml
 TESTS=$(wildcard tests/test_*.c);
 OBJCOPY=objcopy
 
@@ -139,6 +140,7 @@ install:
 	cp $(MINIPRO) $(BIN_INSTDIR)/
 	cp $(MINIPROHEX) $(BIN_INSTDIR)/
 	cp $(INFOIC) $(SHARE_INSTDIR)/
+	cp $(LOGICIC) $(SHARE_INSTDIR)/
 	cp man/minipro.1 $(MAN_INSTDIR)/
 	if [ -n "$(UDEV_DIR)" ]; then \
 		mkdir -p $(UDEV_RULES_INSTDIR); \
@@ -155,6 +157,7 @@ uninstall:
 	rm -f $(BIN_INSTDIR)/$(MINIPRO)
 	rm -f $(BIN_INSTDIR)/$(MINIPROHEX)
 	rm -f $(SHARE_INSTDIR)/$(INFOIC)
+	rm -f $(SHARE_INSTDIR)/$(LOGICIC)
 	rm -f $(MAN_INSTDIR)/minipro.1
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/60-minipro.rules; fi
 	if [ -n "$(UDEV_DIR)" ]; then rm -f $(UDEV_RULES_INSTDIR)/61-minipro-plugdev.rules; fi

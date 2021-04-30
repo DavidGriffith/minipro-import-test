@@ -46,6 +46,7 @@
 #define TL866IIPLUS_PROTECT_ON 0x19
 #define TL866IIPLUS_READ_JEDEC 0x1D
 #define TL866IIPLUS_WRITE_JEDEC 0x1E
+#define TL866IIPLUS_LOGIC_IC_TEST_VECTOR 0x28
 #define TL866IIPLUS_AUTODETECT 0x37
 #define TL866IIPLUS_UNLOCK_TSOP48 0x38
 #define TL866IIPLUS_REQUEST_STATUS 0x39
@@ -933,6 +934,102 @@ int tl866iiplus_pin_test(minipro_handle_t *handle) {
     }
   }
   if (!ret) fprintf(stderr, "Pin test passed.\n");
+  return ret;
+}
+
+static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
+  uint8_t *vector = handle->device->vectors;
+  uint8_t msg[32];
+  uint8_t *result;
+
+  result = calloc (handle->device->pin_count,
+                   handle->device->vector_count);
+
+  uint8_t *out = result;
+  int n;
+  for (n = 0; n < handle->device->vector_count; n++) {
+    memset(msg, 0xff, sizeof(msg));
+
+    msg[0] = TL866IIPLUS_LOGIC_IC_TEST_VECTOR;
+    msg[1] = handle->device->voltage;
+    msg[1] |= dry_run << 7;
+
+    msg[2] = handle->device->pin_count;
+    msg[3] = 0;
+
+    msg[4] = n & 0xff;
+    msg[5] = (n >> 8) & 0xff;
+    msg[6] = (n >> 16) & 0xff;
+    msg[7] = (n >> 24) & 0xff;
+
+    int i;
+    for (i = 0; i < handle->device->pin_count; i++) {
+      if (i & 1)
+         msg[8 + i/2] |= *vector << 4;
+      else
+         msg[8 + i/2] = *vector;
+      vector++;
+    }
+
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+      free(result);
+      return NULL;
+    }
+    if (msg_recv(handle->usb_handle, msg, sizeof(msg))) {
+      free(result);
+      return NULL;
+    }
+
+    for (i = 0; i < handle->device->pin_count; i++)
+      *out++ = (msg[8 + i/2] >> (4 * (i & 1))) & 0xf;
+  }
+
+  return result;
+}
+
+int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
+  uint8_t *vector = handle->device->vectors;
+  uint8_t *result_dry = NULL;
+  uint8_t *result = NULL;
+  int ret = EXIT_FAILURE;
+
+  if (!(result_dry = do_ic_test(handle, 1))) {
+     fprintf(stderr, "Error determining expected logic test result.\n");
+  } else if (!(result = do_ic_test(handle, 0))) {
+     fprintf(stderr, "Error running a logic test.\n");
+  } else {
+    int errors = 0;
+    static const char pst[] = "01LHZCXVG";
+    uint8_t n = 0;
+
+    printf("      ");
+    for (int pin = 1; pin <= handle->device->pin_count; pin++)
+      printf("%-3d", pin);
+    putchar('\n');
+
+    for (int i = 0; i < handle->device->vector_count; i++) {
+      printf("%04d: ", i);
+      for (int pin = 0; pin < handle->device->pin_count; pin++) {
+        putchar(pst[vector[n]]);
+        putchar(result_dry[n] == result[n] ? ' ' : '-');
+        errors += result_dry[n] != result[n];
+        putchar(' ');
+        n++;
+      }
+      putchar('\n');
+    }
+
+    if (errors) {
+      printf("Logic test failed: %d errors encountered.\n", errors);
+    } else {
+      printf("Logic test successful.\n");
+      ret = EXIT_SUCCESS;
+    }
+  }
+
+  free(result);
+  free(result_dry);
+
   return ret;
 }
 
