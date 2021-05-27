@@ -5,7 +5,9 @@ CC=gcc
 #CC=clang
 
 # Compiler options
-CFLAGS = -g -O0 -Wall -DSHARE_INSTDIR="\"$(SHARE_INSTDIR)\""
+CFLAGS = -g -O0 -Wall
+CPPFLAGS = -DSHARE_INSTDIR="\"$(SHARE_INSTDIR)\""
+LDFLAGS =
 
 # Normally minipro is installed to /usr/local.  If you want to put it
 # somewhere else, define that location here.
@@ -118,7 +120,7 @@ $(VERSION_STRINGS):
 $(OBJECTS): $(VERSION_HEADER)
 
 minipro: $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
-	$(CC) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
+	$(CC) $(LDFLAGS) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
 
 library: $(VERSION_STRINGS) $(COMMON_OBJECTS)
 	ar ru $(STATIC_LIB) $(VERSION_OBJ) $(COMMON_OBJECTS)
