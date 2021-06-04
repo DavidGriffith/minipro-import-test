@@ -9,6 +9,7 @@ minipro \- programs various chips using the Minipro TL866XX series of programmer
 .RB [-o " option"\ ...\ ]
 .RB [-r|-w " filename"]
 .RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t]
+.RB [-T]
 .RB [-f " ihex|srec"]
 .RB [-F " filename"]
 .RB [-h]
@@ -138,6 +139,13 @@ high Chip ID read voltages to unknown pins.
 Do NOT error on ID mismatch.
 
 .TP
+.B \-T
+Run a logic IC test.
+
+Errorneous states are reported with a "-" (minus) sign next to the expected
+pin state.
+
+.TP
 .B \-V
 Show version information.
 
@@ -241,6 +249,11 @@ with
 .B -c config
 to get your current fuse values. This also shows you what the text
 format looks like.
+
+.SH EXAMPLES
+
+.IP "\fBminipro -p 7404 -T\fR" 4
+Check whether a 74(LS/HC/...)04 hex NOT gate chip.
 
 .SH AUTHOR
 .I minipro
