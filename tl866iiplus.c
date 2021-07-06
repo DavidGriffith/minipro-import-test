@@ -993,9 +993,9 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
   uint8_t *result = NULL;
   int ret = EXIT_FAILURE;
 
-  if (!(result_dry = do_ic_test(handle, 1))) {
+  if (!(result_dry = do_ic_test(handle, 0))) {
      fprintf(stderr, "Error determining expected logic test result.\n");
-  } else if (!(result = do_ic_test(handle, 0))) {
+  } else if (!(result = do_ic_test(handle, 1))) {
      fprintf(stderr, "Error running a logic test.\n");
   } else {
     int errors = 0;
@@ -1011,8 +1011,15 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
       printf("%04d: ", i);
       for (int pin = 0; pin < handle->device->pin_count; pin++) {
         putchar(pst[vector[n]]);
-        putchar(result_dry[n] == result[n] ? ' ' : '-');
-        errors += result_dry[n] != result[n];
+        
+        // Ignore difference if the IC input can vary (X)
+        if (pst[vector[n]] != 'X') {
+          putchar(result_dry[n] == result[n] ? ' ' : '-');
+          errors += result_dry[n] != result[n];
+        } else {
+          putchar(' ');
+        }
+        
         putchar(' ');
         n++;
       }
