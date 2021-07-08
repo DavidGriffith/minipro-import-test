@@ -21,7 +21,7 @@ use warnings;
 my $data = join '', <>;
 my ($AllCrc32, $UIFlag, $ItemCount, $Res, @ItemStart) = unpack 'LLLL512L', $data;
 
-my @lvl = qw/0 1 L H Z C X V G/;
+my @lvl = qw/0 1 L H C Z X V G/;
 my @vlt = qw/5V 3V3 2V5 1V8/;
 
 print <<END;
