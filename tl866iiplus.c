@@ -1029,6 +1029,7 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
 
   free(result);
   free(result_dry);
+  tl866iiplus_end_transaction(handle);
 
   return ret;
 }
