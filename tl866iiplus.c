@@ -999,7 +999,7 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
      fprintf(stderr, "Error running a logic test.\n");
   } else {
     int errors = 0;
-    static const char pst[] = "01LHZCXVG";
+    static const char pst[] = "01LHCZXGV";
     uint8_t n = 0;
 
     printf("      ");

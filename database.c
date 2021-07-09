@@ -632,11 +632,11 @@ static int sax_callback(int type, const uint8_t *tag, size_t taglen,
         case '1': vector[n++] = 1; break;
         case 'L': vector[n++] = 2; break;
         case 'H': vector[n++] = 3; break;
-        case 'Z': vector[n++] = 4; break;
-        case 'C': vector[n++] = 5; break;
+        case 'C': vector[n++] = 4; break;
+        case 'Z': vector[n++] = 5; break;
         case 'X': vector[n++] = 6; break;
-        case 'V': vector[n++] = 7; break;
-        case 'G': vector[n++] = 8; break;
+        case 'G': vector[n++] = 7; break;
+        case 'V': vector[n++] = 8; break;
         default: return EXIT_FAILURE;
         }
         if (n > sm->device->pin_count)
