@@ -989,16 +989,16 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
 
 int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
   uint8_t *vector = handle->device->vectors;
-  uint8_t *result_dry = NULL;
-  uint8_t *result = NULL;
+  uint8_t *first_step = NULL;
+  uint8_t *second_step = NULL;
   int ret = EXIT_FAILURE;
 
-  if (!(result_dry = do_ic_test(handle, 1))) {
-     fprintf(stderr, "Error determining expected logic test result.\n");
-  } else if (!(result = do_ic_test(handle, 0))) {
-     fprintf(stderr, "Error running a logic test.\n");
+  if (!(first_step = do_ic_test(handle, 0))) {
+    fprintf(stderr, "Error running the first step of logic test.\n");
+  } else if (!(second_step = do_ic_test(handle, 1))) {
+    fprintf(stderr, "Error running the second step of logic test.\n");
   } else {
-    int errors = 0;
+    int errors = 0, err;
     static const char pst[] = "01LHCZXGV";
     uint8_t n = 0;
 
@@ -1011,8 +1011,21 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
       printf("%04d: ", i);
       for (int pin = 0; pin < handle->device->pin_count; pin++) {
         putchar(pst[vector[n]]);
-        putchar(result_dry[n] == result[n] ? ' ' : '-');
-        errors += result_dry[n] != result[n];
+        err = 0;
+        switch (pst[vector[n]]) {
+          case 'L':
+            if (first_step[n] || second_step[n]) err = 1;
+            break;
+          case 'H':
+            if (!first_step[n] || !second_step[n]) err = 1;
+            break;
+          case 'Z':
+            if (!first_step[n] || second_step[n]) err = 1;
+            break;
+        }
+
+        putchar(err ? '-' : ' ');
+        errors += err;
         putchar(' ');
         n++;
       }
@@ -1027,8 +1040,8 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
     }
   }
 
-  free(result);
-  free(result_dry);
+  free(second_step);
+  free(first_step);
   tl866iiplus_end_transaction(handle);
 
   return ret;
