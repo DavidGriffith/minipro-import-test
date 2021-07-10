@@ -937,7 +937,8 @@ int tl866iiplus_pin_test(minipro_handle_t *handle) {
   return ret;
 }
 
-static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
+// Pull: 0=Pull-up, 1=Pull-down
+static uint8_t *do_ic_test(minipro_handle_t *handle, int pull) {
   uint8_t *vector = handle->device->vectors;
   uint8_t msg[32];
   uint8_t *result;
@@ -952,7 +953,7 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
 
     msg[0] = TL866IIPLUS_LOGIC_IC_TEST_VECTOR;
     msg[1] = handle->device->voltage;
-    msg[1] |= dry_run << 7;
+    msg[1] |= pull << 7;// Set the pull-up/pull-down
 
     msg[2] = handle->device->pin_count;
     msg[3] = 0;
@@ -963,6 +964,7 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
     msg[7] = (n >> 24) & 0xff;
 
     int i;
+    //Pack the vector to 2 pin/byte
     for (i = 0; i < handle->device->pin_count; i++) {
       if (i & 1)
          msg[8 + i/2] |= *vector << 4;
@@ -971,6 +973,7 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
       vector++;
     }
 
+    // Send the test vector and read the pin status
     if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
       free(result);
       return NULL;
@@ -980,6 +983,7 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
       return NULL;
     }
 
+    // Unpack the result from 2 pin/byte to 1 pin/byte
     for (i = 0; i < handle->device->pin_count; i++)
       *out++ = (msg[8 + i/2] >> (4 * (i & 1))) & 0xf;
   }
@@ -987,19 +991,36 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int dry_run) {
   return result;
 }
 
+/* Performing a logic test. This is accomplished in two steps.
+ * The first step will set a pull-up resistor on all chip outputs (L, H, Z).
+ * The second step will set a pull-down resistor on all chip outputs.
+ * According to the vector table then each output is compared against the two
+ * result array. Considering the weak pull-up/pull-down resistors we can detect
+ * L(low) state as 0 in both steps, H(high) state as 1 in both steps and
+ * Z(high impedance) state as 1 in step 1 when the pull-up is activated and
+ * 0 in step 2 when the pull-down is activated.
+ * While for chips with open collector/open drain output we need to perform
+ * these two steps to detect the Z state, for chips with totem-pole outputs this is
+ * not really necessary but, sometimes internal issues can be detected this way
+ * like burned H side or L side output transistors.
+ * The C (clock) state is performed in firmware by first pulsing the pin marked as
+ * C and then all pins are read back.
+ * The X (don't care) state will leave the pin unconnected.
+ * The V (VCC) and G (Ground) state will designate the power supply pins.
+ */
 int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
   uint8_t *vector = handle->device->vectors;
-  uint8_t *result_dry = NULL;
-  uint8_t *result = NULL;
+  uint8_t *first_step = NULL;
+  uint8_t *second_step = NULL;
   int ret = EXIT_FAILURE;
 
-  if (!(result_dry = do_ic_test(handle, 1))) {
-     fprintf(stderr, "Error determining expected logic test result.\n");
-  } else if (!(result = do_ic_test(handle, 0))) {
-     fprintf(stderr, "Error running a logic test.\n");
+  if (!(first_step = do_ic_test(handle, 0))) { // Pull-up active
+    fprintf(stderr, "Error running the first step of logic test.\n");
+  } else if (!(second_step = do_ic_test(handle, 1))) { //Pull-down active
+    fprintf(stderr, "Error running the second step of logic test.\n");
   } else {
-    int errors = 0;
-    static const char pst[] = "01LHZCXVG";
+    int errors = 0, err;
+    static const char pst[] = "01LHCZXGV";
     uint8_t n = 0;
 
     printf("      ");
@@ -1011,8 +1032,21 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
       printf("%04d: ", i);
       for (int pin = 0; pin < handle->device->pin_count; pin++) {
         putchar(pst[vector[n]]);
-        putchar(result_dry[n] == result[n] ? ' ' : '-');
-        errors += result_dry[n] != result[n];
+        err = 0;
+        switch (pst[vector[n]]) {
+          case 'L': // Pin must be 0 in both steps
+            if (first_step[n] || second_step[n]) err = 1;
+            break;
+          case 'H': // Pin must be 1 in both steps
+            if (!first_step[n] || !second_step[n]) err = 1;
+            break;
+          case 'Z': // Pin must be 1 in step 1 and 0 in step 2
+            if (!first_step[n] || second_step[n]) err = 1;
+            break;
+        }
+
+        putchar(err ? '-' : ' ');
+        errors += err;
         putchar(' ');
         n++;
       }
@@ -1027,8 +1061,9 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
     }
   }
 
-  free(result);
-  free(result_dry);
+  free(second_step);
+  free(first_step);
+  tl866iiplus_end_transaction(handle);
 
   return ret;
 }
