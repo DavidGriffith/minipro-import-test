@@ -103,6 +103,7 @@ static struct option long_options[] = {
     {"format", required_argument, NULL, 'f'},
     {"version", no_argument, NULL, 'V'},
     {"pin_check", no_argument, NULL, 'z'},
+    {"logic_test", no_argument, NULL, 'T'},
     {"icsp_vcc", no_argument, NULL, 'i'},
     {"icsp_no_vcc", no_argument, NULL, 'I'},
     {"no_write_protect", no_argument, NULL, 'P'},
@@ -166,6 +167,7 @@ void print_help_and_exit(char *progname) {
       "  --device		-p <device>	Specify device (use quotes)\n"
       "  --page		-c <type>	Specify memory type (optional)\n"
       "					Possible values: code, data, config\n"
+      "  --logic_test		-T		Logic IC test\n"
       "  --pulse, --vpp	-o <option>	Specify various programming options\n"
       "  --vdd, --vcc\n"
       "					For multiple options use -o\n"
@@ -722,7 +724,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
   int opt_idx = 0;
 
   while ((c = getopt_long(argc, argv,
-                          "lL:q:Qkd:ea:zEbuPvxyr:w:m:p:c:o:iIsSVhDtf:F:",
+                          "lL:q:Qkd:ea:zEbTuPvxyr:w:m:p:c:o:iIsSVhDtf:F:",
                           long_options, &opt_idx)) != -1) {
     switch (c) {
       case 0:
@@ -836,6 +838,10 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
 
       case 'b':
         cmdopts->action = BLANK_CHECK;
+        break;
+
+      case 'T':
+        cmdopts->action = LOGIC_IC_TEST;
         break;
 
       case 'a':
@@ -2298,6 +2304,8 @@ int action_verify(minipro_handle_t *handle) {
 
     // Check if a file name is required
     switch (cmdopts.action) {
+      case LOGIC_IC_TEST:
+        break;
       case READ:
       case WRITE:
       case VERIFY:
@@ -2366,6 +2374,15 @@ int action_verify(minipro_handle_t *handle) {
       } else
         fprintf(stderr, "Pin test is not supported.\n");
       if (cmdopts.action == NO_ACTION && !cmdopts.idcheck_only)
+        return EXIT_SUCCESS;
+    }
+
+    if (cmdopts.action == LOGIC_IC_TEST) {
+        if (minipro_logic_ic_test(handle)) {
+          minipro_close(handle);
+          return EXIT_FAILURE;
+        }
+        minipro_close(handle);
         return EXIT_SUCCESS;
     }
 

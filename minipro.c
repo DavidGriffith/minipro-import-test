@@ -142,6 +142,7 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
       handle->minipro_write_jedec_row = tl866iiplus_write_jedec_row;
       handle->minipro_firmware_update = tl866iiplus_firmware_update;
       handle->minipro_pin_test = tl866iiplus_pin_test;
+      handle->minipro_logic_ic_test = tl866iiplus_logic_ic_test;
       break;
     default:
       minipro_close(handle);
@@ -171,7 +172,7 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
 
 void minipro_close(minipro_handle_t *handle) {
   usb_close(handle->usb_handle);
-  if(handle->device) free(handle->device);
+  free_device(handle->device);
   free(handle);
 }
 
@@ -490,4 +491,13 @@ int minipro_pin_test(minipro_handle_t *handle) {
 	    fprintf(stderr, "%s: pin test not implemented\n", handle->model);
 	  }
 	  return EXIT_FAILURE;
+}
+
+int minipro_logic_ic_test(minipro_handle_t *handle) {
+  assert(handle != NULL);
+  if (handle->minipro_logic_ic_test) {
+    return handle->minipro_logic_ic_test(handle);
+  }
+  fprintf(stderr, "%s: logic IC test not implemented\n", handle->model);
+  return EXIT_FAILURE;
 }

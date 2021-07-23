@@ -49,4 +49,5 @@ int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
 int tl866iiplus_hardware_check(minipro_handle_t *handle);
 int tl866iiplus_firmware_update(minipro_handle_t *handle, const char *firmware);
 int tl866iiplus_pin_test(minipro_handle_t *handle);
+int tl866iiplus_logic_ic_test(minipro_handle_t *handle);
 #endif
