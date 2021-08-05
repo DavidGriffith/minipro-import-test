@@ -1021,7 +1021,7 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
   } else {
     int errors = 0, err;
     static const char pst[] = "01LHCZXGV";
-    uint8_t n = 0;
+    size_t n = 0;
 
     printf("      ");
     for (int pin = 1; pin <= handle->device->pin_count; pin++)
