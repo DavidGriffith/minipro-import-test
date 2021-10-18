@@ -52,6 +52,7 @@
 
 #define READ_BUFFER_SIZE 65536
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 const char *get_voltage(minipro_handle_t*, uint8_t, uint8_t);
 
@@ -1471,6 +1472,14 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size) {
               "Warning: Incorrect file size: %" PRI_SIZET " (needed %" PRI_SIZET
               ")\n",
               file_size, size);
+   
+    /* The size of our array must be a multiple of handle->device->read_buffer_size,
+     * else, read_page_ram will try to access an out of bounds index. */
+    const uint16_t buffer_size = handle->device->read_buffer_size;
+    size = MIN(file_size, size);
+    const uint16_t size_mod = size % buffer_size;
+    if (size_mod)
+      size += buffer_size - size_mod;
   }
 
   // Perform an erase first
