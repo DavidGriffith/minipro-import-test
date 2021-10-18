@@ -206,8 +206,8 @@ static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buffer,
   memset(buffer, 0, length);
   buffer[0] = command;
   if(handle->device){
-  buffer[1] = handle->device->protocol_id;
-  buffer[2] = handle->device->variant;
+    buffer[1] = handle->device->protocol_id;
+    buffer[2] = handle->device->variant;
   }
 }
 
