@@ -52,6 +52,8 @@ typedef struct pin_map {
 	uint8_t mask [40];
 } pin_map_t;
 
+extern char * infoic_path;
+extern char * logicic_path;
 
 pin_map_t *get_pin_map(uint8_t);
 uint32_t get_pin_count(uint32_t);
