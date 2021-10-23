@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "xml.h"
@@ -348,6 +349,10 @@ gal_config_t gal6b_acw[] = { // e.g. for ATF750C
      .acw_size = 3*10 + 4*10}};
 */
 
+// Paths to the XML config files, if overridden form the command line.
+char * infoic_path = NULL;
+char * logicic_path = NULL;
+
 // Parse a numeric value from an attribute tag
 static uint32_t get_value(const uint8_t *xml_device, size_t size,
                           char *attr_name, int *err) {
@@ -652,32 +657,76 @@ static int sax_callback(int type, const uint8_t *tag, size_t taglen,
 }
 
 // Search and return database xml file
-static FILE* get_database_file(const char *name){
-#ifdef _WIN32
-  char path[MAX_PATH];
-  SHGetSpecialFolderPathA(NULL, path, CSIDL_COMMON_APPDATA, 0);
-  strcat(path, "\\minipro\\");
-#else
-  char path[PATH_MAX] = SHARE_INSTDIR "/";
-#endif
-  strncat(path, name, sizeof(path));
-  path[sizeof(path)-1] = '\0';
+static FILE* get_database_file(const char *name, const char *cli_name){
+  // Has the filename been overridden? If so, open it or fail now.
+  if (cli_name != NULL) {
+    FILE * file = fopen(cli_name, "rb");
+    if (file) {
+      fprintf(stderr, "Using overridden database file %s\n", cli_name);
+      return file;
+    } else {
+       perror(cli_name);
+       return NULL;
+    }
+  }
 
-  // Open datbase xml file
-  FILE *file = fopen(path, "rb");
-  if (!file)
-    file = fopen(name, "rb");
-  if (!file) {
-    perror(name);
+#ifdef _WIN32
+
+  char path[MAX_PATH];
+  char appdata[MAX_PATH];
+
+  // Avoid buffer overruns and keep to maximum lengths
+  SHGetSpecialFolderPathA(NULL, appdata, CSIDL_COMMON_APPDATA, 0);
+  int count = snprintf(path, sizeof(path), "%s\\minipro\\%s", appdata, name);
+
+  // C99 and Windows (before Windows 10) differ in semantics. Check
+  // both cases.
+  if (count < 0 || count >= sizeof(path)) {
+    fprintf(stderr, "Path %s\\minipro\\%s is too long.\n", appdata, name);
     return NULL;
   }
-  return file;
+  path[sizeof(path)-1] = '\0';	// Not needed now, but it can't hurt!
+
+#else
+
+  char path[PATH_MAX];
+  char * env_path = getenv("MINIPRO_HOME");
+  int count;
+  if (env_path != NULL) {
+    count = snprintf(path, sizeof(path), "%s/%s", env_path, name);
+  } else {
+    count = snprintf(path, sizeof(path), "%s/%s", SHARE_INSTDIR, name);
+  }
+  path[sizeof(path)-1] = '\0';
+  if (count >= sizeof(path)) {
+    fprintf(stderr, "Path %s... is too long.\n", path);
+    return NULL;
+  }
+
+#endif
+
+  // Open database xml file using full path
+  FILE *file = fopen(path, "rb");
+  if (file) return file;
+
+  // Format an error message for later, just in case
+  char err[sizeof(path) + 1024];
+  snprintf(err, sizeof(err), "%s: %s\n", path, strerror(errno));
+  err[sizeof(err) - 1] = '\0';
+
+  // No luck. Try the current directory.
+  file = fopen(name, "rb");
+  if (file) return file;
+
+  fputs(err, stderr); // Print previous error message too.
+  perror(name);
+  return NULL;
 }
 
 // Parse xml database file
-static int parse_xml_file(state_machine_t *sm, const char *name) {
-  // Open datbase xml file
-  FILE *file = get_database_file(name);
+static int parse_xml_file(state_machine_t *sm, const char *name, const char *cli_name) {
+  // Open database xml file
+  FILE *file = get_database_file(name, cli_name);
   if (!file) return EXIT_FAILURE;
 
   // Begin xml parse
@@ -695,10 +744,10 @@ static int parse_xml_file(state_machine_t *sm, const char *name) {
 
 // Parse xml database file
 static int parse_xml(state_machine_t *sm) {
-  int ret = parse_xml_file(sm, LOGICIC_NAME);
+  int ret = parse_xml_file(sm, LOGICIC_NAME, logicic_path);
   if (ret)
     return ret;
-  return parse_xml_file(sm, INFOIC_NAME);
+  return parse_xml_file(sm, INFOIC_NAME, infoic_path);
 }
 
 void free_device(device_t *device) {

@@ -80,6 +80,8 @@ static struct option long_options[] = {
     {"vpp", required_argument, NULL, 0},
     {"vdd", required_argument, NULL, 0},
     {"vcc", required_argument, NULL, 0},
+    {"infoic", required_argument, NULL, 1},
+    {"logicic", required_argument, NULL, 2},
     {"list", no_argument, NULL, 'l'},
     {"search", required_argument, NULL, 'L'},
     {"get_info", required_argument, NULL, 'd'},
@@ -197,6 +199,8 @@ void print_help_and_exit(char *progname) {
       "  --hardware_check	-t		Start hardware check\n"
       "  --update		-F <filename>	Update firmware\n"
       "					(should be update.dat or updateII.dat)\n"
+      "  --infoic <filename>			Set custom infoic.xml file.\n"
+      "  --logicic <filename>			Set custom logicic.xml file.\n"
       "  --help		-h		Show help (this text)\n";
   fprintf(stderr, usage, VERSION, basename(progname));
   exit(EXIT_FAILURE);
@@ -731,6 +735,14 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
       case 0:
     	break;// Skip pulse, vcc and vdd here
 
+      case 1:
+	infoic_path = optarg; // Custom infoic.xml
+        break;
+
+      case 2:
+	logicic_path = optarg; // Custom logicic.xml
+        break;
+
       case 'q':
         if (!strcasecmp(optarg, "tl866a"))
           cmdopts->version = MP_TL866A;
@@ -900,6 +912,7 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts) {
         firmware_update_and_exit(optarg);
         break;
       default:
+        fprintf(stderr, "Internal error: failed to parse option %d\n", c);
         print_help_and_exit(argv[0]);
         break;
     }
