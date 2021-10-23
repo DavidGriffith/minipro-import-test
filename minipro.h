@@ -153,7 +153,7 @@ typedef struct device {
 
   uint8_t voltage;
   uint8_t pin_count;
-  uint8_t vector_count;
+  int32_t vector_count;
   uint8_t *vectors;
 } device_t;
 
