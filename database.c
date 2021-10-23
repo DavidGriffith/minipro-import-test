@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "xml.h"
@@ -708,10 +709,16 @@ static FILE* get_database_file(const char *name, const char *cli_name){
   FILE *file = fopen(path, "rb");
   if (file) return file;
 
+  // Format an error message for later, just in case
+  char err[sizeof(path) + 1024];
+  snprintf(err, sizeof(err), "%s: %s\n", path, strerror(errno));
+  err[sizeof(err) - 1] = '\0';
+
   // No luck. Try the current directory.
   file = fopen(name, "rb");
   if (file) return file;
 
+  fputs(err, stderr); // Print previous error message too.
   perror(name);
   return NULL;
 }
