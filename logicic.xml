@@ -2730,11 +2730,11 @@
         <vector id="13"> H H H H H L L G L 1 0 C 0 0 H V </vector>
         <vector id="14"> H H H H H L L G L 1 C 0 0 1 H V </vector>
         <vector id="15"> H H H H H H L G L 1 0 C 0 0 H V </vector>
-        <vector id="16"> H H H H H H L G L 1 C 0 0 1 H V </vector>
-        <vector id="17"> H H H H H H H G L 1 0 C 0 0 H V </vector>
-        <vector id="18"> H H H H H H H G L 1 C 0 0 1 H V </vector>
+        <vector id="16"> H H H H H H L G H 1 C 0 0 1 H V </vector>
+        <vector id="17"> H H H H H H H G H 1 0 C 0 0 H V </vector>
+        <vector id="18"> H H H H H H H G H 1 C 0 0 1 H V </vector>
         <vector id="19"> H H H H H H H G H 1 0 C 0 0 H V </vector>
-        <vector id="20"> Z Z Z Z Z Z Z G Z 1 0 C 1 0 Z V </vector>
+        <vector id="20"> Z Z Z Z Z Z Z G H 1 0 C 1 0 Z V </vector>
       </ic>
       <ic name="74597" type="5" voltage="5V" pins="16">
         <vector id="00"> 1 0 1 0 1 0 1 G X 1 0 C 1 1 0 V </vector>
