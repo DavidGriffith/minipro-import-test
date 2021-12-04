@@ -744,9 +744,10 @@ static int parse_xml_file(state_machine_t *sm, const char *name, const char *cli
 
 // Parse xml database file
 static int parse_xml(state_machine_t *sm) {
-  int ret = parse_xml_file(sm, LOGICIC_NAME, logicic_path);
-  if (ret)
-    return ret;
+  if (!sm->match_id) {
+    int ret = parse_xml_file(sm, LOGICIC_NAME, logicic_path);
+    if (ret) return ret;
+  }
   return parse_xml_file(sm, INFOIC_NAME, infoic_path);
 }
 
