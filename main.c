@@ -278,7 +278,8 @@ int is_pld(uint8_t protocol_id) {
 
 //Helper function to check for PIC devices
 int is_pic(minipro_handle_t *handle) {
-  if(handle->version == MP_TL866A) {
+  if(handle->version == MP_TL866A ||
+     handle->version == MP_TL866CS) {
     switch (handle->device->protocol_id) {
       case TL866A_PIC_PROTOCOL_1:
       case TL866A_PIC_PROTOCOL_2:
