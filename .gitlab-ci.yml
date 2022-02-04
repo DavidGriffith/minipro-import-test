@@ -1,11 +1,20 @@
-image: alpine:latest
+include:
+  - remote: 'https://jobs.r2devops.io/latest/mega_linter.yml'
+  - remote: 'https://jobs.r2devops.io/pages.yml'
+
+stages:
+  - static_tests
+  - deploy
+
+mega_linter:
+  image:
+    name: nvuillam/mega-linter-dotnet:v4
+  
+  variables:
+    ENABLE_LINTERS: "C_CPPLINT,SPELL_MISSPELL"
+    APPLY_FIXES: "SPELL_MISSPELL"
+    C_CPPLINT_ARGUMENTS: "--linelength=120"
 
 pages:
-  stage: deploy
-  script:
-  - echo 'Nothing to do...'
-  artifacts:
-    paths:
-    - public
-  only:
-  - master
+  variables:
+    PAGES_BUILD_PATH: "public/"
