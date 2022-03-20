@@ -27,7 +27,7 @@ Used to program flash, EEPROM, etc.
 %autosetup -n %{name}-master
 
 %build
-make %{?_smp_mflags}
+make %{?_smp_mflags} PREFIX=%{_prefix}
 
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
