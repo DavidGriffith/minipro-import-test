@@ -277,6 +277,16 @@ gal_config_t gal5_acw[] = {
      .acw_address = 0x10,
      .acw_size = 0x14}};
 
+gal_config_t gal20ra10b_acw[] = { // GAL20RA10B
+    {.acw_bits = (uint16_t[]){3200, 3201, 3202, 3203, 3204, 3205, 3206,
+                              3207, 3208, 3209},
+     .fuses_size = 0x28,
+     .row_width = 0x50,
+     .ues_address = 3210,
+     .ues_size = 64,
+     .acw_address = 0x10,
+     .acw_size = 0x0A}};
+
 gal_config_t atf22v10c_acw[] = { // ATF22V10C(Q)
     {.acw_bits = (uint16_t[]){5809, 5808, 5811, 5810, 5813, 5812, 5815,
                               5814, 5817, 5816, 5819, 5818, 5821, 5820,
@@ -433,6 +443,8 @@ static int load_mem_device(const uint8_t *xml_device, size_t size, device_t *dev
     device->config = gal4_acw;
   else if (!strncasecmp((char *)fuses.b, "gal5_acw", fuses.z))
     device->config = gal5_acw;
+  else if (!strncasecmp((char *)fuses.b, "gal20ra10b_acw", fuses.z))
+    device->config = gal20ra10b_acw;
   else if (!strncasecmp((char *)fuses.b, "atf16V8c_acw", fuses.z))
     device->config = atf16V8c_acw;
   else if (!strncasecmp((char *)fuses.b, "atf22v10c_acw", fuses.z))

@@ -1158,7 +1158,7 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec) {
   if((config->ues_address != 0) && (config->ues_size != 0)
         && ((config->ues_address + config->ues_size) <= jedec->QF) 
         && !(handle->device->opts1 & ATF_IN_PAL_COMPAT_MODE)) {
-    if (minipro_read_jedec_row(handle, buffer, i, 0, config->ues_size))
+    if (minipro_read_jedec_row(handle, buffer, i, 0, config->row_width))
      return EXIT_FAILURE;
     for (j = 0; j < config->ues_size; j++) {
       if (buffer[j / 8] & (0x80 >> (j & 0x07)))
@@ -1234,7 +1234,7 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec) {
     }
   }
   // UES field is always written, even when not contained in JEDEC
-  if (minipro_write_jedec_row(handle, buffer, i, 0, config->ues_size))
+  if (minipro_write_jedec_row(handle, buffer, i, 0, config->row_width))
     return EXIT_FAILURE;
 
   // Write architecture control word (ACW)
