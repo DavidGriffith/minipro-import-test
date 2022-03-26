@@ -57,7 +57,7 @@
         <vector id="01"> V L 0 L 0 L 0 G 0 L 0 L X 0 L V </vector>
       </ic>
       <ic name="40106" type="5" voltage="5V" pins="14">
-        <vector id="00"> 0 H 0 H 0 H G H 0 H 0 L 0 V </vector>
+        <vector id="00"> 0 H 0 H 0 H G H 0 H 0 H 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
       <ic name="4011" type="5" voltage="5V" pins="14">
