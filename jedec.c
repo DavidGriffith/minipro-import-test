@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "jedec.h"
 #include "version.h"
 
@@ -81,6 +82,7 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
   char *p_token, *p_next;
 
   current_offset = 0;
+  stx_offset = 0;
   stx_count = 0;
   etx_count = 0;
 
@@ -263,7 +265,7 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
 
 // JEDEC file parser
 int read_jedec_file(char *buffer, size_t size, jedec_t *jedec) {
-  uint16_t checksum;
+  uint16_t checksum = 0;
 
   // Check for size limits
   if (size < JED_MIN_SIZE) {

@@ -122,8 +122,9 @@ static int nextpair(const uint8_t **value, size_t *valuelen,
 }
 
 int parse(Parser *p) {
-  const uint8_t *content, *tag;
-  size_t contentlen, taglen;
+  const uint8_t *content, *tag = NULL;
+  size_t contentlen = 0;
+  size_t taglen = 0;
   int r, neu = 1;
   while ((r = nextpair(&content, &contentlen, &tag, &taglen, &p->mm,
                        p->inputcbdata)) == XML_OK) {

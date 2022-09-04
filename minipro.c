@@ -208,7 +208,7 @@ int minipro_reset(minipro_handle_t *handle) {
 }
 
 void minipro_print_system_info(minipro_handle_t *handle) {
-  uint16_t expected_firmware;
+  uint16_t expected_firmware = 0;
   char *expected_firmware_str;
 
   switch (handle->version) {
