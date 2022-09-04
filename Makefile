@@ -5,7 +5,7 @@ CC=gcc
 #CC=clang
 
 # Compiler options
-CFLAGS = -g -O0 -Wall
+CFLAGS = -g -O0 -Wall -Wextra -W -Wno-sign-compare -Wno-unused-parameter
 CPPFLAGS = -DSHARE_INSTDIR="\"$(SHARE_INSTDIR)\""
 LDFLAGS =
 

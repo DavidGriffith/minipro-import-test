@@ -742,7 +742,7 @@ static int parse_xml_file(state_machine_t *sm, const char *name, const char *cli
   if (!file) return EXIT_FAILURE;
 
   // Begin xml parse
-  Parser parser = {file, sax_callback, sm};
+  Parser parser = {.inputcbdata = file, .worker = sax_callback, .userdata = sm};
 
   int ret = parse(&parser);
   done(&parser);
@@ -782,7 +782,11 @@ device_t *get_device_by_name(uint8_t version, const char *name) {
   }
 
   if (version == MP_TL866CS) version = MP_TL866A;
-  state_machine_t sm = {device, version, -1, -1, 0, 0, 0, name, 0, 0, 0, 0};
+  state_machine_t sm = {.device = device,
+                        .version = version,
+                        .sm_version = -1,
+                        .custom = -1,
+                        .device_name = name};
   int ret = parse_xml(&sm);
 
   if (ret || !sm.found) {
@@ -801,7 +805,11 @@ const char *get_device_from_id(uint8_t version, uint32_t chip_id, uint8_t protoc
   device.package_details = 0;
   memset(device.name, 0 , sizeof(device.name));
   if (version == MP_TL866CS) version = MP_TL866A;
-  state_machine_t sm = {&device, version, -1, -1, 0, 0, 1, NULL, 0, 0, 0, 0};
+  state_machine_t sm = {.device = &device,
+                        .version = version,
+                        .sm_version = -1,
+                        .custom = -1,
+                        .match_id = 1};
 
   if(parse_xml(&sm)) return NULL;
   return sm.found ? strdup(device.name) : NULL;
@@ -819,7 +827,13 @@ int list_devices(uint8_t version, const char *name, uint32_t chip_id,
   memset(device.name, 0, sizeof(device.name));
   if (version == MP_TL866CS) version = MP_TL866A;
   int flag = (chip_id || package_details) ? 1 : 0;
-  state_machine_t sm = {&device, version, -1, -1, 1, 0, flag, name, 0, 0, 0, 0};
+  state_machine_t sm = {.device = &device,
+                        .version = version,
+                        .sm_version = -1,
+                        .custom = -1,
+                        .print_name = 1,
+                        .match_id = flag,
+                        .device_name = name};
 
   if (parse_xml(&sm)) return EXIT_FAILURE;
   if (count) *count = sm.found;
@@ -829,7 +843,7 @@ int list_devices(uint8_t version, const char *name, uint32_t chip_id,
 // Print database chip count
 int print_chip_count() {
   // Initialize state machine structure
-  state_machine_t sm = {NULL, 0, -1, -1, 0, 0, 0, NULL, 0, 0, 0, 0};
+  state_machine_t sm = {.sm_version = -1, .custom = -1};
 
   if (parse_xml(&sm)) return EXIT_FAILURE;
 
