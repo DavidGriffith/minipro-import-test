@@ -42,7 +42,6 @@ install -D -p -m 0644 bash_completion.d/minipro %{buildroot}/%{completions_dir}/
 %license LICENSE
 %doc README.md
 %{_bindir}/minipro
-%{_bindir}/miniprohex
 %{_mandir}/man1/%{name}.*
 %{_udevrulesdir}/*
 %{_datadir}/minipro/infoic.xml

@@ -62,7 +62,6 @@ OBJECTS=$(COMMON_OBJECTS) main.o
 PROGS=minipro
 STATIC_LIB=libminipro.a
 MINIPRO=minipro
-MINIPROHEX=miniprohex
 INFOIC=infoic.xml
 LOGICIC=logicic.xml
 TESTS=$(wildcard tests/test_*.c);
@@ -140,7 +139,6 @@ install:
 	mkdir -p $(MAN_INSTDIR)
 	mkdir -p $(SHARE_INSTDIR)
 	cp $(MINIPRO) $(BIN_INSTDIR)/
-	cp $(MINIPROHEX) $(BIN_INSTDIR)/
 	cp $(INFOIC) $(SHARE_INSTDIR)/
 	cp $(LOGICIC) $(SHARE_INSTDIR)/
 	cp man/minipro.1 $(MAN_INSTDIR)/
@@ -157,7 +155,6 @@ install:
 
 uninstall:
 	rm -f $(BIN_INSTDIR)/$(MINIPRO)
-	rm -f $(BIN_INSTDIR)/$(MINIPROHEX)
 	rm -f $(SHARE_INSTDIR)/$(INFOIC)
 	rm -f $(SHARE_INSTDIR)/$(LOGICIC)
 	rm -f $(MAN_INSTDIR)/minipro.1
