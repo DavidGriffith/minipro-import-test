@@ -22,17 +22,25 @@
 #include <stdint.h>
 #include "minipro.h"
 
+typedef struct fuse {
+  uint16_t mask;
+  uint16_t def;
+  char name[NAME_LEN];
+} fuse_t;
+
 typedef struct fuse_decl {
   uint8_t num_fuses;
-  uint8_t num_uids;
+  uint8_t num_uids;         // For PIC only
   uint8_t num_locks;
-  uint8_t item_size;
-  uint8_t word;
-  uint8_t erase_num_fuses;
-  uint8_t rev_mask;
-  const char **fnames;
-  const char **unames;
-  const char **lnames;
+  uint8_t num_calibytes;    // For AVR family only
+  uint8_t rev_bits;         // For PIC only
+  uint32_t config_addr;     // For PIC only
+  uint32_t uid_addr;        // For PIC only
+  uint32_t eep_addr;        // For PIC only
+  uint8_t osccal_save;      // For PIC only
+  uint16_t bg_mask;         // For PIC only
+  fuse_t fuse[16];
+  fuse_t lock[4];
 } fuse_decl_t;
 
 typedef struct gal_config {
@@ -47,19 +55,29 @@ typedef struct gal_config {
 } gal_config_t;
 
 typedef struct pin_map {
-	uint8_t zero_c;
-	uint8_t zero_t [4];
-	uint8_t mask [40];
+  size_t gnd_count;
+  size_t mask_count;
+  uint16_t gnd_table[16];
+  uint16_t mask[40];
 } pin_map_t;
 
-extern char * infoic_path;
-extern char * logicic_path;
 
-pin_map_t *get_pin_map(uint8_t);
-uint32_t get_pin_count(uint32_t);
-int print_chip_count();
-int list_devices(uint8_t, const char *, uint32_t, uint32_t, uint32_t *);
-device_t *get_device_by_name(uint8_t, const char *);
-const char *get_device_from_id(uint8_t, uint32_t, uint8_t);
-void free_device(device_t *device);
+typedef struct db_data {
+  const char *infoic_path;
+  const char *logicic_path;
+  const char *device_name;
+  uint8_t version;
+  uint32_t chip_id;
+  uint32_t protocol;
+  uint32_t pin_count;
+  uint32_t index;
+  uint32_t *count;
+} db_data_t;
+
+
+pin_map_t *get_pin_map(db_data_t*);
+int print_chip_count(db_data_t*);
+int list_devices(db_data_t*);
+device_t *get_device_by_name(db_data_t*);
+const char *get_device_from_id(db_data_t*);
 #endif

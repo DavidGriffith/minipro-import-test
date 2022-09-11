@@ -20,34 +20,29 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __XML_H
 #define __XML_H
 
-#define __USE_MINGW_ANSI_STDIO 1
 #define _FILE_OFFSET_BITS  64
 
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct
-{
-	size_t z;
-	const uint8_t *b;
+typedef struct {
+  size_t z;
+  const uint8_t *b;
 } Memblock;
 
-typedef struct
-{
-	uint8_t *b;
-	size_t i, g, e;
+typedef struct {
+  uint8_t *b;
+  size_t i, g, e;
 } MemMan;
 
-
-typedef struct
-{
-	void* inputcbdata;
-	int(*worker)();
-	void* userdata;
-	MemMan mm;
-	size_t ebene;
-	const uint8_t *content;
-	size_t contentlen;
+typedef struct {
+  void *inputcbdata;
+  int (*worker)();
+  void *userdata;
+  MemMan mm;
+  size_t level;
+  const uint8_t *content;
+  size_t contentlen;
 } Parser;
 
 enum { XML_OK, ERRMEM, ERRHIERAR, ERREND };
@@ -55,5 +50,5 @@ enum { SELFCLOSE_, COMMENT_, PROLOG_, NORMALCLOSE_, FRAMECLOSE_, OPENTAG_, UNKNO
 
 int parse(Parser *);
 void done(Parser *);
-Memblock get_attribute(const uint8_t *s, size_t z, Memblock);
+Memblock get_attribute(const uint8_t *, size_t, const char*);
 #endif

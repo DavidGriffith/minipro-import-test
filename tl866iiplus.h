@@ -40,6 +40,8 @@ int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                            uint8_t items_count, uint8_t *buffer);
 int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                             uint8_t items_count, uint8_t *buffer);
+int tl866iiplus_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
+                                 size_t len);
 int tl866iiplus_erase(minipro_handle_t *handle);
 int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
@@ -50,4 +52,10 @@ int tl866iiplus_hardware_check(minipro_handle_t *handle);
 int tl866iiplus_firmware_update(minipro_handle_t *handle, const char *firmware);
 int tl866iiplus_pin_test(minipro_handle_t *handle);
 int tl866iiplus_logic_ic_test(minipro_handle_t *handle);
+int tl866iiplus_reset_state(minipro_handle_t *);
+int tl866iiplus_set_zif_direction(struct minipro_handle *, uint8_t *);
+int tl866iiplus_set_zif_state(struct minipro_handle *, uint8_t *);
+int tl866iiplus_get_zif_state(struct minipro_handle *, uint8_t *);
+int tl866iiplus_set_pin_drivers(struct minipro_handle *, pin_driver_t *);
+int tl866iiplus_set_voltages(struct minipro_handle *, uint8_t, uint8_t);
 #endif

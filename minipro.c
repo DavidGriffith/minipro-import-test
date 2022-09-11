@@ -65,40 +65,82 @@ uint32_t crc32(uint8_t *data, size_t size, uint32_t initial) {
   return crc;
 }
 
-minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
-  minipro_handle_t *handle = malloc(sizeof(minipro_handle_t));
-  if (handle == NULL) {
-    if(verbose)
-    	fprintf(stderr, "Out of memory!\n");
+static int minipro_get_system_info(minipro_handle_t *handle) {
+  uint8_t msg[80], hw;
+  memset(msg, 0x0, sizeof(msg));
+
+  if (msg_send(handle->usb_handle, msg, 5)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+
+  handle->version = msg[6];
+  switch (msg[6]) {
+    case MP_TL866IIPLUS:
+      handle->status = (msg[4] == 0) ? MP_STATUS_BOOTLOADER : MP_STATUS_NORMAL;
+      handle->model = "TL866II+";
+      memcpy(handle->device_code, msg + 8, 8);
+      memcpy(handle->serial_number, msg + 16, 20);
+      hw = msg[40];
+      break;
+
+    case MP_TL866A:
+    case MP_TL866CS:
+      handle->status = msg[1];
+      handle->model = msg[6] == MP_TL866A ? "TL866A" : "TL866CS";
+      memcpy(handle->device_code, msg + 7, 8);
+      memcpy(handle->serial_number, msg + 15, 24);
+      hw = msg[39];
+      break;
+    default:
+      return EXIT_SUCCESS;
+  }
+
+  handle->firmware = load_int(&msg[4], 2, MP_LITTLE_ENDIAN);
+  snprintf(handle->firmware_str, sizeof(handle->firmware_str), "%02d.%d.%d", hw,
+           msg[5], msg[4]);
+  return EXIT_SUCCESS;
+}
+
+minipro_handle_t *minipro_open(uint8_t verbose) {
+  minipro_handle_t *handle = calloc(1, sizeof(minipro_handle_t));
+  if (!handle) {
+    if (verbose) fprintf(stderr, "Out of memory!\n");
     return NULL;
   }
 
+  // get a usb handle
   handle->usb_handle = usb_open(verbose);
   if (!handle->usb_handle) {
     free(handle);
     return NULL;
   }
 
-  minipro_report_info_t info;
-  if (minipro_get_system_info(handle, &info)) return NULL;
-
-  switch (info.device_version) {
+  // get the system info
+  if (minipro_get_system_info(handle)) return NULL;
+  switch (handle->version) {
     case MP_TL866A:
     case MP_TL866CS:
-      switch (info.device_status) {
+    case MP_TL866IIPLUS:
+      switch (handle->status) {
         case MP_STATUS_NORMAL:
         case MP_STATUS_BOOTLOADER:
-          handle->status = info.device_status;
           break;
         default:
           minipro_close(handle);
           if (verbose)
-        	  fprintf(stderr, "\nUnknown device status!\nExiting...\n");
+            fprintf(stderr, "\nUnknown device status!\nExiting...\n");
           return NULL;
       }
-      handle->model = info.device_version == MP_TL866A ? "TL866A" : "TL866CS";
-      memcpy(handle->device_code, info.device_code, 8);
-      memcpy(handle->serial_number, info.serial_number, 24);
+      break;
+    default:
+      minipro_close(handle);
+      if (verbose) fprintf(stderr, "Unknown programmer model!\n");
+      return NULL;
+  }
+
+  // Initialize function pointers
+  switch (handle->version) {
+    case MP_TL866A:
+    case MP_TL866CS:
       handle->minipro_begin_transaction = tl866a_begin_transaction;
       handle->minipro_end_transaction = tl866a_end_transaction;
       handle->minipro_protect_off = tl866a_protect_off;
@@ -110,20 +152,22 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
       handle->minipro_spi_autodetect = tl866a_spi_autodetect;
       handle->minipro_read_fuses = tl866a_read_fuses;
       handle->minipro_write_fuses = tl866a_write_fuses;
+      handle->minipro_read_calibration = tl866a_read_calibration;
       handle->minipro_erase = tl866a_erase;
       handle->minipro_unlock_tsop48 = tl866a_unlock_tsop48;
       handle->minipro_hardware_check = tl866a_hardware_check;
       handle->minipro_read_jedec_row = tl866a_read_jedec_row;
       handle->minipro_write_jedec_row = tl866a_write_jedec_row;
       handle->minipro_firmware_update = tl866a_firmware_update;
-      handle->minipro_pin_test = NULL;
+      handle->minipro_logic_ic_test = tl866a_logic_ic_test;
+      handle->minipro_reset_state = tl866a_reset_state;
+      handle->minipro_set_zif_direction = tl866a_set_zif_direction;
+      handle->minipro_set_zif_state = tl866a_set_zif_state;
+      handle->minipro_get_zif_state = tl866a_get_zif_state;
+      handle->minipro_set_pin_drivers = tl866a_set_pin_drivers;
+      handle->minipro_set_voltages = tl866a_set_voltages;
       break;
     case MP_TL866IIPLUS:
-      handle->status = info.firmware_version_minor == 0 ? MP_STATUS_BOOTLOADER
-                                                        : MP_STATUS_NORMAL;
-      handle->model = "TL866II+";
-      memcpy(handle->device_code, info.device_code, 8);
-      memcpy(handle->serial_number, info.serial_number, 20);
       handle->minipro_begin_transaction = tl866iiplus_begin_transaction;
       handle->minipro_end_transaction = tl866iiplus_end_transaction;
       handle->minipro_get_chip_id = tl866iiplus_get_chip_id;
@@ -135,6 +179,7 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
       handle->minipro_erase = tl866iiplus_erase;
       handle->minipro_read_fuses = tl866iiplus_read_fuses;
       handle->minipro_write_fuses = tl866iiplus_write_fuses;
+      handle->minipro_read_calibration = tl866iiplus_read_calibration;
       handle->minipro_get_ovc_status = tl866iiplus_get_ovc_status;
       handle->minipro_unlock_tsop48 = tl866iiplus_unlock_tsop48;
       handle->minipro_hardware_check = tl866iiplus_hardware_check;
@@ -143,37 +188,30 @@ minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose) {
       handle->minipro_firmware_update = tl866iiplus_firmware_update;
       handle->minipro_pin_test = tl866iiplus_pin_test;
       handle->minipro_logic_ic_test = tl866iiplus_logic_ic_test;
+      handle->minipro_reset_state = tl866iiplus_reset_state;
+      handle->minipro_set_zif_direction = tl866iiplus_set_zif_direction;
+      handle->minipro_set_zif_state = tl866iiplus_set_zif_state;
+      handle->minipro_get_zif_state = tl866iiplus_get_zif_state;
+      handle->minipro_set_pin_drivers = tl866iiplus_set_pin_drivers;
+      handle->minipro_set_voltages = tl866iiplus_set_voltages;
       break;
-    default:
-      minipro_close(handle);
-      if(verbose)
-    	  fprintf(stderr, "Unknown programmer model!\n");
-      return NULL;
-  }
-
-  handle->firmware =
-      load_int(&info.firmware_version_minor, 2, MP_LITTLE_ENDIAN);
-  sprintf(handle->firmware_str, "%02d.%d.%d", info.hardware_version,
-          info.firmware_version_major, info.firmware_version_minor);
-  handle->version = info.device_version;
-
-  handle->device = NULL;
-  if (device_name != NULL) {
-    handle->device = get_device_by_name(handle->version, device_name);
-    if (handle->device == NULL) {
-      minipro_close(handle);
-      if(verbose)
-    	  fprintf(stderr, "Device %s not found!\n", device_name);
-      return NULL;
-    }
   }
   return handle;
 }
 
 void minipro_close(minipro_handle_t *handle) {
-  usb_close(handle->usb_handle);
-  free_device(handle->device);
-  free(handle);
+  if (handle && handle->usb_handle) usb_close(handle->usb_handle);
+  if (handle && handle->device) {
+    if (handle->device->config) {
+      if (handle->device->chip_type == MP_PLD &&
+          ((gal_config_t *)(handle->device->config))->acw_bits)
+        free(((gal_config_t *)(handle->device->config))->acw_bits);
+      free(handle->device->config);
+    }
+    if (handle->device->vectors) free(handle->device->vectors);
+  }
+  if (handle->device) free(handle->device);
+  if (handle) free(handle);
 }
 
 // Reset TL866 device
@@ -209,7 +247,7 @@ int minipro_reset(minipro_handle_t *handle) {
 
 void minipro_print_system_info(minipro_handle_t *handle) {
   uint16_t expected_firmware = 0;
-  char *expected_firmware_str;
+  char *expected_firmware_str = NULL;
 
   switch (handle->version) {
     case MP_TL866A:
@@ -247,48 +285,14 @@ void minipro_print_system_info(minipro_handle_t *handle) {
   // handle->serial_number);
 }
 
-int minipro_get_system_info(minipro_handle_t *handle,
-                            minipro_report_info_t *info) {
-  uint8_t msg[sizeof(minipro_report_info_t)];
-
-  memset(info, 0x0, sizeof(*info));
-  memset(msg, 0x0, sizeof(msg));
-  if (msg_send(handle->usb_handle, msg, 5)) return EXIT_FAILURE;
-  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-
-  switch (msg[6]) {
-    case MP_TL866IIPLUS:
-      msg[7] = 0;
-      memcpy(info, msg, sizeof(*info));
-
-      // Manually fixup 16-bit fields to account for endianness
-      info->report_size = load_int(msg+2, 2, MP_LITTLE_ENDIAN);
-      info->device_version = load_int(msg+6, 2, MP_LITTLE_ENDIAN);
-
-      break;
-    case MP_TL866A:
-    case MP_TL866CS:
-      info->echo = msg[0];
-      info->device_status = msg[1];
-      info->report_size = load_int((msg + 2), 2, MP_LITTLE_ENDIAN);
-      info->firmware_version_minor = msg[4];
-      info->firmware_version_major = msg[5];
-      info->device_version = msg[6];
-      memcpy(info->device_code, (msg + 7), 8);
-      memcpy(info->serial_number, (msg + 15), 24);
-      info->hardware_version = msg[39];
-      break;
-    default:
-      minipro_close(handle);
-      fprintf(stderr, "Unknown Device!");
-      return EXIT_FAILURE;
-  }
-  return EXIT_SUCCESS;
-}
 
 int minipro_begin_transaction(minipro_handle_t *handle) {
   assert(handle != NULL);
-  // fprintf(stderr, "start transaction\n");
+
+  // pack voltages
+  voltages_t *voltages = &handle->device->voltages;
+  voltages->raw_voltages = (voltages->raw_voltages & 0xffff000f) |
+		  (voltages->vdd << 12) | (voltages->vcc << 8) | (voltages->vpp << 4);
   if (handle->minipro_begin_transaction) {
     return handle->minipro_begin_transaction(handle);
   } else {
@@ -299,7 +303,6 @@ int minipro_begin_transaction(minipro_handle_t *handle) {
 
 int minipro_end_transaction(minipro_handle_t *handle) {
   assert(handle != NULL);
-  // fprintf(stderr, "end transaction\n");
   if (handle->minipro_end_transaction) {
     return handle->minipro_end_transaction(handle);
   } else {
@@ -333,7 +336,6 @@ int minipro_protect_on(minipro_handle_t *handle) {
 int minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
                            uint8_t *ovc) {
   assert(handle != NULL);
-  // fprintf(stderr, "get ovc\n");
   if (status) {
     memset(status, 0x00, sizeof(*status));
   }
@@ -347,7 +349,6 @@ int minipro_get_ovc_status(minipro_handle_t *handle, minipro_status_t *status,
 
 int minipro_erase(minipro_handle_t *handle) {
   assert(handle != NULL);
-  // fprintf(stderr, "Erase\n");
   if (handle->minipro_erase) {
     return handle->minipro_erase(handle);
   }
@@ -358,7 +359,6 @@ int minipro_erase(minipro_handle_t *handle) {
 int minipro_read_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                        uint8_t *buffer, size_t len) {
   assert(handle != NULL);
-  // fprintf(stderr, "Read block\n");
   if (handle->minipro_read_block) {
     return handle->minipro_read_block(handle, type, addr, buffer, len);
   } else {
@@ -370,7 +370,6 @@ int minipro_read_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
 int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
                         uint8_t *buffer, size_t len) {
   assert(handle != NULL);
-  // fprintf(stderr, "Write block\n");
   if (handle->minipro_write_block) {
     return handle->minipro_write_block(handle, type, addr, buffer, len);
   } else {
@@ -383,7 +382,6 @@ int minipro_write_block(minipro_handle_t *handle, uint8_t type, uint32_t addr,
 int minipro_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                         uint32_t *device_id) {
   assert(handle != NULL);
-  // fprintf(stderr, "get id\n");
   if (handle->minipro_get_chip_id) {
     return handle->minipro_get_chip_id(handle, type, device_id);
   }
@@ -404,6 +402,10 @@ int minipro_spi_autodetect(minipro_handle_t *handle, uint8_t type,
 int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
                        uint8_t items_count, uint8_t *buffer) {
   assert(handle != NULL);
+
+  // If chip lock bit is write only don't read it.
+  if(type == MP_FUSE_LOCK && handle->device->flags.lock_bit_write_only)
+	  return EXIT_SUCCESS;
 
   if (handle->minipro_read_fuses) {
     return handle->minipro_read_fuses(handle, type, length, items_count,
@@ -445,6 +447,17 @@ int minipro_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
     return handle->minipro_read_jedec_row(handle, buffer, row, flags, size);
   } else {
     fprintf(stderr, "%s: read jedec row not implemented\n", handle->model);
+  }
+  return EXIT_FAILURE;
+}
+
+int minipro_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
+                             size_t size) {
+  assert(handle != NULL);
+  if (handle->minipro_read_calibration) {
+    return handle->minipro_read_calibration(handle, buffer, size);
+  } else {
+    fprintf(stderr, "%s: read calib. bytes not implemented\n", handle->model);
   }
   return EXIT_FAILURE;
 }

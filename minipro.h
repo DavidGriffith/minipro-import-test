@@ -29,6 +29,7 @@
 
 #define MP_CODE 0x00
 #define MP_DATA 0x01
+#define MP_USER 0x02
 
 #define MP_FUSE_USER 0x00
 #define MP_FUSE_CFG 0x01
@@ -55,32 +56,41 @@
 #define MP_LITTLE_ENDIAN 0
 #define MP_BIG_ENDIAN 1
 
-// Opts 4
-#define MP_ERASE_MASK 0x00000010
-#define MP_ID_MASK 0x00000020
-#define MP_PROTECT_MASK 0x0000C000
-#define MP_DATA_BUS_WIDTH 0x00002000
+#define MP_ZIF_ONLY 0x00
+#define MP_ZIF_ICSP 0x01
+#define MP_ICSP_ONLY 0x02
+#define MP_READ_ONLY 0x80
 
-// Opts 1
+#define MP_MEMORY 0x01
+#define MP_MCU 0x02
+#define MP_PLD 0x03
+#define MP_SRAM 0x04
+#define MP_LOGIC 0x05
+#define MP_NAND 0x06
+
+// voltage
 // for ATF20V10C and ATF16V8C variants
-#define LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE (0x10)
-#define POWERDOWN_MODE_DISABLE (0x20)
-#define ATF_IN_PAL_COMPAT_MODE (0x40)
+// These flags are in voltages now (ex opts5)
+#define LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE (0x1000)
+#define POWERDOWN_MODE_DISABLE (0x2000)
+#define ATF_IN_PAL_COMPAT_MODE (0x4000)
 
-// Opts 7
-#define MP_VOLTAGES1 0x0006
-#define MP_VOLTAGES2 0x0007
-
-// Opts 7 for PIC family
-//   PIC instruction word width (not clear which exact bit means what)
-#define PIC_INSTR_WORD_WIDTH_MASK 0xff
+// chip_info for PIC family
 #define PIC_INSTR_WORD_WIDTH_12 0x84
 #define PIC_INSTR_WORD_WIDTH_14 0x83
 #define PIC_INSTR_WORD_WIDTH_16_PIC18F 0x82
 #define PIC_INSTR_WORD_WIDTH_16_PIC18J 0x85
 
+// chip_info for Atmel MCU family
+#define ATMEL_AVR 0x81
+#define ATMEL_C51 0x87
+#define ATMEL_AT89 0x88
+#define ATMEL_AT90 0x86
+
+// Custom chip protocols
+#define CP_PROM 0x01
+
 // Adapters
-#define ADAPTER_MASK 0x000000FF
 #define TSOP48_ADAPTER 0x00000001
 #define SOP44_ADAPTER 0x00000002
 #define TSOP40_ADAPTER 0x00000003
@@ -88,71 +98,90 @@
 #define TSOP32_ADAPTER 0x00000005
 #define SOP56_ADAPTER 0x00000006
 
-// Package
-#define PIN_COUNT_MASK 0X7F000000
-#define SMD_MASK 0X80000000
-
-// PLCC Mask
-#define PLCC_MASK 0xFF000000
-#define PLCC32_ADAPTER 0xFF000000
-#define PLCC44_ADAPTER 0xFD000000
-
-// ICSP MASK
-#define ICSP_MASK 0x0000FF00
-
-// Protocols
-#define PLD_PROTOCOL_16V8 0xE0
-#define PLD_PROTOCOL_20V8 0xE1
-#define PLD_PROTOCOL_22V10 0xE2
-#define PLD_PROTOCOL2_16V8 0x2A
-#define PLD_PROTOCOL2_20V8 0x2B
-#define PLD_PROTOCOL2_22V10 0x2C
-
-#define TL866IIP_PIC_PROTOCOL_PIC18_ICSP 0x17
-#define TL866IIP_PIC_PROTOCOL_PIC18 0x19
-#define TL866IIP_PIC_PROTOCOL_1 0x18
-#define TL866IIP_PIC_PROTOCOL_2 0x1a
-#define TL866IIP_PIC_PROTOCOL_3 0x1b
-#define TL866IIP_PIC_PROTOCOL_4 0x1c
-
-#define TL866A_PIC_PROTOCOL_PIC18_ICSP 0x62
-#define TL866A_PIC_PROTOCOL_PIC18 0x64
-#define TL866A_PIC_PROTOCOL_1 0x63
-#define TL866A_PIC_PROTOCOL_2 0x65
-#define TL866A_PIC_PROTOCOL_3 0x66
-#define TL866A_PIC_PROTOCOL_4 0x67
-
+enum verbosity { NO_VERBOSE, VERBOSE };
+enum logic {
+  LOGIC_0,
+  LOGIC_1,
+  LOGIC_L,
+  LOGIC_H,
+  LOGIC_C,
+  LOGIC_Z,
+  LOGIC_X,
+  LOGIC_G,
+  LOGIC_V
+};
 
 // Helper macros
 #define PIN_COUNT(x) (((x)&PIN_COUNT_MASK) >> 24)
-#define WORD_SIZE(device) (((device)->opts4 & 0xFF000000) == 0x01000000 ? 2 : 1)
+
+#define NAME_LEN 40
+
+#define MP_PIN_DIRECTION_OUT 0x00
+#define MP_PIN_DIRECTION_IN 0x01
+#define MP_PIN_PULLUP 0x80
+
+
+typedef struct flags {
+  uint8_t can_erase;
+  uint8_t has_chip_id;
+  uint8_t has_data_offset;
+  uint8_t has_word;
+  uint8_t off_protect_before;
+  uint8_t protect_after;
+  uint8_t lock_bit_write_only;
+  uint8_t has_calibration;
+  uint8_t prog_support;
+  uint8_t word_size;
+  uint8_t data_org;
+  uint8_t can_adjust_vpp;
+  uint8_t can_adjust_vcc;
+  uint8_t custom_protocol;
+  uint32_t raw_flags;
+} flags_t;
+
+typedef struct package_details {
+  uint8_t pin_count;
+  uint8_t adapter;
+  uint8_t icsp;
+  uint32_t packed_package;
+} package_details_t;
+
+typedef struct voltages {
+  uint8_t vcc;
+  uint8_t vdd;
+  uint8_t vpp;
+  uint32_t raw_voltages;
+} voltages_t;
+
+typedef struct pin_driver{
+  uint8_t gnd;
+  uint8_t vcc;
+  uint8_t vpp;
+} pin_driver_t;
 
 typedef struct device {
-  char name[40];
-  uint8_t type;
-
+  char name[NAME_LEN];
+  uint32_t chip_type;
   uint8_t protocol_id;
-  uint8_t variant;
+  uint32_t variant;
   uint16_t read_buffer_size;
   uint16_t write_buffer_size;
   uint32_t code_memory_size;  // Presenting for every device
   uint32_t data_memory_size;
   uint32_t data_memory2_size;
+  uint32_t page_size;
+  uint32_t pages_per_block; // NAND only
   uint32_t chip_id;  // A vendor-specific chip ID (i.e. 0x1E9502 for ATMEGA48)
   uint8_t chip_id_bytes_count;
-  uint32_t opts1;
-  uint16_t opts2;
-  uint32_t opts3;
-  uint32_t opts4;
-  uint32_t opts5;
-  uint32_t opts6;
-  uint16_t opts7;
-  uint32_t opts8;
-  uint32_t package_details;  // pins count or image ID for some devices
+  voltages_t voltages;
+  uint32_t pulse_delay;
+  flags_t  flags;
+  uint32_t chip_info;
+  uint32_t pin_map;
+  uint16_t compare_mask;
+  uint16_t blank_value;
+  package_details_t package_details;  // pins count or image ID for some devices
   void *config;  // Configuration bytes that's presenting in some architectures
-
-  uint8_t voltage;
-  uint8_t pin_count;
   uint8_t vector_count;
   uint8_t *vectors;
 } device_t;
@@ -166,13 +195,16 @@ typedef struct minipro_status {
 
 typedef struct cmdopts_s {
   char *filename;
-  char *device;
-  enum { UNSPECIFIED = 0, CODE, DATA, CONFIG } page;
-  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK, LOGIC_IC_TEST } action;
+  char * infoic_path;
+  char * logicic_path;
+  char *device_name;
+  enum { UNSPECIFIED = 0, CODE, DATA, CONFIG, USER, CALIBRATION } page;
+  enum { NO_ACTION = 0, READ, WRITE, ERASE, VERIFY, BLANK_CHECK,
+	     LOGIC_IC_TEST } action;
   enum { NO_FORMAT = 0, IHEX, SREC} format;
   uint8_t no_erase;
-  uint8_t no_protect_off;
-  uint8_t no_protect_on;
+  uint8_t protect_off;
+  uint8_t protect_on;
   uint8_t size_error;
   uint8_t size_nowarn;
   uint8_t no_verify;
@@ -183,6 +215,10 @@ typedef struct cmdopts_s {
   uint8_t pincheck;
   uint8_t is_pipe;
   uint8_t version;
+  uint8_t force_erase;
+  int filter_fuses;
+  int filter_locks;
+  int filter_uid;
 } cmdopts_t;
 
 typedef struct minipro_handle {
@@ -216,6 +252,7 @@ typedef struct minipro_handle {
                             uint8_t *);
   int (*minipro_write_fuses)(struct minipro_handle *, uint8_t, size_t, uint8_t,
                              uint8_t *);
+  int (*minipro_read_calibration)(struct minipro_handle *, uint8_t *, size_t);
   int (*minipro_erase)(struct minipro_handle *);
   int (*minipro_unlock_tsop48)(struct minipro_handle *, uint8_t *);
   int (*minipro_hardware_check)(struct minipro_handle *);
@@ -226,30 +263,20 @@ typedef struct minipro_handle {
   int (*minipro_firmware_update)(struct minipro_handle *, const char *);
   int (*minipro_pin_test)(struct minipro_handle *);
   int (*minipro_logic_ic_test)(struct minipro_handle *);
+  int (*minipro_reset_state)(struct minipro_handle *);
+  int (*minipro_set_zif_direction)(struct minipro_handle *, uint8_t *);
+  int (*minipro_set_zif_state)(struct minipro_handle *, uint8_t *);
+  int (*minipro_get_zif_state)(struct minipro_handle *, uint8_t *);
+  int (*minipro_set_pin_drivers)(struct minipro_handle *, struct pin_driver *);
+  int (*minipro_set_voltages)(struct minipro_handle *, uint8_t, uint8_t);
 } minipro_handle_t;
 
-typedef struct minipro_report_info {
-  uint8_t echo;
-  uint8_t device_status;
-  uint16_t report_size;
-  uint8_t firmware_version_minor;
-  uint8_t firmware_version_major;
-  uint16_t device_version;
-  uint8_t device_code[8];
-  uint8_t serial_number[24];
-  uint8_t hardware_version;
-  uint8_t buffer[20]; /* for future autoelectric expansion */
-} minipro_report_info_t;
-
-enum verbosity { NO_VERBOSE = 0, VERBOSE };
 
 // These are old byte_utils functions
 void format_int(uint8_t *out, uint32_t in, size_t size, uint8_t endianness);
 uint32_t load_int(uint8_t *buffer, size_t size, uint8_t endianness);
 
 // Helper functions
-int minipro_get_system_info(minipro_handle_t *handle,
-                            minipro_report_info_t *info);
 void minipro_print_system_info(minipro_handle_t *handle);
 uint32_t crc32(uint8_t *data, size_t size, uint32_t initial);
 int minipro_reset(minipro_handle_t *handle);
@@ -263,7 +290,7 @@ int minipro_get_devices_count(uint8_t version);
  * the higher logic routines to exit cleanly leaving the device in a clean
  * state.
  */
-minipro_handle_t *minipro_open(const char *device_name, uint8_t verbose);
+minipro_handle_t *minipro_open(uint8_t verbose);
 void minipro_close(minipro_handle_t *handle);
 int minipro_begin_transaction(minipro_handle_t *handle);
 int minipro_end_transaction(minipro_handle_t *handle);
@@ -283,6 +310,8 @@ int minipro_read_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
                        uint8_t items_count, uint8_t *buffer);
 int minipro_write_fuses(minipro_handle_t *handle, uint8_t type, size_t length,
                         uint8_t items_count, uint8_t *buffer);
+int minipro_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
+                             size_t size);
 int minipro_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                             uint8_t row, uint8_t flags, size_t size);
 int minipro_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
@@ -293,5 +322,4 @@ int minipro_hardware_check(minipro_handle_t *handle);
 int minipro_firmware_update(minipro_handle_t *handle, const char *firmware);
 int minipro_pin_test(minipro_handle_t *handle);
 int minipro_logic_ic_test(minipro_handle_t *handle);
-
 #endif
