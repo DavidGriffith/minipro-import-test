@@ -41,14 +41,14 @@ void *usb_open(uint8_t verbose) {
 
   void *usb_handle =
       libusb_open_device_with_vid_pid(NULL, MP_TL866_VID, MP_TL866_PID);
-  if (usb_handle == NULL) {
+  if (!usb_handle) {
     // We didn't match the vid / pid of the "original" TL866 - so try the new
     // TL866II+
     usb_handle =
         libusb_open_device_with_vid_pid(NULL, MP_TL866II_VID, MP_TL866II_PID);
 
     // If we don't get that either report error in connecting
-    if (usb_handle == NULL) {
+    if (!usb_handle) {
       libusb_exit(NULL);
       if(verbose)
     	  fprintf(stderr, "No programmer found.\n");
@@ -85,7 +85,7 @@ int usb_close(void *usb_handle) {
 // Get no. of devices connected
 int minipro_get_devices_count(uint8_t version) {
   libusb_device **devs;
-  int devices = 0;
+  int i, devices = 0;
 
   uint16_t PID = version == MP_TL866IIPLUS ? MP_TL866II_PID : MP_TL866_PID;
   uint16_t VID = version == MP_TL866IIPLUS ? MP_TL866II_VID : MP_TL866_VID;
@@ -98,7 +98,7 @@ int minipro_get_devices_count(uint8_t version) {
     return 0;
   }
 
-  for (int i = 0; i < count; i++) {
+  for (i = 0; i < count; i++) {
     struct libusb_device_descriptor desc;
     int ret = libusb_get_device_descriptor(devs[i], &desc);
     if (ret < 0) {
@@ -144,7 +144,7 @@ static int payload_transfer(void *handle, uint8_t direction,
 
   ep2_urb = libusb_alloc_transfer(0);
   ep3_urb = libusb_alloc_transfer(0);
-  if (ep2_urb == NULL || ep3_urb == NULL) {
+  if (!ep2_urb || !ep3_urb) {
     fprintf(stderr, "Out of memory!\n");
     return EXIT_FAILURE;
   }
@@ -239,7 +239,7 @@ int read_payload(void *handle, uint8_t *buffer, size_t length) {
    * 64 bytes will cause an libusb overflow.
    */
 
-  int bytes_transferred;
+  int i, bytes_transferred;
   if (length < 64) {
     uint8_t data[64];
     if (msg_transfer(handle, data, sizeof(data), LIBUSB_ENDPOINT_IN, 0x02,
@@ -270,7 +270,7 @@ int read_payload(void *handle, uint8_t *buffer, size_t length) {
 
   // Deinterlacing the buffers
   size_t blocks = length / 64;
-  for (int i = 0; i < blocks; ++i) {
+  for (i = 0; i < blocks; ++i) {
     uint8_t *ep_buf;
     if (i % 2 == 0) {
       ep_buf = data;
