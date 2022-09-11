@@ -101,7 +101,7 @@ static record_t parse_record(uint8_t *record) {
   // Calculate checksum and copy data bytes
   uint8_t checksum_c =
       rec.count + (rec.address >> 8) + (rec.address & 0xFF) + rec.type;
-  for (size_t i = 0; i < rec.count; i++) {
+  for (i = 0; i < rec.count; i++) {
     rec.data[i] = (hex(record[i * 2 + 9]) << 4) | hex(record[i * 2 + 10]);
     checksum_c += rec.data[i];
   }
@@ -216,9 +216,9 @@ int read_hex_file(uint8_t *buffer, uint8_t *data, size_t *size) {
 }
 
 // Write an Intel hex file
-int write_hex_file(FILE *file, uint8_t *data, size_t size) {
+int write_hex_file(FILE *file, uint8_t *data, uint16_t address, size_t size,
+                   int write_eof) {
   record_t rec;
-  uint16_t address = 0;
   uint16_t uba = 0;
   size_t len;
 
@@ -255,10 +255,12 @@ int write_hex_file(FILE *file, uint8_t *data, size_t size) {
     }
   }
 
-  // Insert EOF record
-  rec.type = IHEX_EOF;
-  rec.count = 0x00;
-  rec.address = 0x00;
-  write_record(file, &rec);
+  // Insert EOF record if requested
+  if (write_eof) {
+    rec.type = IHEX_EOF;
+    rec.count = 0x00;
+    rec.address = 0x00;
+    write_record(file, &rec);
+  }
   return EXIT_SUCCESS;
 }

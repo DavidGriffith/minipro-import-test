@@ -127,7 +127,7 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
     if (!*p_token) continue;
 
     // Skip non printable characters but ETX
-    while (!isalpha(*p_token) && *p_token != ETX) p_token++;
+    while (!isalpha((int)*p_token) && *p_token != ETX) p_token++;
 
     // Exit the loop if the ETX character is found
     if (*p_token == ETX) break;
@@ -239,7 +239,7 @@ static int parse_tokens(char *buffer, size_t buffer_size, jedec_t *jedec,
          We need to parse each line to get the entire 120 bits row.
          */
         while (*p_next != DELIMITER) {
-          if (!iscntrl(*p_next) && *p_next != ' ' && *p_next != '0' &&
+          if (!iscntrl((int)*p_next) && *p_next != ' ' && *p_next != '0' &&
               *p_next != '1')
             return BAD_FORMAT;
 
@@ -303,7 +303,7 @@ int write_jedec_file(FILE *file, jedec_t *jedec) {
   }
   char *p_buff = buffer;
 
-  if (jedec->device_name == NULL) jedec->device_name = "Unknown";
+  if (!jedec->device_name) jedec->device_name = "Unknown";
 
   // Print jedec header
   p_buff +=
@@ -326,8 +326,7 @@ int write_jedec_file(FILE *file, jedec_t *jedec) {
   p_buff += sprintf(p_buff, "\r\n*C%04X\r\n%c", fuse_checksum, ETX);
 
   // Calculate the file checksum
-  for(i = 0; i < p_buff - buffer; i++)
-	  file_checksum += buffer[i];
+  for (i = 0; i < p_buff - buffer; i++) file_checksum += buffer[i];
 
   sprintf(p_buff, "%04X\r\n", file_checksum);
 

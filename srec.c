@@ -132,7 +132,7 @@ static record_t parse_record(uint8_t *record) {
   if (rec.type < S4) {
 	  memset(rec.data, 0x00, sizeof(rec.data));
     size_t data_offset = (byte_count - rec.count) * 2 + 2;
-    for (size_t i = 0; i < rec.count; i++) {
+    for (i = 0; i < rec.count; i++) {
       rec.data[i] = (hex(record[data_offset + i * 2]) << 4) |
                     hex(record[data_offset + i * 2 + 1]);
       checksum_c += rec.data[i];
@@ -251,11 +251,12 @@ int read_srec_file(uint8_t *buffer, uint8_t *data, size_t *size) {
 }
 
 // Write an S-Record file
-int write_srec_file(FILE *file, uint8_t *data, size_t size) {
+int write_srec_file(FILE *file, uint8_t *data, uint32_t address, size_t size,
+                    int write_rec_count) {
   record_t rec;
-  uint32_t address = 0;
   size_t len;
   uint8_t type;
+  static size_t line = 0;
 
   char *header = "Written by Minipro open source software";
   memcpy(rec.data, header, strlen(header));
@@ -263,7 +264,6 @@ int write_srec_file(FILE *file, uint8_t *data, size_t size) {
   rec.count = strlen(header);
   rec.address = 0x00;
   write_record(file, &rec);
-  size_t line = 0;
 
   while (size) {
     if (address < 65536)
@@ -284,9 +284,12 @@ int write_srec_file(FILE *file, uint8_t *data, size_t size) {
     line++;
   }
   // Write record count
+  if (write_rec_count) {
   rec.type = (line < 65536 ? S5 : S6);
   rec.count = 0x00;
   rec.address = line;
+  line = 0;
   write_record(file, &rec);
+  }
   return EXIT_SUCCESS;
 }
