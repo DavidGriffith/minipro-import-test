@@ -75,6 +75,8 @@ int tl866a_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                       uint8_t items_count, uint8_t *buffer);
 int tl866a_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
                        uint8_t items_count, uint8_t *buffer);
+int tl866a_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
+                            size_t len);
 int tl866a_erase(minipro_handle_t *handle);
 int tl866a_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int tl866a_hardware_check(minipro_handle_t *handle);
@@ -83,5 +85,11 @@ int tl866a_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
 int tl866a_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                           uint8_t row, uint8_t flags, size_t size);
 int tl866a_firmware_update(minipro_handle_t *handle, const char *firmware);
-
+int tl866a_logic_ic_test(minipro_handle_t *handle);
+int tl866a_reset_state(minipro_handle_t *);
+int tl866a_set_zif_direction(struct minipro_handle *, uint8_t *);
+int tl866a_set_zif_state(struct minipro_handle *, uint8_t *);
+int tl866a_get_zif_state(struct minipro_handle *, uint8_t *);
+int tl866a_set_pin_drivers(struct minipro_handle *, pin_driver_t *);
+int tl866a_set_voltages(struct minipro_handle *, uint8_t, uint8_t);
 #endif
