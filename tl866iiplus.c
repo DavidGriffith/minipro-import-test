@@ -823,13 +823,11 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   fflush(stderr);
   if (minipro_reset(handle)) {
     fprintf(stderr, "failed!\n");
-    free(update_dat);
     return EXIT_FAILURE;
   }
   handle = minipro_open(NULL, VERBOSE);
   if (!handle) {
     fprintf(stderr, "failed!\n");
-    free(update_dat);
     return EXIT_FAILURE;
   }
   fprintf(stderr, "OK\n");
