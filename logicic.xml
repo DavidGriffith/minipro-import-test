@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<infoic>
-  <database device="TL866II">
+<logicic>
+  <database device="LOGIC">
     <manufacturer name="Logic Ic">
       <ic name="4000" type="5" voltage="5V" pins="14">
         <vector id="00"> X X 0 0 0 H G 0 H H 0 0 0 V </vector>
@@ -1064,27 +1064,27 @@
         <vector id="00"> 0 H 0 H 0 H G H 0 H 0 H 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
-      <ic name="7405(NonStandard)" type="5" voltage="5V" pins="14">
+      <ic name="7405" type="5" voltage="5V" pins="14">
         <vector id="00"> 0 H 0 H 0 H G H 0 H 0 H 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
-      <ic name="7405(OC/OD)" type="5" voltage="5V" pins="14">
+      <ic name="7405@OC" type="5" voltage="5V" pins="14">
         <vector id="00"> 0 Z 0 Z 0 Z G Z 0 Z 0 Z 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
-      <ic name="7406(NonStandard)" type="5" voltage="5V" pins="14">
+      <ic name="7406" type="5" voltage="5V" pins="14">
         <vector id="00"> 0 H 0 H 0 H G H 0 H 0 H 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
-      <ic name="7406(OC/OD)" type="5" voltage="5V" pins="14">
+      <ic name="7406@OC" type="5" voltage="5V" pins="14">
         <vector id="00"> 0 Z 0 Z 0 Z G Z 0 Z 0 Z 0 V </vector>
         <vector id="01"> 1 L 1 L 1 L G L 1 L 1 L 1 V </vector>
       </ic>
-      <ic name="7407(NonStandard)" type="5" voltage="5V" pins="14">
+      <ic name="7407" type="5" voltage="5V" pins="14">
         <vector id="00"> 1 H 1 H 1 H G H 1 H 1 H 1 V </vector>
         <vector id="01"> 0 L 0 L 0 L G L 0 L 0 L 0 V </vector>
       </ic>
-      <ic name="7407(OC/OD)" type="5" voltage="5V" pins="14">
+      <ic name="7407@OC" type="5" voltage="5V" pins="14">
         <vector id="00"> 1 Z 1 Z 1 Z G Z 1 Z 1 Z 1 V </vector>
         <vector id="01"> 0 L 0 L 0 L G L 0 L 0 L 0 V </vector>
       </ic>
@@ -3073,84 +3073,6 @@
         <vector id="07"> 0 0 1 0 H L H G C 0 0 1 0 0 0 V </vector>
         <vector id="08"> 0 0 1 0 L H H G C 0 0 1 0 0 0 V </vector>
       </ic>
-      <ic name="8155" type="5" voltage="5V" pins="40">
-        <vector id="00"> X X X 1 X X X 1 X X X X X X X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="01"> X X 0 0 X X 1 0 1 0 C 1 0 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="02"> X X 0 0 X X 1 0 0 1 0 H L H L H L H L G 1 0 1 0 1 0 1 0 X X X X X X X X X X X V </vector>
-        <vector id="03"> X X 0 0 X X 1 0 0 1 0 L H L H L H L H G 0 1 0 1 0 1 0 1 X X X X X X X X X X X V </vector>
-        <vector id="04"> X X 0 0 X X 1 0 1 0 C 0 1 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="05"> X X 0 0 X X 1 0 0 1 0 H L H L H L H L G X X X X X X X X 1 0 1 0 1 0 1 0 X X X V </vector>
-        <vector id="06"> X X 0 0 X X 1 0 0 1 0 L H L H L H L H G X X X X X X X X 0 1 0 1 0 1 0 1 X X X V </vector>
-        <vector id="07"> X X 0 0 X X 1 0 1 0 C 1 1 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="08"> 0 1 0 0 1 X 1 0 0 1 0 H L H L H H X X G X X X X X X X X X X X X X X X X 1 0 1 V </vector>
-        <vector id="09"> 1 0 0 0 0 X 1 0 0 1 0 L H L H L L X X G X X X X X X X X X X X X X X X X 0 1 0 V </vector>
-        <vector id="10"> X X 0 0 X X 1 0 1 0 C 0 0 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="11"> X X 0 0 X X 1 0 1 0 X 1 1 1 1 0 0 0 0 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="12"> X X 0 0 X X 1 0 1 1 C 1 1 1 1 0 0 0 0 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="13"> X X 0 0 X X 1 0 1 0 C 1 0 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="14"> X X 0 0 X X 1 0 1 0 X 1 0 1 0 1 0 1 0 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="15"> X X 0 0 X X 1 0 1 1 X 1 0 1 0 1 0 1 0 G H L H L H L H L X X X X X X X X X X X V </vector>
-        <vector id="16"> X X 0 0 X X 1 0 1 0 X 0 1 0 1 0 1 0 1 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="17"> X X 0 0 X X 1 0 1 1 X 0 1 0 1 0 1 0 1 G L H L H L H L H X X X X X X X X X X X V </vector>
-        <vector id="18"> X X 0 0 X X 1 0 1 0 C 0 1 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="19"> X X 0 0 X X 1 0 1 0 X 1 0 1 0 1 0 1 0 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="20"> X X 0 0 X X 1 0 1 1 X 1 0 1 0 1 0 1 0 G X X X X X X X X H L H L H L H L X X X V </vector>
-        <vector id="21"> X X 0 0 X X 1 0 1 0 X 0 1 0 1 0 1 0 1 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="22"> X X 0 0 X X 1 0 1 1 X 0 1 0 1 0 1 0 1 G X X X X X X X X L H L H L H L H X X X V </vector>
-        <vector id="23"> X X 0 0 X X 1 0 1 0 C 1 1 0 X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="24"> X X 0 0 X X 1 0 1 0 X 1 0 1 0 1 0 1 0 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="25"> L H 0 0 L X 1 0 1 1 X 1 0 1 0 1 0 1 0 G X X X X X X X X X X X X X X X X H L H V </vector>
-        <vector id="26"> X X 0 0 X X 1 0 1 0 X 0 1 0 1 0 1 0 1 G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="27"> H L 0 0 H X 1 0 1 1 X 0 1 0 1 0 1 0 1 G X X X X X X X X X X X X X X X X L H L V </vector>
-      </ic>
-      <ic name="8255" type="5" voltage="5V" pins="40">
-        <vector id="00"> X X X X 1 1 G X X X X X X X X X X X X X X X X X X V X X X X X X X X 1 1 X X X X </vector>
-        <vector id="01"> 0 1 0 1 0 0 G 0 0 X X X X X X X X X X X X X X X X V L H L H L H L H 0 1 0 1 0 1 </vector>
-        <vector id="02"> 1 0 1 0 0 0 G 0 0 X X X X X X X X X X X X X X X X V H L H L H L H L 0 1 1 0 1 0 </vector>
-        <vector id="03"> 1 0 1 0 0 0 G 0 0 0 0 0 0 0 0 0 0 1 0 1 0 1 0 1 0 V H L H L H L H L 0 1 1 0 1 0 </vector>
-        <vector id="04"> 1 0 1 0 0 0 G 1 0 1 0 1 0 0 1 0 1 1 0 1 0 1 0 1 0 V H L H L H L H L 0 1 1 0 1 0 </vector>
-        <vector id="05"> 1 0 1 0 0 0 G 0 1 1 0 1 0 0 1 0 1 1 0 1 0 1 0 1 0 V L H L H L H L H 0 1 1 0 1 0 </vector>
-        <vector id="06"> X X X X 1 0 G 1 1 X X X X X X X X X X X X X X X X V 1 0 0 0 0 0 0 0 0 0 X X X X </vector>
-        <vector id="07"> X X X X 1 0 G 1 1 X X X X X X X X X X X X X X X X V 1 0 0 0 0 0 0 0 0 1 X X X X </vector>
-        <vector id="08"> L L L L 1 0 G 0 0 L L L L L L L L L L L L L L L L V 1 0 1 0 1 0 1 0 0 0 L L L L </vector>
-        <vector id="09"> H L H L 1 0 G 0 0 L L L L L L L L L L L L L L L L V 1 0 1 0 1 0 1 0 0 1 H L H L </vector>
-        <vector id="10"> H L H L 1 0 G 0 1 L L L L L L L L L L L L L L L L V 0 1 0 1 0 1 0 1 0 0 H L H L </vector>
-        <vector id="11"> H L H L 1 0 G 0 1 L L L L L L L L H L H L H L H L V 0 1 0 1 0 1 0 1 0 1 H L H L </vector>
-        <vector id="12"> H L H L 1 0 G 1 0 L L L L L L L L H L H L H L H L V 1 0 1 0 1 0 1 0 0 0 H L H L </vector>
-        <vector id="13"> H L H L 1 0 G 1 0 H L H L L H L H H L H L H L H L V 1 0 1 0 1 0 1 0 0 1 H L H L </vector>
-        <vector id="14"> H L H L 1 0 G 1 0 H L H L L H L H H L H L H L H L V 1 0 1 0 1 0 1 0 0 0 H L H L </vector>
-      </ic>
-      <ic name="8259" type="5" voltage="5V" pins="28">
-        <vector id="00"> 0 0 1 0 0 0 1 0 0 1 1 X X G X 1 X X X X X X X X X 1 0 V </vector>
-        <vector id="01"> 0 1 1 0 0 0 0 1 0 0 0 X X G X 1 X X X X X X X X X 1 1 V </vector>
-        <vector id="02"> 0 0 1 0 0 0 0 1 0 0 0 X X G X 1 X X X X X X X X X 1 1 V </vector>
-        <vector id="03"> 0 1 1 0 0 0 0 1 1 0 1 X X G X 1 X X X X X X X X X 1 1 V </vector>
-        <vector id="04"> 0 0 1 0 0 0 0 1 1 0 1 X X G X 1 X 0 0 0 0 0 0 0 0 1 1 V </vector>
-        <vector id="05"> 0 1 1 X X X X X X X X X X G X 1 H 0 0 0 0 0 0 1 0 1 1 V </vector>
-        <vector id="06"> 0 1 1 X X X X X X X X X X G X 1 H 0 0 0 0 0 0 1 0 0 1 V </vector>
-        <vector id="07"> 0 1 1 X X X X X X X X X X G X 1 H 0 0 0 0 0 0 0 0 1 1 V </vector>
-        <vector id="08"> 0 1 1 L L L L H H H L X X G X 1 H 0 0 0 0 0 0 0 0 0 1 V </vector>
-        <vector id="09"> 0 1 1 X X X X X X X X X X G X 1 L 0 0 0 0 0 0 0 0 1 1 V </vector>
-        <vector id="10"> 0 0 1 0 0 1 0 0 0 0 0 X X G X 1 L 0 0 0 0 0 0 0 0 1 0 V </vector>
-        <vector id="11"> 0 1 1 0 0 1 0 0 0 0 0 X X G X 1 L 0 0 0 0 0 0 0 0 1 0 V </vector>
-        <vector id="12"> 0 1 1 X X X X X X X X X X G X 1 H 0 0 0 1 0 0 0 0 1 1 V </vector>
-      </ic>
-      <ic name="8279" type="5" voltage="5V" pins="40">
-        <vector id="00"> X X X X X X X X 1 X X X X X X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="01"> X X X X X X X X 0 1 1 0 0 0 0 1 0 0 1 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="02"> X X X X X X X X 0 1 0 0 0 0 0 1 0 0 1 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="03"> X X X X X X X X 0 1 1 0 0 0 0 1 0 0 1 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="04"> X X X X X X X X 0 1 0 1 0 1 0 1 0 1 0 G 0 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="05"> X X X X X X X X 0 1 1 1 0 1 0 1 0 1 0 G 0 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="06"> X X X X X X X X 0 1 1 0 0 0 0 0 1 1 0 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="07"> X X X X X X X X 0 1 0 0 0 0 0 0 1 1 0 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="08"> X X X X X X X X 0 1 1 0 0 0 0 0 1 1 0 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="09"> X X X X X X X X 0 0 1 H L H L H L H L G 0 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="10"> X X X X X X X X 1 X X X X X X X X X X G X X X X X X X X X X X X X X X X X X X V </vector>
-        <vector id="11"> X X X X X X X X 0 1 1 1 1 1 1 1 0 1 1 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="12"> X X X X X X X X 0 1 0 1 1 1 1 1 0 1 1 G 1 0 1 X X X X X X X X 1 1 X X X X X X V </vector>
-        <vector id="13"> X X X X X X X X 0 1 1 1 1 1 1 1 0 1 1 G 1 0 1 H H H H H H H H 1 1 X X X X X X V </vector>
-      </ic>
       <ic name="PC827/LTV827" type="5" voltage="5V" pins="8">
         <vector id="00"> 0 0 0 0 0 Z 0 Z </vector>
         <vector id="01"> 0 0 0 0 1 Z 1 Z </vector>
@@ -3224,4 +3146,4 @@
       </ic>
     </custom>   
   </database>
-</infoic>
+</logicic>
