@@ -41,14 +41,14 @@ void *usb_open(uint8_t verbose) {
 
   void *usb_handle =
       libusb_open_device_with_vid_pid(NULL, MP_TL866_VID, MP_TL866_PID);
-  if (!usb_handle) {
+  if (usb_handle == NULL) {
     // We didn't match the vid / pid of the "original" TL866 - so try the new
     // TL866II+
     usb_handle =
         libusb_open_device_with_vid_pid(NULL, MP_TL866II_VID, MP_TL866II_PID);
 
     // If we don't get that either report error in connecting
-    if (!usb_handle) {
+    if (usb_handle == NULL) {
       libusb_exit(NULL);
       if(verbose)
     	  fprintf(stderr, "No programmer found.\n");
