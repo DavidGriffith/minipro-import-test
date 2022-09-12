@@ -26,8 +26,8 @@ my @vlt = qw/5V 3V3 2V5 1V8/;
 
 print <<END;
 <?xml version="1.0" encoding="utf-8"?>
-<infoic>
-  <database device="TL866II">
+<logicic>
+  <database device="LOGIC">
     <manufacturer name="Logic Ic">
 END
 
@@ -52,5 +52,5 @@ for my $item (0..$ItemCount-1) {
 print <<END;
     </manufacturer>
   </database>
-</infoic>
+</logicic>
 END
