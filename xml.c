@@ -123,15 +123,14 @@ static int nextpair(const uint8_t **value, size_t *valuelen,
 
 int parse(Parser *p) {
   const uint8_t *content, *tag = NULL;
-  size_t contentlen = 0;
-  size_t taglen = 0;
-  int r, neu = 1;
+  size_t contentlen = 0, taglen = 0;
+  int r, new = 1;
   while ((r = nextpair(&content, &contentlen, &tag, &taglen, &p->mm,
                        p->inputcbdata)) == XML_OK) {
     p->content = content;
     p->contentlen = contentlen;
     if (*tag == '/') {
-      if ((r = p->worker(neu ? NORMALCLOSE_ : FRAMECLOSE_, tag, taglen, p)) !=
+      if ((r = p->worker(new ? NORMALCLOSE_ : FRAMECLOSE_, tag + 1, taglen - 1, p)) !=
           XML_OK)
         return r;
 
@@ -148,19 +147,19 @@ int parse(Parser *p) {
     } else {
       if ((r = p->worker(OPENTAG_, tag, taglen, p)) != XML_OK) return r;
 
-      p->ebene++;
+      p->level++;
       if ((r = parse(p)) != XML_OK) return r;
-      p->ebene--;
+      p->level--;
     }
 
-    neu = 0;
+    new = 0;
   }
 
   if (contentlen || taglen) {
     if ((r = p->worker(UNKNOWN_, tag, taglen, p)) != XML_OK) return r;
   }
 
-  if (p->ebene) return ERRHIERAR;
+  if (p->level) return ERRHIERAR;
 
   return XML_OK;
 }
@@ -170,15 +169,18 @@ void done(Parser *p) {
   memset(p, 0, sizeof *p);
 }
 
-Memblock get_attribute(const uint8_t *s, size_t z, Memblock m) {
+Memblock get_attribute(const uint8_t *tag, size_t taglen,
+                       const char *attribute) {
   int i = 0;
-  for (; i < (int)z - 3 - (int)m.z; ++i) {
-    if (s[i + m.z + 1] == '=' && s[i + m.z + 2] == '\"' &&
-        memchr(" \n\r\t\v\f", s[i], 6) != 0 && !memcmp(s + i + 1, m.b, m.z)) {
+  Memblock m = (Memblock){strlen(attribute), (uint8_t *)attribute};
+  for (; i < (int)taglen - 3 - (int)m.z; ++i) {
+    if (tag[i + m.z + 1] == '=' && tag[i + m.z + 2] == '\"' &&
+        memchr(" \n\r\t\v\f", tag[i], 6) != 0 &&
+        !memcmp(tag + i + 1, m.b, m.z)) {
       size_t r = i + m.z + 3;
-      m.b = s + r;
+      m.b = tag + r;
       m.z = 0;
-      while (r < z && s[r++] != '\"') {
+      while (r < taglen && tag[r++] != '\"') {
         ++m.z;
       }
       return m;

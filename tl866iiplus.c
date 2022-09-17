@@ -27,8 +27,10 @@
 #include "database.h"
 #include "minipro.h"
 #include "tl866iiplus.h"
+#include "bitbang.h"
 #include "usb.h"
 
+#define TL866IIPLUS_NAND_INIT 0x02
 #define TL866IIPLUS_BEGIN_TRANS 0x03
 #define TL866IIPLUS_END_TRANS 0x04
 #define TL866IIPLUS_READID 0x05
@@ -36,6 +38,8 @@
 #define TL866IIPLUS_WRITE_USER 0x07
 #define TL866IIPLUS_READ_CFG 0x08
 #define TL866IIPLUS_WRITE_CFG 0x09
+#define TL866IIPLUS_WRITE_USER_DATA 0x0A
+#define TL866IIPLUS_READ_USER_DATA 0x0B
 #define TL866IIPLUS_WRITE_CODE 0x0C
 #define TL866IIPLUS_READ_CODE 0x0D
 #define TL866IIPLUS_ERASE 0x0E
@@ -43,6 +47,7 @@
 #define TL866IIPLUS_WRITE_DATA 0x11
 #define TL866IIPLUS_WRITE_LOCK 0x14
 #define TL866IIPLUS_READ_LOCK 0x15
+#define TL866IIPLUS_READ_CALIBRATION 0x16
 #define TL866IIPLUS_PROTECT_OFF 0x18
 #define TL866IIPLUS_PROTECT_ON 0x19
 #define TL866IIPLUS_READ_JEDEC 0x1D
@@ -205,100 +210,129 @@ enum GND_PINS
 };
 
 // clang-format on
-static void msg_init(minipro_handle_t *handle, uint8_t command, uint8_t *buf,
-                     size_t length) {
-  assert(length >= 8);
-
-  memset(buf, 0x00, length);
-  buf[0] = command;
-  if (handle->device) {
-    buf[1] = handle->device->protocol_id;
-    buf[2] = handle->device->variant;
-    buf[3] = handle->icsp;
-  }
-}
-
 int tl866iiplus_begin_transaction(minipro_handle_t *handle) {
   uint8_t msg[64];
   uint8_t ovc;
+  device_t *device = handle->device;
 
-  // Init message.
-  msg_init(handle, TL866IIPLUS_BEGIN_TRANS, msg, sizeof(msg));
+  memset(msg, 0x00, sizeof(msg));
+  if (!handle->device->flags.custom_protocol) {
+    /*
+      // Send a NAND init
+      if(handle->device->chip_type == MP_NAND){
+              msg[0] = TL866IIPLUS_NAND_INIT;
 
-  // 16Bit = 4bit Vdd + 4bit Vcc + 4 bit Vpp + 0
-  format_int(&(msg[4]), handle->device->opts5, 2, MP_LITTLE_ENDIAN);
-  msg[6] = (uint8_t)handle->device->opts7;
-  msg[7] = (uint8_t)handle->device->opts8;
-  format_int(&(msg[8]), handle->device->data_memory_size, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[10]), handle->device->opts2, 2, MP_LITTLE_ENDIAN);
-  format_int(&(msg[12]), handle->device->opts3, 2,
-             MP_LITTLE_ENDIAN);  // Pulse delay
-  format_int(&(msg[14]), handle->device->data_memory2_size, 2,
-             MP_LITTLE_ENDIAN);
-  format_int(&(msg[16]), handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
-  msg[20] = (uint8_t)(handle->device->opts5 >> 16);
+             if(msg_send(handle->usb_handle, msg, sizeof(msg))) return
+      EXIT_FAILURE; memset(msg, 0x00, sizeof(msg));
+      }
+    */
 
-  if ((handle->device->opts5 & 0xf0) == 0xf0) {
-    msg[22] = (uint8_t)handle->device->opts5;
+    msg[0] = TL866IIPLUS_BEGIN_TRANS;
+    msg[1] = device->protocol_id;
+    msg[2] = (uint8_t)handle->device->variant;
+    msg[3] = handle->icsp;
+
+    format_int(&(msg[4]), device->voltages.raw_voltages, 2, MP_LITTLE_ENDIAN);
+    msg[6] = (uint8_t)device->chip_info;
+    msg[7] = (uint8_t)device->pin_map;
+    format_int(&(msg[8]), device->data_memory_size, 2, MP_LITTLE_ENDIAN);
+    format_int(&(msg[10]), device->page_size, 2, MP_LITTLE_ENDIAN);
+    format_int(&(msg[12]), device->pulse_delay, 2, MP_LITTLE_ENDIAN);
+    format_int(&(msg[14]), device->data_memory2_size, 2, MP_LITTLE_ENDIAN);
+    format_int(&(msg[16]), device->code_memory_size, 4, MP_LITTLE_ENDIAN);
+
+    msg[20] = (uint8_t)(device->voltages.raw_voltages >> 16);
+
+    if ((device->voltages.raw_voltages & 0xf0) == 0xf0) {
+      msg[22] = (uint8_t)device->voltages.raw_voltages;
+    } else {
+      msg[21] = (uint8_t)device->voltages.raw_voltages & 0x0f;
+      msg[22] = (uint8_t)device->voltages.raw_voltages & 0xf0;
+    }
+    if (device->voltages.raw_voltages & 0x80000000)
+      msg[22] = (device->voltages.raw_voltages >> 16) & 0x0f;
+
+    format_int(&(msg[40]), handle->device->package_details.packed_package, 4,
+               MP_LITTLE_ENDIAN);
+    format_int(&(msg[44]), handle->device->read_buffer_size, 2,
+               MP_LITTLE_ENDIAN);
+    format_int(&(msg[56]), handle->device->flags.raw_flags, 4,
+               MP_LITTLE_ENDIAN);
+
+    if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   } else {
-    msg[21] = (uint8_t)handle->device->opts5 & 0x0f;
-    msg[22] = (uint8_t)handle->device->opts5 & 0xf0;
+    if (bb_begin_transaction(handle)) {
+      return EXIT_FAILURE;
+    }
   }
-  if (handle->device->opts5 & 0x80000000)
-    msg[22] = (handle->device->opts5 >> 16) & 0x0f;
-
-  format_int(&(msg[40]), handle->device->package_details, 4, MP_LITTLE_ENDIAN);
-  format_int(&(msg[44]), handle->device->read_buffer_size, 2, MP_LITTLE_ENDIAN);
-
-  if(msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   if (tl866iiplus_get_ovc_status(handle, NULL, &ovc)) return EXIT_FAILURE;
-   if (ovc) {
-     fprintf(stderr, "Overcurrent protection!\007\n");
-     return EXIT_FAILURE;
-   }
-   return EXIT_SUCCESS;
+  if (ovc) {
+    fprintf(stderr, "Overcurrent protection!\007\n");
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
 int tl866iiplus_end_transaction(minipro_handle_t *handle) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_end_transaction(handle);
+  }
   uint8_t msg[8];
-  msg_init(handle, TL866IIPLUS_END_TRANS, msg, sizeof(msg));
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_END_TRANS;
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 
 int tl866iiplus_read_block(minipro_handle_t *handle, uint8_t type,
                            uint32_t addr, uint8_t *buf, size_t len) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_read_block(handle, type, addr, buf, len);
+  }
   uint8_t msg[64];
 
   if (type == MP_CODE) {
     type = TL866IIPLUS_READ_CODE;
   } else if (type == MP_DATA) {
     type = TL866IIPLUS_READ_DATA;
+  } else if (type == MP_USER) {
+    type = TL866IIPLUS_READ_USER_DATA;
   } else {
     fprintf(stderr, "Unknown type for read_block (%d)\n", type);
     return EXIT_FAILURE;
   }
 
-  msg_init(handle, type, msg, sizeof(msg));
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = type;
   format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[4]), addr, 4, MP_LITTLE_ENDIAN);
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+
+  // data_memory2 page is always read over endpoint 1
+  if (type == TL866IIPLUS_READ_USER_DATA)
+    return msg_recv(handle->usb_handle, buf, len);
   return read_payload(handle->usb_handle, buf, len);
 }
 
 int tl866iiplus_write_block(minipro_handle_t *handle, uint8_t type,
                             uint32_t addr, uint8_t *buf, size_t len) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_write_block(handle, type, addr, buf, len);
+  }
   uint8_t msg[64];
 
   if (type == MP_CODE) {
     type = TL866IIPLUS_WRITE_CODE;
   } else if (type == MP_DATA) {
     type = TL866IIPLUS_WRITE_DATA;
+  } else if (type == MP_USER) {
+    type = TL866IIPLUS_WRITE_USER_DATA;
   } else {
     fprintf(stderr, "Unknown type for write_block (%d)\n", type);
     return EXIT_FAILURE;
   }
 
-  msg_init(handle, type, msg, sizeof(msg));
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = type;
   format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
   format_int(&(msg[4]), addr, 4, MP_LITTLE_ENDIAN);
   if (len < 57) {                 // If the header + payload is up to 64 bytes
@@ -316,7 +350,10 @@ int tl866iiplus_write_block(minipro_handle_t *handle, uint8_t type,
 int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type,
                            size_t length, uint8_t items_count,
                            uint8_t *buffer) {
-  uint8_t msg[16];
+  if (handle->device->flags.custom_protocol) {
+    return bb_read_fuses(handle, type, length, items_count, buffer);
+  }
+  uint8_t msg[64];
 
   if (type == MP_FUSE_USER) {
     type = TL866IIPLUS_READ_USER;
@@ -335,7 +372,7 @@ int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type,
   msg[2] = items_count;
   format_int(&msg[4], handle->device->code_memory_size, 4, MP_LITTLE_ENDIAN);
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
-  if (msg_recv(handle->usb_handle, msg, 8 + length)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   memcpy(buffer, &(msg[8]), length);
   return EXIT_SUCCESS;
 }
@@ -343,7 +380,10 @@ int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type,
 int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type,
                             size_t length, uint8_t items_count,
                             uint8_t *buffer) {
-  uint8_t msg[16];
+  if (handle->device->flags.custom_protocol) {
+    return bb_write_fuses(handle, type, length, items_count, buffer);
+  }
+  uint8_t msg[64];
 
   if (type == MP_FUSE_USER) {
     type = TL866IIPLUS_WRITE_USER;
@@ -357,26 +397,46 @@ int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type,
 
   memset(msg, 0, sizeof(msg));
   msg[0] = type;
-  msg[1] = handle->device->protocol_id;
-  msg[2] = items_count;
-  format_int(&msg[4], handle->device->code_memory_size - 0x38, 4,
-             MP_LITTLE_ENDIAN);  // 0x38, firmware bug?
-  memcpy(&(msg[8]), buffer, length);
-  return (msg_send(handle->usb_handle, msg, 8 + length));
+  if (buffer) {
+    msg[1] = handle->device->protocol_id;
+    msg[2] = items_count;
+    format_int(&msg[4], handle->device->code_memory_size - 0x38, 4,
+               MP_LITTLE_ENDIAN);  // 0x38, firmware bug?
+    memcpy(&(msg[8]), buffer, length);
+  }
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
+}
+
+int tl866iiplus_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
+                                 size_t len) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_read_calibration(handle, buffer, len);
+  }
+  uint8_t msg[64];
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_READ_CALIBRATION;
+  format_int(&(msg[2]), len, 2, MP_LITTLE_ENDIAN);
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  return msg_recv(handle->usb_handle, buffer, len);
 }
 
 int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
                             uint32_t *device_id) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_get_chip_id(handle, device_id);
+  }
   uint8_t msg[8], format, id_length;
-  msg_init(handle, TL866IIPLUS_READID, msg, sizeof(msg));
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_READID;
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, 6)) return EXIT_FAILURE;
   *type = msg[0];  // The Chip ID type (1-5)
   format = (*type == MP_ID_TYPE3 || *type == MP_ID_TYPE4 ? MP_LITTLE_ENDIAN
                                                          : MP_BIG_ENDIAN);
   // The length byte is always 1-4 but never know, truncate to max. 4 bytes.
-  id_length = handle->device->chip_id_bytes_count > 4 ? 4
-                                      : handle->device->chip_id_bytes_count;
+  id_length = handle->device->chip_id_bytes_count > 4
+                  ? 4
+                  : handle->device->chip_id_bytes_count;
   *device_id = (id_length ? load_int(&(msg[2]), id_length, format)
                           : 0);  // Check for positive length.
   return EXIT_SUCCESS;
@@ -384,6 +444,9 @@ int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
 
 int tl866iiplus_spi_autodetect(minipro_handle_t *handle, uint8_t type,
                                uint32_t *device_id) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_spi_autodetect(handle, type, device_id);
+  }
   uint8_t msg[64];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_AUTODETECT;
@@ -395,52 +458,52 @@ int tl866iiplus_spi_autodetect(minipro_handle_t *handle, uint8_t type,
 }
 
 int tl866iiplus_protect_off(minipro_handle_t *handle) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_protect_off(handle);
+  }
   uint8_t msg[8];
-  msg_init(handle, TL866IIPLUS_PROTECT_OFF, msg, sizeof(msg));
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_PROTECT_OFF;
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 
 int tl866iiplus_protect_on(minipro_handle_t *handle) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_protect_on(handle);
+  }
   uint8_t msg[8];
-  msg_init(handle, TL866IIPLUS_PROTECT_ON, msg, sizeof(msg));
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_PROTECT_ON;
   return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 
 int tl866iiplus_erase(minipro_handle_t *handle) {
-  // fprintf(stderr, "Erase\n");
-  uint8_t msg[64];
-  msg_init(handle, TL866IIPLUS_ERASE, msg, sizeof(msg));
-  format_int(&(msg[2]), 0x03, 2, MP_LITTLE_ENDIAN);
-  /* There's no "write unlock". This is how many fuses the controller have
-   * or 1 if the device is something else.
-   */
-  switch (handle->device->protocol_id) {
-    case PLD_PROTOCOL2_16V8:
-    case PLD_PROTOCOL2_20V8:
-    case PLD_PROTOCOL2_22V10:
-      break;
-    default:
-
-      if (((fuse_decl_t *)handle->device->config) == NULL ||
-          ((fuse_decl_t *)handle->device->config)->num_fuses == 0)
-        msg[2] = 1;
-      else {
-        msg[2] = ((fuse_decl_t *)handle->device->config)->erase_num_fuses;
-      }
+  if (handle->device->flags.custom_protocol) {
+    return bb_erase(handle);
   }
+  uint8_t msg[64];
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_ERASE;
+
+  fuse_decl_t *fuses = (fuse_decl_t *)handle->device->config;
+  if (!fuses || fuses->num_fuses)
+    msg[2] = 1;
+  else
+    msg[2] = (fuses->num_fuses > 4) ? 1 : fuses->num_fuses;
+
   if (msg_send(handle->usb_handle, msg, 15)) return EXIT_FAILURE;
   memset(msg, 0x00, sizeof(msg));
-  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-  return EXIT_SUCCESS;
+  return msg_recv(handle->usb_handle, msg, sizeof(msg));
 }
 
 int tl866iiplus_get_ovc_status(minipro_handle_t *handle,
                                minipro_status_t *status, uint8_t *ovc) {
   uint8_t msg[32];
-  msg_init(handle, TL866IIPLUS_REQUEST_STATUS, msg, sizeof(msg));
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_REQUEST_STATUS;
   if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
   if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
-  if (status)  // Check for null
+  if (status && !handle->device->flags.custom_protocol)
   {
     // This is verify while writing feature.
     status->error = msg[0];
@@ -456,7 +519,8 @@ int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
   uint8_t msg[48];
   uint16_t i, crc = 0;
 
-  msg_init(handle, TL866IIPLUS_UNLOCK_TSOP48, msg, sizeof(msg));
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_UNLOCK_TSOP48;
 
   srand(time(NULL));
   for (i = 8; i < 16; i++) {
@@ -477,8 +541,12 @@ int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status) {
   *status = msg[1];
   return EXIT_SUCCESS;
 }
+
 int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                                 uint8_t row, uint8_t flags, size_t size) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_write_jedec_row(handle, buffer, row, flags, size);
+  }
   uint8_t msg[64];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_WRITE_JEDEC;
@@ -492,6 +560,9 @@ int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
 
 int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
                                uint8_t row, uint8_t flags, size_t size) {
+  if (handle->device->flags.custom_protocol) {
+    return bb_read_jedec_row(handle, buffer, row, flags, size);
+  }
   uint8_t msg[32];
   memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_READ_JEDEC;
@@ -551,7 +622,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
 
   // Open the update.dat firmware file
   FILE *file = fopen(firmware, "rb");
-  if (file == NULL) {
+  if (!file) {
     fprintf(stderr, "%s open error!: ", firmware);
     perror("");
     return EXIT_FAILURE;
@@ -607,7 +678,8 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   // The updateII.dat contains a xor table of 1024 bytes length at the offset 8.
   // This table is used to obfuscate the block address.
   uint32_t xorptr;
-  for (uint32_t i = 0; i < blocks; i++) {
+  int i, j;
+  for (i = 0; i < blocks; i++) {
     xorptr = load_int(update_dat + ptr + 4, 4,
                       MP_LITTLE_ENDIAN);  // Load the xor table pointer
 
@@ -615,7 +687,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
      * The destination address of each data block (offset 8) is obfuscated
      * by xoring the LSB part of the address against a xortable 264 times (44*6)
      */
-    for (uint32_t i = 0; i < 44; i++) {
+    for (j = 0; j < 44; j++) {
       update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
       update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
       update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];
@@ -639,7 +711,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
    * by xoring the LSB part of the address against a xortable 2056 times (514*4)
    */
   xorptr = load_int(update_dat + ptr + 4, 4, MP_LITTLE_ENDIAN);
-  for (uint32_t i = 0; i < 514; i++) {
+  for (i = 0; i < 514; i++) {
     update_dat[ptr + 8] ^= update_dat[(xorptr & 0x3FF) + 8];
     update_dat[ptr + 8] ^= update_dat[((xorptr + 1) & 0x3FF) + 8];
     update_dat[ptr + 8] ^= update_dat[((xorptr + 2) & 0x3FF) + 8];
@@ -688,7 +760,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
       free(update_dat);
       return EXIT_FAILURE;
     }
-    handle = minipro_open(NULL, VERBOSE);
+    handle = minipro_open(VERBOSE);
     if (!handle) {
       fprintf(stderr, "failed!\n");
       free(update_dat);
@@ -731,7 +803,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
   fflush(stderr);
 
   ptr = 1036;  // First firmware block
-  for (int i = 0; i < blocks; i++) {
+  for (i = 0; i < blocks; i++) {
     msg[0] = TL866IIPLUS_BOOTLOADER_WRITE;
     msg[1] = update_dat[ptr + 12] & 0x7F;         // Xor table index
     msg[2] = 0;                                   // Data Length LSB
@@ -825,7 +897,7 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
     fprintf(stderr, "failed!\n");
     return EXIT_FAILURE;
   }
-  handle = minipro_open(NULL, VERBOSE);
+  handle = minipro_open(VERBOSE);
   if (!handle) {
     fprintf(stderr, "failed!\n");
     return EXIT_FAILURE;
@@ -842,97 +914,107 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle,
 
 int tl866iiplus_pin_test(minipro_handle_t *handle) {
   uint8_t msg[48], pins[40];
+  int i;
+  db_data_t db_data;
+  memset (&db_data, 0, sizeof(db_data));
 
   // Get the chip pin mask for testing
-  pin_map_t *map = get_pin_map(handle->device->opts8 & 0xFF);
+  db_data.infoic_path = handle->cmdopts->infoic_path;
+  db_data.logicic_path = handle->cmdopts->logicic_path;
+  db_data.index = handle->device->pin_map;
+  pin_map_t *map = get_pin_map(&db_data);
   if (!map) return EXIT_FAILURE;
 
   // Set the desired output pins
+  memset(msg, 0, sizeof(msg));
   msg[0] = TL866IIPLUS_SET_DIR;
   memset(&msg[8], 0x01, 40);
-  if (map->zero_c) {
-    for (uint32_t i = 0; i < (map->zero_c & 0x03); i++) {
-      msg[map->zero_t[i] + 8] = 0;
+  if (map->gnd_count) {
+    for (i = 0; i < (map->gnd_count); i++) {
+      msg[map->gnd_table[i] + 7] = 0;
     }
   }
+
+  int ret = EXIT_FAILURE;
   // Set the ZIF socket pins direction
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Set output pins to logic one
   msg[0] = TL866IIPLUS_SET_OUT;
   memset(&msg[8], 0x01, 40);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Enable right side ZIF socket pull-up resistors
   msg[0] = TL866IIPLUS_SET_PULLUPS;
   memset(&msg[28], 0x00, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Enable left side ZIF socket pull-down resistors
   msg[0] = TL866IIPLUS_SET_PULLDOWNS;
   memset(&msg[8], 0x00, 20);
   memset(&msg[28], 0x01, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Read ZIF socket pins and save the left side pins status
   msg[0] = TL866IIPLUS_READ_PINS;
-  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
-  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, 8)) goto cleanup;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
   memcpy(pins, &msg[8], 20);
 
   // Enable left side ZIF socket pull-up resistors
   msg[0] = TL866IIPLUS_SET_PULLUPS;
   memset(&msg[8], 0x00, 20);
   memset(&msg[28], 0x01, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Enable right side ZIF socket pull-down resistors
   msg[0] = TL866IIPLUS_SET_PULLDOWNS;
   memset(&msg[8], 0x01, 20);
   memset(&msg[28], 0x00, 20);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Read ZIF socket pins and save the right side pins status
   msg[0] = TL866IIPLUS_READ_PINS;
-  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
-  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, 8)) goto cleanup;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
   memcpy(&pins[20], &msg[28], 20);
 
   // Set output pins to logic zero
   msg[0] = TL866IIPLUS_SET_OUT;
   memset(&msg[8], 0x00, 40);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Reset ZIF socket pins direction
   msg[0] = TL866IIPLUS_SET_DIR;
   memset(&msg[8], 0x01, 40);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Reset pull-ups
   msg[0] = TL866IIPLUS_SET_PULLUPS;
   memset(&msg[8], 0x01, 40);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // Reset pull-downs
   msg[0] = TL866IIPLUS_SET_PULLDOWNS;
   memset(&msg[8], 0x00, 40);
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) goto cleanup;
 
   // End of transaction
   msg[0] = TL866IIPLUS_END_TRANS;
   if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
 
   // Now check for bad pin contact
-  int ret = EXIT_SUCCESS;
-  for (uint32_t i = 0; i < 40; i++) {
-    if (map->mask[i]) {
-      if (!pins[i]) {
-        fprintf(stderr, "Bad contact on pin:%u\n", i + 1);
-        ret = EXIT_FAILURE;
-      }
+  ret = EXIT_SUCCESS;
+  for (i = 0; i < map->mask_count; i++) {
+    if (!pins[map->mask[i] - 1]) {
+      fprintf(stderr, "Bad contact on pin:%u\n", i + 1);
+      ret = EXIT_FAILURE;
     }
   }
   if (!ret) fprintf(stderr, "Pin test passed.\n");
+
+cleanup:
+  free(map);
   return ret;
 }
 
@@ -941,9 +1023,10 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int pull) {
   uint8_t *vector = handle->device->vectors;
   uint8_t msg[32];
   uint8_t *result;
+  uint8_t pin_count = handle->device->package_details.pin_count;
 
-  result = calloc (handle->device->pin_count,
-                   handle->device->vector_count);
+  result = calloc(pin_count, handle->device->vector_count);
+  if(!result) return NULL;
 
   uint8_t *out = result;
   int n;
@@ -951,20 +1034,14 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int pull) {
     memset(msg, 0xff, sizeof(msg));
 
     msg[0] = TL866IIPLUS_LOGIC_IC_TEST_VECTOR;
-    msg[1] = handle->device->voltage;
+    msg[1] = handle->device->voltages.vcc;
     msg[1] |= pull << 7;// Set the pull-up/pull-down
-
-    msg[2] = handle->device->pin_count;
-    msg[3] = 0;
-
-    msg[4] = n & 0xff;
-    msg[5] = (n >> 8) & 0xff;
-    msg[6] = (n >> 16) & 0xff;
-    msg[7] = (n >> 24) & 0xff;
+    format_int(&msg[2], pin_count, 2, MP_LITTLE_ENDIAN);
+    format_int(&msg[4], n, 4, MP_LITTLE_ENDIAN);
 
     int i;
     //Pack the vector to 2 pin/byte
-    for (i = 0; i < handle->device->pin_count; i++) {
+    for (i = 0; i < handle->device->package_details.pin_count; i++) {
       if (i & 1)
          msg[8 + i/2] |= *vector << 4;
       else
@@ -983,7 +1060,7 @@ static uint8_t *do_ic_test(minipro_handle_t *handle, int pull) {
     }
 
     // Unpack the result from 2 pin/byte to 1 pin/byte
-    for (i = 0; i < handle->device->pin_count; i++)
+    for (i = 0; i < handle->device->package_details.pin_count; i++)
       *out++ = (msg[8 + i/2] >> (4 * (i & 1))) & 0xf;
   }
 
@@ -1023,46 +1100,44 @@ int tl866iiplus_logic_ic_test(minipro_handle_t *handle) {
     size_t n = 0;
 
     printf("      ");
-    for (int pin = 1; pin <= handle->device->pin_count; pin++)
+    for (int pin = 1; pin <= handle->device->package_details.pin_count; pin++)
       printf("%-3d", pin);
     putchar('\n');
 
     for (int i = 0; i < handle->device->vector_count; i++) {
       printf("%04d: ", i);
-      for (int pin = 0; pin < handle->device->pin_count; pin++) {
-        putchar(pst[vector[n]]);
+      for (int pin = 0; pin < handle->device->package_details.pin_count; pin++) {
         err = 0;
-        switch (pst[vector[n]]) {
-          case 'L': // Pin must be 0 in both steps
+        switch (vector[n]) {
+          case LOGIC_L: // Pin must be 0 in both steps
             if (first_step[n] || second_step[n]) err = 1;
             break;
-          case 'H': // Pin must be 1 in both steps
+          case LOGIC_H: // Pin must be 1 in both steps
             if (!first_step[n] || !second_step[n]) err = 1;
             break;
-          case 'Z': // Pin must be 1 in step 1 and 0 in step 2
+          case LOGIC_Z: // Pin must be 1 in step 1 and 0 in step 2
             if (!first_step[n] || second_step[n]) err = 1;
             break;
         }
-
-        putchar(err ? '-' : ' ');
+        printf("%s%c%c ", err ? "\e[0;91m" : "\e[0m",
+        		pst[vector[n]], err ? '-' : ' ');
         errors += err;
-        putchar(' ');
         n++;
       }
-      putchar('\n');
+      printf("\e[0m\n");
     }
 
     if (errors) {
-      printf("Logic test failed: %d errors encountered.\n", errors);
+      fprintf(stderr, "Logic test failed: %d errors encountered.\n", errors);
     } else {
-      printf("Logic test successful.\n");
+      fprintf(stderr, "Logic test successful.\n");
       ret = EXIT_SUCCESS;
     }
   }
 
   free(second_step);
   free(first_step);
-  tl866iiplus_end_transaction(handle);
+  if (tl866iiplus_end_transaction(handle)) return EXIT_FAILURE;
 
   return ret;
 }
@@ -1085,16 +1160,13 @@ static int init_zif(minipro_handle_t *handle, uint8_t pullup) {
   // Set pull-up resistors (0=enable, 1=disable)
   memset(&msg[8], pullup, 40);
   msg[0] = TL866IIPLUS_SET_PULLUPS;
-  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
-    return EXIT_FAILURE;
-  }
-  return EXIT_SUCCESS;
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
 
 // TL866II+ hardware check
 int tl866iiplus_hardware_check(minipro_handle_t *handle) {
   uint8_t msg[48], read_buffer[48];
-  uint8_t i, errors = 0;
+  int i, errors = 0;
 
   memset(msg, 0, sizeof(msg));
 
@@ -1310,8 +1382,134 @@ int tl866iiplus_hardware_check(minipro_handle_t *handle) {
 
   // Reset pin drivers
   msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
-  if (msg_send(handle->usb_handle, msg, 8)) {
+  return msg_send(handle->usb_handle, msg, 8);
+}
+
+
+//// Bit banging functions
+static void set_pin(zif_pins_t *pins, uint8_t size, uint8_t *out, uint8_t pin) {
+  int i;
+  for (i = 0; i < size; i++) {
+    if (pins[i].pin == pin) {
+      out[pins[i].byte] |= pins[i].mask;
+    }
+  }
+}
+
+int tl866iiplus_reset_state(minipro_handle_t *handle) {
+  uint8_t msg[8];
+  // Reset pin drivers state
+  msg[0] = TL866IIPLUS_RESET_PIN_DRIVERS;
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
+}
+
+int tl866iiplus_set_zif_direction(minipro_handle_t *handle, uint8_t *zif) {
+  uint8_t msg[48];
+  memset(msg, 0, sizeof(msg));
+  int i;
+  for(i = 0; i < 40; i++){
+	  msg[i + 8] = zif[i] &0x7f;
+  }
+  msg[0] = TL866IIPLUS_SET_DIR;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  for(i = 0; i < 40; i++){
+	 msg[8 + i] = zif[i] & 0x80 ? 0x00 : 0x01;
+  }
+  msg[0] = TL866IIPLUS_SET_PULLUPS;
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
+}
+
+int tl866iiplus_set_zif_state(minipro_handle_t *handle, uint8_t *zif) {
+  uint8_t msg[48];
+  memset(msg, 0, sizeof(msg));
+  memcpy(&msg[8], zif, 40);
+  msg[0] = TL866IIPLUS_SET_OUT;
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
+}
+
+int tl866iiplus_get_zif_state(minipro_handle_t *handle, uint8_t *zif) {
+  uint8_t msg[48];
+  memset(msg, 0, sizeof(msg));
+  msg[0] = TL866IIPLUS_READ_PINS;
+  if (msg_send(handle->usb_handle, msg, 8)) return EXIT_FAILURE;
+  if (msg_recv(handle->usb_handle, msg, sizeof(msg))) return EXIT_FAILURE;
+  memcpy(zif, &msg[8], 40);
+  return EXIT_SUCCESS;
+}
+
+int tl866iiplus_set_pin_drivers(minipro_handle_t *handle, pin_driver_t *pins) {
+  uint8_t msg[48];
+  int i;
+
+  // Set GND pins
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_SET_GND_PIN;
+  for (i = 0; i < 40; i++) {
+    if (pins[i].gnd) {
+      set_pin(gnd_pins, sizeof(gnd_pins) / sizeof(gnd_pins[0]), msg, i + 1);
+    }
+  }
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
     return EXIT_FAILURE;
   }
-  return EXIT_SUCCESS;
+
+  // Set VCC pins
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_SET_VCC_PIN;
+  for (i = 0; i < 40; i++) {
+    if (pins[i].vcc) {
+      set_pin(vcc_pins, sizeof(vcc_pins) / sizeof(vcc_pins[0]), msg, i + 1);
+    }
+  }
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+
+  // Set VPP pins
+  memset(msg, 0x00, sizeof(msg));
+  msg[0] = TL866IIPLUS_SET_VPP_PIN;
+  for (i = 0; i < 40; i++) {
+    if (pins[i].vpp) {
+      set_pin(vpp_pins, sizeof(vpp_pins) / sizeof(vpp_pins[0]), msg, i + 1);
+    }
+  }
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
+}
+
+/*
+  VPP[0..15]
+  9.0,  9.5, 10.0, 11.0, 11.5, 12.0, 12.5, 13.0,
+  13.5, 14.0, 14.5, 15.5, 16.0, 16.5, 17.0, 18.0
+
+  VCC[0..15]
+  1.9, 2.7, 3.0, 3.3, 3.6, 3.9, 4.1, 4.5,
+  4.8, 5.0, 5.3, 5.5, 6.0, 6.3, 6.5, 7.0
+ */
+
+int tl866iiplus_set_voltages(minipro_handle_t *handle, uint8_t vcc,
+                             uint8_t vpp) {
+  uint8_t msg[48];
+  memset(&msg, 0, sizeof(msg));
+
+  // Internal VCC table firmware map
+  static const uint8_t vcc_t[] = {0, 1, 2,  4,  3,  5,  6,  8,
+                                  7, 9, 10, 12, 11, 13, 14, 15};
+
+  // Internal VPP table firmware map
+  static const uint8_t vpp_t[] = {0,  8,  1, 9,  2, 10, 3, 4,
+                                  11, 12, 5, 13, 6, 14, 7, 15};
+  msg[0] = TL866IIPLUS_SET_VCC_VOLTAGE;
+  msg[8] = (vcc_t[vcc] & 0x01);
+  msg[9] = ((vcc_t[vcc] >> 1) & 0x01);
+  msg[10] = (vcc_t[vcc] >> 2) & 0x01;
+  msg[11] = (vcc_t[vcc] << 4) & 0x80;
+  if (msg_send(handle->usb_handle, msg, sizeof(msg))) {
+    return EXIT_FAILURE;
+  }
+  msg[0] = TL866IIPLUS_SET_VPP_VOLTAGE;
+  msg[8] = (vpp_t[vpp] & 0x01);
+  msg[9] = ((vpp_t[vpp] >> 1) & 0x01);
+  msg[10] = (vpp_t[vpp] >> 2) & 0x01;
+  msg[11] = (vpp_t[vpp] << 4) & 0x80;
+  return msg_send(handle->usb_handle, msg, sizeof(msg));
 }
