@@ -281,7 +281,7 @@ static int load_mem_device(db_data_t *db_data, const uint8_t *xml_device,
 
   // get blank value if present
   device->blank_value = get_attr_value(xml_device, size, "blank_value", &err);
-  if (err) device->blank_value = 0xff;
+  if(err || errno) device->blank_value = 0xff;
 
   // Get chip_ID bytes count
   device->chip_id_bytes_count = get_id_bytes_count(device->chip_id);
