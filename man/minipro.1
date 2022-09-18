@@ -1,18 +1,6 @@
-.TH MINIPRO 1 "14 August 2018 (v0.3)"
+.TH MINIPRO 1 "17 September 2022 (v0.6)"
 .SH NAME
-minipro \- programs various chips using the Minipro TL866XX series of programmers.
-.SH SYNOPSIS
-.B minipro
-.RB -l\ |\ -L " search"\ |\ -d " device"\ |\ -D\ |
-.RB [-p " device"]
-.RB [-c " code|data|config"]
-.RB [-o " option"\ ...\ ]
-.RB [-r|-w " filename"]
-.RB [-e] [-u] [-P] [-i|-I] [-v] [-s|-S] [-x] [-y] [-V] [-t]
-.RB [-T]
-.RB [-f " ihex|srec"]
-.RB [-F " filename"]
-.RB [-h]
+minipro \- A gree and open TL866XX programmer.
 
 .SH DESCRIPTION
 .I minipro
@@ -22,22 +10,36 @@ supports more than 13000 of target devices - including AVRs, PICs as
 well as a huge number of other microcontrollers and various memory
 chips.
 
-
-.SH OPTIONS
+.SH GENERAL OPTIONS
 .TP
-.B \-l
-Get a list of supported devices.
-
-.TP
-.B \-L <search>
-List devices beginning with this string.
+.B \-l, \--list
+List all supported devices.
 
 .TP
-.B \-d <device>
+.B \-L, \--search <search>
+List devices like this.
+
+.TP
+.B \-q, --programmer <version>
+Force a programmer version when listing devices.
+.br
+Possible values: TL866A TL866II.
+
+.TP
+.B \-Q, \--query_supported
+Query supported programmers.
+
+.TP
+.B \-k, \--presence_check
+Query the programmer version currently connected.
+
+.TP
+.B \-d, \--get_info <device>
 Show device information.
 
 .TP
-.B \-D
+.B \-D, \--get_id
+FIXME
 Just read the chip ID and do nothing else (like reading the whole chip
 contents).  This is for use in scripts where you have for example
 several similar chips with different IDs and want to check if the
@@ -45,111 +47,233 @@ currently inserted chip is one in your list of allowed ones. Also useful
 to detect if a chip is inserted at all when using the -y option.
 
 .TP
-.B \-p <device>
-Specify the device name.  If the desired device name contains a space,
-parenthesis, or at sign; the device name MUST be surrounded by quotes.
-
-.TP
-.B \-c <type>
-Optionally specify memory type.  Possible values include "code", "data",
-and "config". The "config" memory type is used to access fuses, see
-FUSES below.
-
-.TP
-.B \-o <option>
-
-Specify various programming options. For multiple options use -o multiple
-times. Valid options are:
-
-.RS
-.IP \(bu 4
-vpp=<value>
-
-Set the programming voltage (10, 12.5, 13.5, 14, 16, 18, 21).
-
-.IP \(bu 4
-vdd=<value>
-
-Set the VDD write voltage (3.3, 4, 4.5, 5, 5.5, 6.25).
-
-.IP \(bu 4
-vcc=<value>
-
-Set the VCC verify voltage (3.3, 4, 4.5, 5, 5.5, 6.25).
-
-.IP \(bu 4
-pulse=<value>
-
-Set the programming pulse delay (0-65535 usec).
-.RE
-
-.TP
-.B \-r <filename>
+.B \-r, \--read <filename>
 Read from the device and write the contents to this file.
 
 .TP
-.B \-w <filename>
+.B \-w, \--write <filename>
 Write to the device using this file.
 
 .TP
-.B \-e
+.B \-m, --verify <filename>
+Verify memory in the device against this file.
+
+.TP
+.B \-c, --page <type>
+Specify memory type (optional).
+.br
+Possible values: code, data, config, user, calibration.
+.br
+The calibration byte(s) are Atmel AVR family specific and are read-only.
+User memory type is implemented as
+.B user row
+or
+.B encryption table
+on some devices like Atmel AT89S8253.  Use
+.B -c user
+to read or write this page.
+
+.TP
+.B \-f, --format <format>
+Specify file format.  Possible values: ihex, srec.
+
+.TP
+.B \-b, --blank_check
+Blank check.
+.br
+Optionally, you can use -c to specify a memory type.
+
+.TP
+.B \-a <type>, --auto_detect
+Auto-detect SPI 25xx devices.
+.br
+Possible values: 8, 16.
+
+.TP
+.B \-z, --pin_check
+Check for bad pin contact.
+
+.TP
+.B \-e, --skip_erase
 Do NOT erase device.
 
 .TP
-.B \-u
-Do NOT disable write-protect.
+.B \-E, --erase
+Just erase device.
 
 .TP
-.B \-P
-Do NOT enable write-protect.
+.B \-o <option>
+Specify various options.  For multiple options, use
+.B \-o
+multiple times.  For example:
+.B \-o vpp=12 -o vcc=5.5
+or long options:
+.B -vpp=12 --vcc=5.5
+.br
+Valid options are:
+.RS
+.TP
+.B \-o vpp=<value>,  \--vpp <value>
+Set the programming voltage.
+.br
+For TL866A/CS: 10, 12.5, 13.5, 14, 15.5, 16, 17, 18, 21.
+.br
+For TL866II+: 9, 9.5, 10, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15.5,
+16, 16.5, 17, 19.
 
 .TP
-.B \-v
+.B \-o vdd=<value>,  \--vdd <value>
+Set the VDD write voltage (3.3, 4, 4.5, 5, 5.5, 6.5).
+
+.TP
+.B \-o vcc=<value>,  \--vcc <value>
+For setting the VCC verify voltage (3.3, 4, 4.5, 5, 5.5, 6.5).
+.br
+For setting the VCC logic test voltage (1.8, 2.5, 3.3, 5).
+
+.TP
+.B \-o pulse=<value>,  \--pulse <value>
+Programming pulse delay (0-65535 usec).
+.RE
+
+.TP
+.B \-u, --unprotect
+Disable protection before programming.
+
+.TP
+.B \-P, --protect
+Enable protection after programming.
+
+.TP
+.B \-v, --skip_verify
 Do NOT verify after write.
 
 .TP
-.B \-i
-Use ICSP.
+.B \-p, --device
+Specify device (use quotes).
 
 .TP
-.B \-I
-Use ICSP (without enabling Vcc).
+.B \-T, --logic_test
+Logic IC test.  Erroneous states are reported with a "-" (minus) sign
+next to the expected pin state.
 
 .TP
-.B \-s
+.B \-i, \--icsp_vcc
+Use ICSP.  Not useful for TL866CS.
+
+.TP
+.B \-I, \--icsp_no_vcc
+Use ICSP (without enabling Vcc).  Not usefule for TL866CS.
+
+.TP
+.B \-s, \--no_size_error
 Do NOT error on file size mismatch (only a warning).
 
 .TP
-.B \-S
+.B \-S, \--no_size_warning
 No warning message for file size mismatch (can't combine with -s).
 
 .TP
-.B -x
-Do NOT attempt to read ID (only valid in read mode).  Avoids sending
-high Chip ID read voltages to unknown pins.
+.B \-x, \--skip_id
+Do NOT attempt to read ID (only valid in read mode).
 
 .TP
-.B \-y
-Do NOT error on ID mismatch.
+.B \-y, \--no_id_error
+Do NOT error on ID mismatch
 
 .TP
+.B \-V, \--version
+Show version information
+
+.TP
+.B \-t, \--hardware_check
+Start hardware check
+
+.TP
+.B \-F, \--update <filename>
+Update firmware.  See UPDATING FIRMWARE below.
+
+.TP
+.B \--infoic <filename>
+Set custom infoic.xml file.
+
+.TP
+.B \--logicic <filename>
+Set custom logicic.xml file.
+
+.TP
+.B \-h, \--help
+Show brief help and quit.
+
+
+.SH NOTES FOR READING AND WRITING
+.P
+If
+.B -c
+is omitted and
+.B -r
+is specified then the code, data (if applicable) and config (if
+applicable) will be written to filename.$ext, filename.eeprom.bin and
+filename.fuses.conf correspondingly. If
+.B -c
+is omitted and
+.B -w
+is specified, then
+.B -c code
+is assumed.
+.br
+By  default, when in write mode and
+.B -c config
+is specified, no erase is performed to preserve the already programmed
+data.
+.br
+However, you can force an erase in this case with the
+.B -E
+option.
+
+.P
+.B --fuses, --uid, --lock
+flags will read/write/verify/blank check fuses, user id or lock config
+section. User ID is Microchip PIC MPU family specific. For example:
+.B minipro -p atmega32 -b --fuses
+will check if fuse bits are in their default state (that is, blank state)
+
+.P
+Use
+.B \--pulse, \--vpp, \--vdd, \--vcc
+or
+.B \-o <option>
+to specify various programming options. These options are available only
+in write mode (
+.B \-w
+) and only for some devices like UV erasable EPROMs and GAL/ATF PLDs.
+.br
+Also you can specify
+.B \--vcc
+or
+.B \-o vcc
+with
 .B \-T
-Run a logic IC test.
+to specify the logic test voltage.
+.br
+Use
+.B \-d <device>
+to view if those options are supported.
 
-Errorneous states are reported with a "-" (minus) sign next to the expected
-pin state.
 
-.TP
-.B \-V
-Show version information.
+.SH UPDATING FIRMWARE
+Firmware update files can be obtained from the manufacturer's website:
+http://www.autoelectric.cn.
+.br
+They can also be downloaded and extracted from the following repository:
+https://github.com/Kreeblah/XGecu_Software.
+.br
+For the TL866A/CS, use the "update.dat" file.
+.br
+For the TL866IOI+, use the "updateII.dat" file.
 
-.TP
-.B \-t
-Start hardware check.
+==== EDIT LINE ====
 
-.TP
-.B \-f <ihex | srec>
-Specify the file format: either Intel ihex or Motorola srecord.
 
 When writing chips, this is not necessary because the file format is
 automatically detected.  There is no need to specify the exact Intex hex
@@ -187,18 +311,6 @@ is omitted and
 is specified, then
 .B -c code
 is assumed.
-
-The
-.B -i
-and
-.B -I
-options enable use of ICSP port for TL866A and TL866II+ models. The
-former enables the voltage supply on the Vcc pin of the ICSP port while
-the latter leaves it off.  These options are of no use for the TL866CS.
-
-The Minipro TL866xx series of chip programmers is distributed by
-Autoelectric.  Their website is
-.BR http://www.autoelectric.cn.
 
 .SH PIPES
 
@@ -254,6 +366,11 @@ Check whether a 74(LS/HC/...)04 hex NOT gate chip.
 was written by Valentin Dudouyt and is copyright 2014.  Many others
 have contributed code and bug reports.  Development is currently coordinated
 by David Griffith.
+
+.SH HARDWARE
+The Minipro TL866xx series of chip programmers is distributed by
+Autoelectric.  Their website is
+.BR http://www.autoelectric.cn.
 
 .SH DISTRIBUTION
 The canonical repository for
