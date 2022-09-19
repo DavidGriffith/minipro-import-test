@@ -22,10 +22,10 @@
 #include <stdint.h>
 
 #define INTEL_HEX_FORMAT 0
-#define NOT_IHEX -1
+#define NOT_IHEX	 -1
 
 int read_hex_file(uint8_t *buffer, uint8_t *data, size_t *size);
 int write_hex_file(FILE *file, uint8_t *data, uint16_t address, size_t size,
-                   int write_eof);
+		   int write_eof);
 
 #endif

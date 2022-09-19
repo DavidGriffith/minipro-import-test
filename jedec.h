@@ -22,16 +22,16 @@
 #include <stdint.h>
 
 typedef struct jedec_s {
-  const char *device_name;      // Device name
-  uint8_t F;                    // Unlisted fuses value (0-1)
-  uint8_t G;                    // Security Fuse
-  uint16_t QF;                  // How many fuses in the JEDEC file are
-  uint8_t QP;                   // Number of pins
-  uint16_t C;                   // declared fuses checksum
-  uint16_t fuse_checksum;       // calculated fuses checksum
-  uint16_t calc_file_checksum;  // calculated file checksum
-  uint16_t decl_file_checksum;  // declared file checksum
-  uint8_t *fuses;               // Fuses array
+	const char *device_name;     // Device name
+	uint8_t F;		     // Unlisted fuses value (0-1)
+	uint8_t G;		     // Security Fuse
+	uint16_t QF;		     // How many fuses in the JEDEC file are
+	uint8_t QP;		     // Number of pins
+	uint16_t C;		     // declared fuses checksum
+	uint16_t fuse_checksum;	     // calculated fuses checksum
+	uint16_t calc_file_checksum; // calculated file checksum
+	uint16_t decl_file_checksum; // declared file checksum
+	uint8_t *fuses;		     // Fuses array
 } jedec_t;
 
 int read_jedec_file(char *buffer, size_t size, jedec_t *jedec);

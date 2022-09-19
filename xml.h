@@ -20,35 +20,48 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __XML_H
 #define __XML_H
 
-#define _FILE_OFFSET_BITS  64
+#define _FILE_OFFSET_BITS 64
 
 #include <stddef.h>
 #include <stdint.h>
 
 typedef struct {
-  size_t z;
-  const uint8_t *b;
+	size_t z;
+	const uint8_t *b;
 } Memblock;
 
 typedef struct {
-  uint8_t *b;
-  size_t i, g, e;
+	uint8_t *b;
+	size_t i, g, e;
 } MemMan;
 
 typedef struct {
-  void *inputcbdata;
-  int (*worker)();
-  void *userdata;
-  MemMan mm;
-  size_t level;
-  const uint8_t *content;
-  size_t contentlen;
+	void *inputcbdata;
+	int (*worker)();
+	void *userdata;
+	MemMan mm;
+	size_t level;
+	const uint8_t *content;
+	size_t contentlen;
 } Parser;
 
-enum { XML_OK, ERRMEM, ERRHIERAR, ERREND };
-enum { SELFCLOSE_, COMMENT_, PROLOG_, NORMALCLOSE_, FRAMECLOSE_, OPENTAG_, UNKNOWN_ };
+enum {
+	XML_OK,
+	ERRMEM,
+	ERRHIERAR,
+	ERREND
+};
+enum {
+	SELFCLOSE_,
+	COMMENT_,
+	PROLOG_,
+	NORMALCLOSE_,
+	FRAMECLOSE_,
+	OPENTAG_,
+	UNKNOWN_
+};
 
 int parse(Parser *);
 void done(Parser *);
-Memblock get_attribute(const uint8_t *, size_t, const char*);
+Memblock get_attribute(const uint8_t *, size_t, const char *);
 #endif

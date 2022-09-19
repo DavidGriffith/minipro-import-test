@@ -18,8 +18,11 @@
 #ifndef BITBANG_H_
 #define BITBANG_H_
 
-
-enum pwr_pin_type { GND_PIN, VCC_PIN, VPP_PIN };
+enum pwr_pin_type {
+	GND_PIN,
+	VCC_PIN,
+	VPP_PIN
+};
 
 // Bit-banging functions
 int bb_begin_transaction(minipro_handle_t *);
