@@ -19,35 +19,35 @@
 #define __TL866IIPLUS_H
 
 #define TL866IIPLUS_FIRMWARE_VERSION 0x283
-#define TL866IIPLUS_FIRMWARE_STRING "04.2.131"
+#define TL866IIPLUS_FIRMWARE_STRING  "04.2.131"
 
 // TL866II+ low level functions.
 int tl866iiplus_begin_transaction(minipro_handle_t *handle);
 int tl866iiplus_end_transaction(minipro_handle_t *handle);
 int tl866iiplus_read_block(minipro_handle_t *handle, uint8_t type,
-                           uint32_t addr, uint8_t *buffer, size_t len);
+			   uint32_t addr, uint8_t *buffer, size_t len);
 int tl866iiplus_write_block(minipro_handle_t *handle, uint8_t type,
-                            uint32_t addr, uint8_t *buffer, size_t len);
+			    uint32_t addr, uint8_t *buffer, size_t len);
 int tl866iiplus_protect_off(minipro_handle_t *handle);
 int tl866iiplus_protect_on(minipro_handle_t *handle);
 int tl866iiplus_get_ovc_status(minipro_handle_t *handle,
-                               minipro_status_t *status, uint8_t *ovc);
+			       minipro_status_t *status, uint8_t *ovc);
 int tl866iiplus_get_chip_id(minipro_handle_t *handle, uint8_t *type,
-                            uint32_t *device_id);
+			    uint32_t *device_id);
 int tl866iiplus_spi_autodetect(minipro_handle_t *handle, uint8_t type,
-                               uint32_t *device_id);
+			       uint32_t *device_id);
 int tl866iiplus_read_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
-                           uint8_t items_count, uint8_t *buffer);
+			   uint8_t items_count, uint8_t *buffer);
 int tl866iiplus_write_fuses(minipro_handle_t *handle, uint8_t type, size_t size,
-                            uint8_t items_count, uint8_t *buffer);
+			    uint8_t items_count, uint8_t *buffer);
 int tl866iiplus_read_calibration(minipro_handle_t *handle, uint8_t *buffer,
-                                 size_t len);
+				 size_t len);
 int tl866iiplus_erase(minipro_handle_t *handle);
 int tl866iiplus_unlock_tsop48(minipro_handle_t *handle, uint8_t *status);
 int tl866iiplus_write_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                                uint8_t row, uint8_t flags, size_t size);
+				uint8_t row, uint8_t flags, size_t size);
 int tl866iiplus_read_jedec_row(minipro_handle_t *handle, uint8_t *buffer,
-                               uint8_t row, uint8_t flags, size_t size);
+			       uint8_t row, uint8_t flags, size_t size);
 int tl866iiplus_hardware_check(minipro_handle_t *handle);
 int tl866iiplus_firmware_update(minipro_handle_t *handle, const char *firmware);
 int tl866iiplus_pin_test(minipro_handle_t *handle);

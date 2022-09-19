@@ -22,10 +22,10 @@
 #include <stdint.h>
 
 #define SREC_FORMAT 0
-#define NOT_SREC -1
+#define NOT_SREC    -1
 
 int read_srec_file(uint8_t *buffer, uint8_t *data, size_t *size);
 int write_srec_file(FILE *file, uint8_t *data, uint32_t address, size_t size,
-                    int write_rec_count);
+		    int write_rec_count);
 
 #endif
