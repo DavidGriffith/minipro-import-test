@@ -1214,8 +1214,7 @@ int read_jedec(minipro_handle_t *handle, jedec_t *jedec)
 
 	// Read Power-Down bit
 	if ((config->powerdown_row != 0) &&
-	    (handle->device->voltages.vdd &
-	     LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE)) {
+	    (handle->device->flags.has_power_down)) {
 		if (minipro_read_jedec_row(handle, buffer,
 					   config->powerdown_row, 0, 1))
 			return EXIT_FAILURE;
@@ -1294,10 +1293,9 @@ int write_jedec(minipro_handle_t *handle, jedec_t *jedec)
 	// Disable Power-Down by writing to specific power-down row
 	if (config->powerdown_row != 0) {
 		// only '0' bits shall be written
-		if (((handle->device->voltages.vdd &
-		      LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE) &&
+		if (((handle->device->flags.has_power_down) &&
 		     (jedec->fuses[jedec->QF - 1] == 0)) ||
-		    (handle->device->voltages.vdd & POWERDOWN_MODE_DISABLE)) {
+		     (handle->device->flags.is_powerdown_disabled)) {
 			memset(buffer, 0, sizeof(buffer));
 			if (minipro_write_jedec_row(handle, buffer,
 						    config->powerdown_row, 0,
