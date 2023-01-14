@@ -138,6 +138,9 @@ typedef struct flags {
 	uint8_t can_adjust_vpp;
 	uint8_t can_adjust_vcc;
 	uint8_t custom_protocol;
+	uint8_t has_power_down;
+	uint8_t is_powerdown_disabled;
+
 	uint32_t raw_flags;
 } flags_t;
 

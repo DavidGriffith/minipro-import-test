@@ -348,6 +348,8 @@ static int load_mem_device(db_data_t *db_data, const uint8_t *xml_device,
 									   0;
 	device->flags.can_adjust_vpp = device->chip_info == MP_VOLTAGES2 ? 1 :
 									   0;
+	device->flags.has_power_down = (voltages & LAST_JEDEC_BIT_IS_POWERDOWN_ENABLE)!= 0;
+	device->flags.is_powerdown_disabled = (voltages & POWERDOWN_MODE_DISABLE) != 0;
 
 	// Check for custom defined protocol
 	device->protocol_id = (uint8_t)protocol_id;
