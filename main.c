@@ -161,7 +161,7 @@ void print_help_and_exit(char *progname)
 	char usage[] =
 		"minipro version %s     A free and open TL866XX programmer\n"
 		"Usage: %s [options]\n"
-		"See the manual page (type \"man minipro\" for documentation.\n\n";
+		"See the manual page (type \"man minipro\" for documentation)\n\n";
 	fprintf(stderr, usage, VERSION, basename(progname));
 	exit(EXIT_FAILURE);
 }
