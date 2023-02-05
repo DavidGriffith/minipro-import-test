@@ -1,11 +1,11 @@
-# .SPEC-file to package RPMs for Fedora and CentOS
+# .SPEC-file to package RPMs for openSUSE
 
 %define project_base_url https://gitlab.com/DavidGriffith
-%define completions_dir %(pkgconf  --silence-errors --variable=completionsdir bash-completion)
+%define completions_dir %{_sysconfdir}/bash_completion.d
 
 # build like this:
-# spectool -g -R SPECS/minipro.spec
-# rpmbuild -ba SPECS/minipro.spec
+# rpmdev-spectool -f -g -R rpm/minipro-opensuse.spec
+# rpmbuild -ba rpm/minipro-opensuse.spec
 
 Summary: Program for controlling the MiniPRO TL866xx series of chip programmers
 Name: minipro
@@ -17,7 +17,7 @@ Release: 1
 License: GPLv3
 URL: %{project_base_url}/%{name}
 Source: %{project_base_url}/%{name}/-/archive/master/%{name}-master.tar.gz
-BuildRequires: libusbx-devel
+BuildRequires: libusb-1_0-devel
 
 %description
 Software for Minipro TL866XX series of programmers from autoelectric.cn
