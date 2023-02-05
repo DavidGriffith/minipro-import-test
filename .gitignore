@@ -5,3 +5,4 @@ version.h
 version.c
 *.tar
 *.gz
+.idea
