@@ -963,7 +963,16 @@ int tl866iiplus_firmware_update(minipro_handle_t *handle, const char *firmware)
 
 int tl866iiplus_pin_test(minipro_handle_t *handle)
 {
-	uint8_t msg[48], pins[40];
+
+	// for mapping the programmer pin numbers to the device pin numbers
+	int p_pins = 40;
+	int d_pins = handle->device->package_details.pin_count;
+	int p_pin = 0;
+	int d_pin = 0;
+	int x_pin = d_pins/2;
+	int pno = p_pins-d_pins;
+
+	uint8_t msg[48], pins[p_pins];
 	int i;
 	db_data_t db_data;
 	memset(&db_data, 0, sizeof(db_data));
@@ -1071,9 +1080,16 @@ int tl866iiplus_pin_test(minipro_handle_t *handle)
 
 	// Now check for bad pin contact
 	ret = EXIT_SUCCESS;
+
 	for (i = 0; i < map->mask_count; i++) {
-		if (!pins[map->mask[i] - 1]) {
-			fprintf(stderr, "Bad contact on pin:%u\n", i + 1);
+
+		// map programmer pin# to device pin#
+		p_pin = map->mask[i];
+		d_pin = p_pin;
+		if (p_pin > x_pin) d_pin = p_pin - pno;
+
+		if (!pins[p_pin - 1]) {
+			fprintf(stderr, "Bad contact on pin:%u\n",d_pin);
 			ret = EXIT_FAILURE;
 		}
 	}
