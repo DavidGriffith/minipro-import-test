@@ -1080,7 +1080,6 @@ int tl866iiplus_pin_test(minipro_handle_t *handle)
 
 	// Now check for bad pin contact
 	ret = EXIT_SUCCESS;
-
 	for (i = 0; i < map->mask_count; i++) {
 
 		// map programmer pin# to device pin#
