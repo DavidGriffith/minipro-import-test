@@ -48,6 +48,11 @@ sudo apt-get install build-essential pkg-config git libusb-1.0-0-dev
 sudo yum install gcc make pkgconfig git libusbx-devel
 ```
 
+#### openSUSE
+```nohighlight
+sudo zypper install gcc make git-core srecord rpmdevtools libusb-1_0-devel
+```
+
 ### Checkout source code and compile 
 ```nohighlight
 git clone https://gitlab.com/DavidGriffith/minipro.git
@@ -109,8 +114,8 @@ You can then `dput` the `*.changes` file in `../build-area` to your PPA.
 
 ### Making a .rpm package
 
-You can build RPM packages for Fedora and CentOS with the supplied
-minipro.spec.
+You can build RPM packages for Fedora, CentOS and openSUSE with the supplied
+`rpm/minipro-*.spec` files.
 
 First make sure you have a RPM build environment set up. You need to have
 the rpmdevtools package installed and a `rpmbuild` directory tree within
@@ -118,16 +123,21 @@ your homedir. Use the `rpmdev-setuptree` command to create the rpmbuild
 directory tree if it does not exist yet.
 
 Since minipro does not yet make official releases with version numbers
-and tags, you have to choose a specific git commit to build. Open the
-minipro.spec file and adapt the "commit" and "commitdate" definitions.
-You can get these either with `git log` or from the Gitlab project page.
+and tags, it will build the master branch by default.
 
 Then use these commands to download the source tarballs from Gitlab and
-build the package:
+build the package for Fedora and CentOS:
 
 ```nohighlight
-spectool -g -R minipro.spec
-rpmbuild -ba minipro.spec
+spectool -g -R rpm/minipro-fedora.spec
+rpmbuild -ba rpm/minipro-fedora.spec
+```
+
+Or for openSUSE:
+
+```nohighlight
+rpmdev-spectool -f -g -R rpm/minipro-opensuse.spec
+rpmbuild -ba rpm/minipro-opensuse.spec
 ```
 
 The final RPMs can be found below `~/rpmbuild/RPMS/`
