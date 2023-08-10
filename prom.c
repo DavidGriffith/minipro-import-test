@@ -259,15 +259,11 @@ int prom_init(minipro_handle_t *handle)
 		    pin_count);
 	set_io_pins(zif_dir, prom_table[type].ce_hi_pins, MP_PIN_DIRECTION_OUT,
 		    pin_count);
-	set_io_pins(zif_dir, prom_table[type].ce_unk_pins, MP_PIN_DIRECTION_OUT,
-		    pin_count);
 
 	// Set chip enable pins state to disabled
 	set_io_pins(zif_state, prom_table[type].ce_lo_pins, 1, pin_count);
 	set_io_pins(zif_state, prom_table[type].ce_hi_pins, 0, pin_count);
 
-	// Set unknown chip enable pins to 0, as a default
-	set_io_pins(zif_state, prom_table[type].ce_unk_pins, 0, pin_count);
 	if (handle->minipro_set_zif_direction(handle, zif_dir))
 		return EXIT_FAILURE;
 	if (handle->minipro_set_zif_state(handle, zif_state))
@@ -393,7 +389,7 @@ int prom_read(minipro_handle_t *handle, uint32_t address, uint8_t *buffer,
 	for (int i = 0; i < lenght; i++) {
 		// Set address value to zif pins
 		set_bits(zif_state, prom_table[type].addr_bus_pins, address + i,
-				 pin_count);
+			 pin_count);
 		if (handle->minipro_set_zif_state(handle, zif_state))
 			return EXIT_FAILURE;
 
