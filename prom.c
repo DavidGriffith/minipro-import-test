@@ -35,7 +35,6 @@ typedef struct prom {
 	uint8_t *addr_bus_pins; // address bus pins lsb to msb order
 	uint8_t *ce_lo_pins;	// chip enable pins required to be low
 	uint8_t *ce_hi_pins;	// chip enable pins required to be high
-	uint8_t *ce_unk_pins;	// chip enable pins programmed into the ROM
 	uint16_t compare_mask;	// and mask for relevant bits
 } prom_t;
 
@@ -393,8 +392,8 @@ int prom_read(minipro_handle_t *handle, uint32_t address, uint8_t *buffer,
 	// Read length bytes
 	for (int i = 0; i < lenght; i++) {
 		// Set address value to zif pins
-		set_bits(zif_state, prom_table[type].addr_bus_pins,
-			 address + i, pin_count);
+		set_bits(zif_state, prom_table[type].addr_bus_pins, address + i,
+				 pin_count);
 		if (handle->minipro_set_zif_state(handle, zif_state))
 			return EXIT_FAILURE;
 
