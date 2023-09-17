@@ -52,14 +52,14 @@ ifeq ($(PKG_CONFIG),)
 endif
 
 ifeq ($(OS),Windows_NT)
-    USB = usb_win.o
+    USB = src/usb_win.o
 else
-    USB = usb_nix.o
+    USB = src/usb_nix.o
 endif
 
-COMMON_OBJECTS=xml.o jedec.o ihex.o srec.o database.o bitbang.o prom.o \
-               minipro.o tl866a.o tl866iiplus.o version.o $(USB)
-OBJECTS=$(COMMON_OBJECTS) main.o
+COMMON_OBJECTS=src/xml.o src/jedec.o src/ihex.o src/srec.o src/database.o src/bitbang.o src/prom.o \
+               src/minipro.o src/tl866a.o src/tl866iiplus.o src/version.o $(USB)
+OBJECTS=$(COMMON_OBJECTS) src/main.o
 PROGS=minipro
 STATIC_LIB=libminipro.a
 MINIPRO=minipro
@@ -120,8 +120,11 @@ $(VERSION_STRINGS):
 
 $(OBJECTS): $(VERSION_HEADER)
 
-minipro: $(VERSION_STRINGS) $(COMMON_OBJECTS) main.o
-	$(CC) $(LDFLAGS) $(COMMON_OBJECTS) main.o $(LIBS) -o $(MINIPRO)
+src/%.o: src/%.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ -Iinclude
+
+minipro: $(VERSION_STRINGS) $(COMMON_OBJECTS) src/main.o
+	$(CC) $(LDFLAGS) $(COMMON_OBJECTS) src/main.o $(LIBS) -o $(MINIPRO)
 
 library: $(VERSION_STRINGS) $(COMMON_OBJECTS)
 	ar ru $(STATIC_LIB) $(VERSION_OBJ) $(COMMON_OBJECTS)
